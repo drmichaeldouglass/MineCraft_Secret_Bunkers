@@ -64,6 +64,32 @@ test("600 layouts: required rooms, non-overlap, floor alignment, bounds, unique 
     }
   }
 });
+test("every generated fixture claims a distinct block",()=>{
+  // A shared position silently hides one fixture behind another in the interact registry
+  // and lets a later installation overwrite an earlier block.
+  for(let levels=3;levels<=8;levels++){
+    const f=planBunker({x:-32,y:80,z:10},levels,levels*31,true),seen=new Map();
+    const claim=(pos,label)=>{
+      const k=`${Math.floor(pos.x)},${Math.floor(pos.y)},${Math.floor(pos.z)}`;
+      assert.equal(seen.get(k),undefined,`${levels} floors: ${label} shares ${k} with ${seen.get(k)}`);
+      seen.set(k,label);
+    };
+    for(const station of f.consoles)claim(station.pos,`console:${station.kind}`);
+    for(const floor of f.floors)claim(floor.panel,`panel:${floor.name}`);
+    for(const light of f.lights)claim(light,"light");
+    for(const turret of f.turrets)claim({...turret.pos,y:turret.pos.y-1},`mount:${turret.id}`);
+    for(const door of f.doors){
+      for(let x=door.min.x;x<=door.max.x;x++)for(let y=door.min.y;y<=door.max.y;y++)for(let z=door.min.z;z<=door.max.z;z++)
+        claim({x,y,z},`door:${door.id}`);
+      for(const reader of door.readers)claim(reader,`reader:${door.id}`);
+    }
+    for(const laser of f.lasers){
+      const flat=laser.a.y===laser.b.y;
+      claim(flat?{...laser.a,z:laser.a.z-1}:{...laser.a,y:laser.a.y-1},"emitter");
+      claim(flat?{...laser.b,z:laser.b.z+1}:{...laser.b,y:Math.ceil(laser.b.y)},"receiver");
+    }
+  }
+});
 test("seed repeatability and invalid depth guards",()=>{
   const args=[{x:0,y:80,z:0},5,901,true];assert.deepEqual(planBunker(...args),planBunker(...args));
   assert.notDeepEqual(planBunker(...args).modules,planBunker(args[0],5,902,true).modules);

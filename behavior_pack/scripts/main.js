@@ -42,6 +42,8 @@ world.afterEvents.worldLoad.subscribe(() => {
         const f = facilities.get(id);
         if (f)
             save(f);
+        else
+            dirty.delete(id);
     } }), 40);
     console.warn("[Secret Facilities] 0.1.0 loaded. Creative inventory → Facility Deployment Device. /scriptevent secretfacilities:kit supplies a kit.");
 });

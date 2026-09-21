@@ -102,6 +102,8 @@ export function tickLasers() {
         if (f.phase !== "ready" || !f.lasersEnabled || f.state === "DESTROYED" || f.state === "SELF_DESTRUCT" || !nearby(f))
             continue;
         const d = dim(f), local = players.filter(p => p.dimension.id === f.dimension && inside(p.location, f.bounds));
+        // Reading clearance scans a whole inventory; do it once per tick, not once per beam.
+        const watched = local.filter(p => getClearance(p) < 4);
         for (let i = 0; i < f.lasers.length; i++) {
             const laser = f.lasers[i];
             if (!local.some(p => distance(p.location, laser.a) < 14))
@@ -111,9 +113,7 @@ export function tickLasers() {
             if ((i + sensorCursor) % 3 === 0)
                 beam(d, laser.a, laser.b, 0.9, 8);
             const obstruction = !lineClear(d, laser.a, laser.b);
-            const crossed = local.some(p => {
-                if (getClearance(p) >= 4)
-                    return false;
+            const crossed = watched.some(p => {
                 const old = previous.get(p.id) ?? p.location, current = p.location;
                 // Interpolate fast movement so walking across between sensor ticks is detected.
                 const steps = Math.min(16, Math.max(1, Math.ceil(distance(old, current) / 0.3)));
@@ -143,11 +143,13 @@ export function tickAlarms() {
         if (f.phase !== "ready" || !nearby(f))
             continue;
         const d = dim(f), alarm = f.state === "ALERT" || f.state === "LOCKDOWN" || f.state === "SELF_DESTRUCT";
+        const lit = alarm && system.currentTick % 40 < 20;
         for (const pos of f.lights)
             try {
                 const block = d.getBlock(pos);
-                if (block?.typeId === NS + "emergency_light")
-                    set(d, pos, "emergency_light", { [NS + "active"]: alarm && system.currentTick % 40 < 20 });
+                // Re-applying an identical permutation still costs a block update and a relight for every nearby player.
+                if (block?.typeId === NS + "emergency_light" && block.permutation.getState(NS + "active") !== lit)
+                    set(d, pos, "emergency_light", { [NS + "active"]: lit });
             }
             catch { /* Unloaded lamps are reconciled when active again. */ }
         if (alarm && alarmPhase === 0)

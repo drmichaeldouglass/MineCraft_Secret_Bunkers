@@ -22,7 +22,7 @@ world.afterEvents.worldLoad.subscribe(()=>{
   system.runInterval(safe(tickLasers),5);
   system.runInterval(safe(tickDefence),5);
   system.runInterval(safe(tickAlarms),10);
-  system.runInterval(safe(()=>{for(const id of [...dirty]){const f=facilities.get(id);if(f)save(f);}}),40);
+  system.runInterval(safe(()=>{for(const id of [...dirty]){const f=facilities.get(id);if(f)save(f);else dirty.delete(id);}}),40);
   console.warn("[Secret Facilities] 0.1.0 loaded. Creative inventory → Facility Deployment Device. /scriptevent secretfacilities:kit supplies a kit.");
 });
 system.afterEvents.scriptEventReceive.subscribe(event=>{

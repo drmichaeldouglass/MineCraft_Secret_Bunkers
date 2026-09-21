@@ -27,7 +27,9 @@ export function load() {
             for (let i = 0; i < count; i++)
                 text += String(world.getDynamicProperty(`${prefix}:${bank}:${i}`) ?? "");
             const f = JSON.parse(text);
-            if (f.schema !== 1 || f.id !== id || !Array.isArray(f.doors) || !Array.isArray(f.modules))
+            // Every list below is walked by a shared tick loop, so one bad snapshot must not poison the others.
+            const lists = [f.doors, f.modules, f.floors, f.lasers, f.lights, f.turrets, f.consoles];
+            if (f.schema !== 1 || f.id !== id || !lists.every(Array.isArray) || !f.floors.length || !Object.keys(f.zones ?? {}).length)
                 throw Error("Unsupported facility save");
             // Generations interrupted by world closure can be resumed explicitly.
             if (f.phase === "building")

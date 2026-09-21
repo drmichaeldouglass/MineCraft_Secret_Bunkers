@@ -98,7 +98,9 @@ export function build(f, player) {
                 save(f);
                 active.delete(f.id);
                 system.clearRun(task);
-                tell(player, `§aBunker ready: ${f.id}. Entrance faces north (−Z). Use the outside reader with a keycard.`);
+                // Messaging a departed player throws; a finished build must not fall into the failure path.
+                if (player.isValid)
+                    tell(player, `§aBunker ready: ${f.id}. Entrance faces north (−Z). Use the outside reader with a keycard.`);
                 return;
             }
             ops[f.buildStep]();

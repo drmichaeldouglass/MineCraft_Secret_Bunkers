@@ -62,7 +62,9 @@ export function build(f:Facility,player:Player):void {
     try{
       if(f.buildStep>=ops.length){
         f.phase="ready";save(f);active.delete(f.id);system.clearRun(task);
-        tell(player,`§aBunker ready: ${f.id}. Entrance faces north (−Z). Use the outside reader with a keycard.`);return;
+        // Messaging a departed player throws; a finished build must not fall into the failure path.
+        if(player.isValid)tell(player,`§aBunker ready: ${f.id}. Entrance faces north (−Z). Use the outside reader with a keycard.`);
+        return;
       }
       ops[f.buildStep]();f.buildStep++;mark(f);
       if(f.buildStep%15===0){save(f);if(player.isValid)player.onScreenDisplay.setActionBar(`Building Secret Facilities • ${Math.floor(f.buildStep/ops.length*100)}%`);}

@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — bug fixes
+
+- Fixed the self-destruct console sharing a block with B3's security console, which made the entire self-destruct sequence unreachable: the console opened the security menu instead, and confirming "arm" silently raised an alert.
+- Fixed a finished build being recorded as `failed` when the builder disconnected before the completion message could be delivered.
+- Fixed persisted snapshots being accepted with missing `floors`, `lasers`, `lights`, `turrets`, `consoles` or `zones`, where a single bad facility aborted a shared tick handler for every facility in the world.
+- Laser grids now read each player's clearance once per tick instead of once per beam per player, removing an inventory scan per beam.
+- Alarm lamps now write a permutation only when the lit state actually changes, instead of re-applying an identical permutation to every lamp every 10 ticks.
+- Cleared stale ids from the pending-save set so they cannot accumulate.
+- `tools/package.py` now writes archive entries with forward slashes on every host OS.
+- Added a planner regression test asserting that every generated fixture claims a distinct block.
+
 ## 0.1.0 — 2026-09-21
 
 Initial command-bunker alpha built from the supplied Secret Facilities plan.

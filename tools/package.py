@@ -19,7 +19,7 @@ def main():
     for folder,label in [("behavior_pack","Behavior"),("resource_pack","Resources")]:
         root=ROOT/folder
         assert (root/"manifest.json").exists()
-        data=archive([(str(p.relative_to(root)),p.read_bytes()) for p in root.rglob("*") if p.is_file() and not p.name.startswith(".")])
+        data=archive([(p.relative_to(root).as_posix(),p.read_bytes()) for p in root.rglob("*") if p.is_file() and not p.name.startswith(".")])
         name=f"Secret_Facilities_{label}.mcpack";(out/name).write_bytes(data);packs.append((name,data))
     name="Secret_Facilities_0.1.0.mcaddon";data=archive(packs);(out/name).write_bytes(data)
     with zipfile.ZipFile(io.BytesIO(data)) as outer:

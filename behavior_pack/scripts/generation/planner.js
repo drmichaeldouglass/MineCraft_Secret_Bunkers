@@ -57,7 +57,9 @@ export function planBunker(origin, levels, seed, defences, id = `sf_${seed >>> 0
         f.lasers.push({ a: p(43.5, dy + 1.3, 19.5), b: p(43.5, dy + 4.7, 19.5), response: "ALERT" });
         f.doors.push({ id: `shutter_${level}`, min: p(24, dy + 2, 17), max: p(24, dy + 3, 21), clearance: 4, open: true, kind: "shutter", readers: [] });
     }
-    f.consoles.push({ pos: p(30, -27 + 2, 22), kind: "destruct", zone: "command" });
+    // B3 command deck. x=28/30 already hold that floor's defence and security consoles;
+    // a shared position would hide one console behind the other in the registry lookup.
+    f.consoles.push({ pos: p(32, -27 + 2, 22), kind: "destruct", zone: "command" });
     if (defences) {
         f.turrets.push({ id: "entrance_left", pos: p(24.5, 2, -3.5), zone: "entrance", enabled: true, damaged: false }, { id: "entrance_right", pos: p(40.5, 2, -3.5), zone: "entrance", enabled: true, damaged: false }, { id: "command", pos: p(59.5, -25, 17.5), zone: "command", enabled: true, damaged: false });
     }
