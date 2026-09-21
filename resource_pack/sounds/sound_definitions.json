@@ -1,0 +1,71 @@
+{
+  "format_version": "1.14.0",
+  "sound_definitions": {
+    "secretfacilities:access_granted": {
+      "category": "block",
+      "sounds": [
+        "sounds/secretfacilities/access_granted"
+      ]
+    },
+    "secretfacilities:access_denied": {
+      "category": "block",
+      "sounds": [
+        "sounds/secretfacilities/access_denied"
+      ]
+    },
+    "secretfacilities:alarm_alert": {
+      "category": "block",
+      "sounds": [
+        "sounds/secretfacilities/alarm_alert"
+      ]
+    },
+    "secretfacilities:alarm_lockdown": {
+      "category": "block",
+      "sounds": [
+        "sounds/secretfacilities/alarm_lockdown"
+      ]
+    },
+    "secretfacilities:blast_door_movement": {
+      "category": "block",
+      "sounds": [
+        "sounds/secretfacilities/blast_door_movement"
+      ]
+    },
+    "secretfacilities:blast_door_warning": {
+      "category": "block",
+      "sounds": [
+        "sounds/secretfacilities/blast_door_warning"
+      ]
+    },
+    "secretfacilities:elevator_move": {
+      "category": "block",
+      "sounds": [
+        "sounds/secretfacilities/elevator_move"
+      ]
+    },
+    "secretfacilities:elevator_arrive": {
+      "category": "block",
+      "sounds": [
+        "sounds/secretfacilities/elevator_arrive"
+      ]
+    },
+    "secretfacilities:laser_turret_fire": {
+      "category": "block",
+      "sounds": [
+        "sounds/secretfacilities/laser_turret_fire"
+      ]
+    },
+    "secretfacilities:warning_beep": {
+      "category": "block",
+      "sounds": [
+        "sounds/secretfacilities/warning_beep"
+      ]
+    },
+    "secretfacilities:destruction": {
+      "category": "block",
+      "sounds": [
+        "sounds/secretfacilities/destruction"
+      ]
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "format_version": "1.21.90",
+  "minecraft:item": {
+    "description": {
+      "identifier": "secretfacilities:facility_deployment_device",
+      "menu_category": {
+        "category": "items"
+      }
+    },
+    "components": {
+      "minecraft:icon": {
+        "textures": {
+          "default": "facility_deployment_device"
+        }
+      },
+      "minecraft:display_name": {
+        "value": "item.secretfacilities:facility_deployment_device.name"
+      },
+      "minecraft:max_stack_size": 1,
+      "secretfacilities:use_device": {}
+    }
+  }
+}

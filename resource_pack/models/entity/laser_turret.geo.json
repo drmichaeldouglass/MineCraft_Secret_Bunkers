@@ -1,0 +1,182 @@
+{
+  "format_version": "1.12.0",
+  "minecraft:geometry": [
+    {
+      "description": {
+        "identifier": "geometry.secretfacilities.laser_turret",
+        "texture_width": 64,
+        "texture_height": 64,
+        "visible_bounds_width": 3,
+        "visible_bounds_height": 3,
+        "visible_bounds_offset": [
+          0,
+          1,
+          0
+        ]
+      },
+      "bones": [
+        {
+          "name": "base",
+          "pivot": [
+            0,
+            0,
+            0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -7,
+                0,
+                -7
+              ],
+              "size": [
+                14,
+                3,
+                14
+              ],
+              "uv": [
+                0,
+                0
+              ]
+            }
+          ]
+        },
+        {
+          "name": "yaw_mount",
+          "parent": "base",
+          "pivot": [
+            0,
+            6,
+            0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -4,
+                3,
+                -4
+              ],
+              "size": [
+                8,
+                6,
+                8
+              ],
+              "uv": [
+                0,
+                30
+              ]
+            }
+          ]
+        },
+        {
+          "name": "pitch_mount",
+          "parent": "yaw_mount",
+          "pivot": [
+            0,
+            12,
+            0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -5,
+                9,
+                -5
+              ],
+              "size": [
+                10,
+                6,
+                10
+              ],
+              "uv": [
+                0,
+                30
+              ]
+            }
+          ]
+        },
+        {
+          "name": "barrel",
+          "parent": "pitch_mount",
+          "pivot": [
+            0,
+            12,
+            -3
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -2,
+                11,
+                -15
+              ],
+              "size": [
+                4,
+                3,
+                12
+              ],
+              "uv": [
+                32,
+                0
+              ]
+            }
+          ]
+        },
+        {
+          "name": "emitter",
+          "parent": "barrel",
+          "pivot": [
+            0,
+            12,
+            -15
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -2,
+                11,
+                -16
+              ],
+              "size": [
+                4,
+                3,
+                1
+              ],
+              "uv": [
+                48,
+                40
+              ]
+            }
+          ]
+        },
+        {
+          "name": "status_light",
+          "parent": "yaw_mount",
+          "pivot": [
+            0,
+            16,
+            0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -2,
+                15,
+                -1
+              ],
+              "size": [
+                4,
+                2,
+                2
+              ],
+              "uv": [
+                48,
+                48
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

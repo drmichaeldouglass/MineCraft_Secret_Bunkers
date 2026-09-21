@@ -1,0 +1,27 @@
+{
+  "resource_pack_name": "secret_facilities",
+  "texture_name": "atlas.items",
+  "texture_data": {
+    "keycard_green": {
+      "textures": "textures/items/keycard_green"
+    },
+    "keycard_blue": {
+      "textures": "textures/items/keycard_blue"
+    },
+    "keycard_red": {
+      "textures": "textures/items/keycard_red"
+    },
+    "keycard_black": {
+      "textures": "textures/items/keycard_black"
+    },
+    "keycard_master": {
+      "textures": "textures/items/keycard_master"
+    },
+    "facility_deployment_device": {
+      "textures": "textures/items/facility_deployment_device"
+    },
+    "facility_debug_scanner": {
+      "textures": "textures/items/facility_debug_scanner"
+    }
+  }
+}

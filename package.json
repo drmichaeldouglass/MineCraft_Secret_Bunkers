@@ -1,0 +1,19 @@
+{
+  "name": "secret-facilities",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --import ./tests/register.mjs --test tests/*.test.mjs",
+    "assets": "python3 tools/build_assets.py",
+    "validate": "python3 tools/validate.py",
+    "package": "python3 tools/package.py"
+  },
+  "devDependencies": {
+    "@minecraft/common": "1.2.0",
+    "@minecraft/server": "2.0.0",
+    "@minecraft/server-ui": "2.0.0",
+    "typescript": "5.8.3"
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "format_version": "1.21.90",
+  "minecraft:block": {
+    "description": {
+      "identifier": "secretfacilities:emergency_light",
+      "menu_category": {
+        "category": "construction"
+      },
+      "states": {
+        "secretfacilities:active": [
+          false,
+          true
+        ]
+      }
+    },
+    "components": {
+      "minecraft:destructible_by_mining": {
+        "seconds_to_destroy": 4
+      },
+      "minecraft:destructible_by_explosion": {
+        "explosion_resistance": 1200
+      },
+      "minecraft:geometry": "minecraft:geometry.full_block",
+      "minecraft:material_instances": {
+        "*": {
+          "texture": "emergency_light",
+          "render_method": "opaque"
+        }
+      },
+      "minecraft:map_color": "#672c27",
+      "minecraft:light_emission": 2
+    },
+    "permutations": [
+      {
+        "condition": "q.block_state('secretfacilities:active')",
+        "components": {
+          "minecraft:light_emission": 15,
+          "minecraft:material_instances": {
+            "*": {
+              "texture": "alarm_on",
+              "render_method": "opaque"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

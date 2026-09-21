@@ -1,0 +1,152 @@
+{
+  "resource_pack_name": "secret_facilities",
+  "texture_name": "atlas.terrain",
+  "padding": 8,
+  "num_mip_levels": 4,
+  "texture_data": {
+    "reinforced_concrete": {
+      "textures": "textures/blocks/reinforced_concrete"
+    },
+    "dark_reinforced_concrete": {
+      "textures": "textures/blocks/dark_reinforced_concrete"
+    },
+    "light_reinforced_concrete": {
+      "textures": "textures/blocks/light_reinforced_concrete"
+    },
+    "concrete_panel": {
+      "textures": "textures/blocks/concrete_panel"
+    },
+    "concrete_warning_stripe": {
+      "textures": "textures/blocks/concrete_warning_stripe"
+    },
+    "steel_wall": {
+      "textures": "textures/blocks/steel_wall"
+    },
+    "steel_plate": {
+      "textures": "textures/blocks/steel_plate"
+    },
+    "riveted_steel": {
+      "textures": "textures/blocks/riveted_steel"
+    },
+    "industrial_floor": {
+      "textures": "textures/blocks/industrial_floor"
+    },
+    "diamond_plate_floor": {
+      "textures": "textures/blocks/diamond_plate_floor"
+    },
+    "grated_floor": {
+      "textures": "textures/blocks/grated_floor"
+    },
+    "bunker_ceiling_panel": {
+      "textures": "textures/blocks/bunker_ceiling_panel"
+    },
+    "blast_resistant_glass": {
+      "textures": "textures/blocks/blast_resistant_glass"
+    },
+    "security_glass": {
+      "textures": "textures/blocks/security_glass"
+    },
+    "ventilation_grille": {
+      "textures": "textures/blocks/ventilation_grille"
+    },
+    "large_vent": {
+      "textures": "textures/blocks/large_vent"
+    },
+    "pipe": {
+      "textures": "textures/blocks/pipe"
+    },
+    "pipe_junction": {
+      "textures": "textures/blocks/pipe_junction"
+    },
+    "cable_tray": {
+      "textures": "textures/blocks/cable_tray"
+    },
+    "electrical_cabinet": {
+      "textures": "textures/blocks/electrical_cabinet"
+    },
+    "generator_panel": {
+      "textures": "textures/blocks/generator_panel"
+    },
+    "server_rack": {
+      "textures": "textures/blocks/server_rack"
+    },
+    "control_cabinet": {
+      "textures": "textures/blocks/control_cabinet"
+    },
+    "utility_panel": {
+      "textures": "textures/blocks/utility_panel"
+    },
+    "industrial_light": {
+      "textures": "textures/blocks/industrial_light"
+    },
+    "emergency_light": {
+      "textures": "textures/blocks/emergency_light"
+    },
+    "floodlight": {
+      "textures": "textures/blocks/floodlight"
+    },
+    "keycard_reader": {
+      "textures": "textures/blocks/keycard_reader"
+    },
+    "security_console": {
+      "textures": "textures/blocks/security_console"
+    },
+    "alarm_panel": {
+      "textures": "textures/blocks/alarm_panel"
+    },
+    "laser_emitter": {
+      "textures": "textures/blocks/laser_emitter"
+    },
+    "laser_receiver": {
+      "textures": "textures/blocks/laser_receiver"
+    },
+    "security_shutter": {
+      "textures": "textures/blocks/security_shutter"
+    },
+    "security_shutter_housing": {
+      "textures": "textures/blocks/security_shutter_housing"
+    },
+    "door_control_panel": {
+      "textures": "textures/blocks/door_control_panel"
+    },
+    "self_destruct_console": {
+      "textures": "textures/blocks/self_destruct_console"
+    },
+    "facility_status_display": {
+      "textures": "textures/blocks/facility_status_display"
+    },
+    "turret_control_console": {
+      "textures": "textures/blocks/turret_control_console"
+    },
+    "turret_power_unit": {
+      "textures": "textures/blocks/turret_power_unit"
+    },
+    "laser_turret_mount": {
+      "textures": "textures/blocks/laser_turret_mount"
+    },
+    "missile_turret_base": {
+      "textures": "textures/blocks/missile_turret_base"
+    },
+    "defence_status_panel": {
+      "textures": "textures/blocks/defence_status_panel"
+    },
+    "blast_door": {
+      "textures": "textures/blocks/blast_door"
+    },
+    "security_door": {
+      "textures": "textures/blocks/security_door"
+    },
+    "elevator_panel": {
+      "textures": "textures/blocks/elevator_panel"
+    },
+    "elevator_pad": {
+      "textures": "textures/blocks/elevator_pad"
+    },
+    "damaged_panel": {
+      "textures": "textures/blocks/damaged_panel"
+    },
+    "alarm_on": {
+      "textures": "textures/blocks/alarm_on"
+    }
+  }
+}

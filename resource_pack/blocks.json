@@ -1,0 +1,148 @@
+{
+  "format_version": [
+    1,
+    1,
+    0
+  ],
+  "secretfacilities:reinforced_concrete": {
+    "sound": "stone"
+  },
+  "secretfacilities:dark_reinforced_concrete": {
+    "sound": "stone"
+  },
+  "secretfacilities:light_reinforced_concrete": {
+    "sound": "stone"
+  },
+  "secretfacilities:concrete_panel": {
+    "sound": "stone"
+  },
+  "secretfacilities:concrete_warning_stripe": {
+    "sound": "stone"
+  },
+  "secretfacilities:steel_wall": {
+    "sound": "metal"
+  },
+  "secretfacilities:steel_plate": {
+    "sound": "metal"
+  },
+  "secretfacilities:riveted_steel": {
+    "sound": "metal"
+  },
+  "secretfacilities:industrial_floor": {
+    "sound": "metal"
+  },
+  "secretfacilities:diamond_plate_floor": {
+    "sound": "metal"
+  },
+  "secretfacilities:grated_floor": {
+    "sound": "metal"
+  },
+  "secretfacilities:bunker_ceiling_panel": {
+    "sound": "metal"
+  },
+  "secretfacilities:blast_resistant_glass": {
+    "sound": "metal"
+  },
+  "secretfacilities:security_glass": {
+    "sound": "metal"
+  },
+  "secretfacilities:ventilation_grille": {
+    "sound": "metal"
+  },
+  "secretfacilities:large_vent": {
+    "sound": "metal"
+  },
+  "secretfacilities:pipe": {
+    "sound": "metal"
+  },
+  "secretfacilities:pipe_junction": {
+    "sound": "metal"
+  },
+  "secretfacilities:cable_tray": {
+    "sound": "metal"
+  },
+  "secretfacilities:electrical_cabinet": {
+    "sound": "metal"
+  },
+  "secretfacilities:generator_panel": {
+    "sound": "metal"
+  },
+  "secretfacilities:server_rack": {
+    "sound": "metal"
+  },
+  "secretfacilities:control_cabinet": {
+    "sound": "metal"
+  },
+  "secretfacilities:utility_panel": {
+    "sound": "metal"
+  },
+  "secretfacilities:industrial_light": {
+    "sound": "metal"
+  },
+  "secretfacilities:emergency_light": {
+    "sound": "metal"
+  },
+  "secretfacilities:floodlight": {
+    "sound": "metal"
+  },
+  "secretfacilities:keycard_reader": {
+    "sound": "metal"
+  },
+  "secretfacilities:security_console": {
+    "sound": "metal"
+  },
+  "secretfacilities:alarm_panel": {
+    "sound": "metal"
+  },
+  "secretfacilities:laser_emitter": {
+    "sound": "metal"
+  },
+  "secretfacilities:laser_receiver": {
+    "sound": "metal"
+  },
+  "secretfacilities:security_shutter": {
+    "sound": "metal"
+  },
+  "secretfacilities:security_shutter_housing": {
+    "sound": "metal"
+  },
+  "secretfacilities:door_control_panel": {
+    "sound": "metal"
+  },
+  "secretfacilities:self_destruct_console": {
+    "sound": "metal"
+  },
+  "secretfacilities:facility_status_display": {
+    "sound": "metal"
+  },
+  "secretfacilities:turret_control_console": {
+    "sound": "metal"
+  },
+  "secretfacilities:turret_power_unit": {
+    "sound": "metal"
+  },
+  "secretfacilities:laser_turret_mount": {
+    "sound": "metal"
+  },
+  "secretfacilities:missile_turret_base": {
+    "sound": "metal"
+  },
+  "secretfacilities:defence_status_panel": {
+    "sound": "metal"
+  },
+  "secretfacilities:blast_door": {
+    "sound": "metal"
+  },
+  "secretfacilities:security_door": {
+    "sound": "metal"
+  },
+  "secretfacilities:elevator_panel": {
+    "sound": "metal"
+  },
+  "secretfacilities:elevator_pad": {
+    "sound": "metal"
+  },
+  "secretfacilities:damaged_panel": {
+    "sound": "metal"
+  }
+}

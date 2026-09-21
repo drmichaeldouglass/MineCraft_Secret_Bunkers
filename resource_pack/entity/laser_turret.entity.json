@@ -1,0 +1,28 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "secretfacilities:laser_turret",
+      "materials": {
+        "default": "entity_alphatest"
+      },
+      "textures": {
+        "default": "textures/entities/laser_turret"
+      },
+      "geometry": {
+        "default": "geometry.secretfacilities.laser_turret"
+      },
+      "animations": {
+        "aim": "animation.secretfacilities.turret.aim"
+      },
+      "scripts": {
+        "animate": [
+          "aim"
+        ]
+      },
+      "render_controllers": [
+        "controller.render.secretfacilities.turret"
+      ]
+    }
+  }
+}

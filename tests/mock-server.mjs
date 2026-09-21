@@ -1,0 +1,44 @@
+import fs from "node:fs";
+const catalog=JSON.parse(fs.readFileSync(new URL("../tools/generated/template_voxels.json",import.meta.url),"utf8"));
+const templates=new Map(catalog.map(t=>["secretfacilities:bunker/"+t.name,t]));
+const xyz=p=>`${Math.floor(p.x)},${Math.floor(p.y)},${Math.floor(p.z)}`;
+export const blocks=new Map(),properties=new Map(),players=[],entities=[],tasks=new Map();
+let serial=0;
+export const GameMode={Creative:"Creative",Survival:"Survival"};
+export const EntityDamageCause={entityAttack:"entityAttack"};
+export class ItemStack{constructor(typeId){this.typeId=typeId;}}
+export class BlockVolume{constructor(a,b){this.a=a;this.b=b;}}
+export class BlockPermutation{static resolve(typeId,states={}){return {typeId,states};}}
+export const dimension={
+  id:"minecraft:overworld",
+  getBlock(p){
+    const loc={x:Math.floor(p.x),y:Math.floor(p.y),z:Math.floor(p.z)},entry=blocks.get(xyz(p))??{typeId:"minecraft:stone",states:{}};
+    return {location:loc,typeId:entry.typeId,isAir:entry.typeId==="minecraft:air",isLiquid:false,
+      setPermutation(value){blocks.set(xyz(p),value);}};
+  },
+  fillBlocks(volume,permutation){for(let x=volume.a.x;x<=volume.b.x;x++)for(let y=volume.a.y;y<=volume.b.y;y++)for(let z=volume.a.z;z<=volume.b.z;z++)blocks.set(xyz({x,y,z}),permutation);},
+  getTopmostBlock({x,z}){return {location:{x,y:80,z},isLiquid:false};},
+  getEntities(options={}){return entities.filter(e=>(!options.type||e.typeId===options.type)&&(!options.tags||options.tags.every(t=>e.tags.includes(t)))&&(!options.maxDistance||Math.hypot(e.location.x-options.location.x,e.location.y-options.location.y,e.location.z-options.location.z)<=options.maxDistance));},
+  spawnEntity(typeId,location){const e={id:`e${serial++}`,typeId,location,dimension:this,tags:[],isValid:true,props:new Map(),
+    addTag(tag){this.tags.push(tag);},getDynamicProperty(k){return this.props.get(k);},setDynamicProperty(k,v){this.props.set(k,v);},
+    getComponent(){return undefined;},setRotation(v){this.rotation=v;},applyDamage(value){this.damage=(this.damage??0)+value;}};entities.push(e);return e;},
+  spawnParticle(){},spawnItem(){},getBlockFromRay(){return undefined;},
+};
+const signal={subscribe(){}};
+export const world={getDimension(){return dimension;},getAllPlayers(){return players;},getEntity(id){return entities.find(e=>e.id===id);},
+  getDynamicProperty(k){return properties.get(k);},setDynamicProperty(k,v){properties.set(k,v);},
+  afterEvents:{entityDie:signal,worldLoad:signal},
+  structureManager:{place(id,d,pos){
+    const t=templates.get(id);if(!t)throw Error(`Unknown template ${id}`);let i=0;
+    for(let x=0;x<t.size[0];x++)for(let y=0;y<t.size[1];y++)for(let z=0;z<t.size[2];z++){
+      const [typeId,states]=t.palette[t.indices[i++]];blocks.set(xyz({x:pos.x+x,y:pos.y+y,z:pos.z+z}),{typeId,states});
+    }
+  }},
+};
+export const system={currentTick:0,runInterval(work){const id=serial++;tasks.set(id,work);return id;},clearRun(id){tasks.delete(id);},
+  runTimeout(work){queueMicrotask(work);return serial++;},run(work){work();},beforeEvents:{startup:signal},afterEvents:{scriptEventReceive:signal}};
+export function playerAt(location){return {id:"player1",typeId:"minecraft:player",isValid:true,location,dimension,
+  getGameMode(){return GameMode.Creative;},sendMessage(){},playSound(){},onScreenDisplay:{setActionBar(){}},
+  getComponent(){return {container:{size:1,getItem(){return {typeId:"secretfacilities:keycard_master"};}}};}};}
+export function finishBuild(){for(let i=0;i<1500&&tasks.size;i++){for(const work of [...tasks.values()])work();system.currentTick+=2;}if(tasks.size)throw Error("Build did not finish");}
+export function reset(){blocks.clear();properties.clear();players.length=0;entities.length=0;tasks.clear();system.currentTick=0;}
