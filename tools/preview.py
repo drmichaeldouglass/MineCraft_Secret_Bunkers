@@ -14,7 +14,7 @@ im=Image.new("RGB",(1600,1060),(14,24,30));d=ImageDraw.Draw(im)
 d.text((60,35),"SECRET FACILITIES",font=font(42),fill=(228,239,222))
 d.text((62,92),"COMMAND BUNKER  /  FIRST PLAYABLE ALPHA",font=font(19),fill=(92,211,181))
 d.text((62,129),"Actual generated block layout • B1 Administration & Security • seed 104729",font=font(18),fill=(152,174,177))
-scale=17;ox,oz=60,190;floor=f["floors"][1]["y"]
+scale=25;ox,oz=60,190;floor=f["floors"][1]["y"]
 def color(x,z):
     for y in [floor+2,floor+1,floor]:
         b=blocks.get(f"{x},{y},{z}")
@@ -23,8 +23,8 @@ def color(x,z):
         short=b["typeId"].split(":")[-1]
         return BLOCKS.get(short,(117,130,123))
     return (20,36,42)
-for x in range(65):
-    for z in range(39):
+for x in range(27):
+    for z in range(27):
         c=color(x,z);d.rectangle((ox+x*scale,oz+z*scale,ox+(x+1)*scale-1,oz+(z+1)*scale-1),fill=c)
 for module in f["modules"]:
     if module["floor"]!=1:continue
@@ -32,7 +32,7 @@ for module in f["modules"]:
     if module["role"]=="corridor_standard":continue
     name="LIFT / LADDER" if module["role"]=="vertical_core" else module["role"].upper()
     width=d.textbbox((0,0),name,font=font(12))[2]
-    cx=ox+(x+6.5)*scale;cy=oz+(z+6)*scale
+    cx=ox+(x+4.5)*scale;cy=oz+(z+4)*scale
     d.rectangle((cx-width/2-5,cy-3,cx+width/2+5,cy+17),fill=(12,26,32))
     d.text((cx-width/2,cy),name,font=font(12),fill=(221,237,211))
 sidebar=1220

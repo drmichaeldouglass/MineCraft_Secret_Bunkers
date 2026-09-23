@@ -4,16 +4,87 @@ import { add, distance, inside, NS } from "../core/types.js";
 import { facilities, mark, save } from "./store.js";
 import { beam, dim, fill, getClearance, lineClear, loaded, nearby, set, sound, tell } from "./world.js";
 const moving = new Map();
+/** Two-pixel sub-steps the leaf travels; eight per block of door height, one per tick. */
+export const SUBSTEPS = 8;
+export const LEAF = NS + "blast_door_leaf";
 function idFor(door) { return door.kind === "blast" ? "blast_door" : door.kind === "shutter" ? "security_shutter" : "security_door"; }
+const travel = (door) => (door.max.y - door.min.y + 1) * SUBSTEPS;
+/** The blast door is drawn in motion by a leaf entity the client slides smoothly;
+ *  its blocks only supply collision and the solid courses the leaf is hidden behind. */
+const usesLeaf = (door) => door.kind === "blast";
+const leafTag = (f, door) => `sf_door:${f.id}:${door.id}`;
+/** Paint one horizontal course of the leaf. Stepped doors: courses below the moving edge
+ *  are gone, the edge course shows its offset, and courses above are still solid.
+ *  Leaf doors: any course the leaf has started to leave is cleared so the leaf shows there. */
+function paintRow(d, door, row, progress) {
+    const y = door.min.y + row;
+    if (usesLeaf(door)) {
+        fill(d, { ...door.min, y }, { ...door.max, y }, idFor(door), { [NS + "open"]: row < Math.ceil(progress / SUBSTEPS), [NS + "slide"]: 0 });
+        return;
+    }
+    const edge = Math.floor(progress / SUBSTEPS);
+    fill(d, { ...door.min, y }, { ...door.max, y }, idFor(door), { [NS + "open"]: row < edge, [NS + "slide"]: row === edge ? progress % SUBSTEPS : 0 });
+}
+/** Repaint only the courses a single step changes. Returns the number of fills. */
+function paintStep(d, door, from, to) {
+    if (usesLeaf(door)) {
+        const a = Math.ceil(from / SUBSTEPS), b = Math.ceil(to / SUBSTEPS);
+        if (a === b)
+            return 0;
+        paintRow(d, door, Math.min(a, b), to);
+        return 1;
+    }
+    const edge = Math.min(door.max.y - door.min.y, Math.floor(to / SUBSTEPS));
+    paintRow(d, door, edge, to);
+    if (edge > 0) {
+        paintRow(d, door, edge - 1, to);
+        return 2;
+    }
+    return 1;
+}
+function clearLeaves(d, f, door) {
+    for (const e of d.getEntities({ type: LEAF, tags: [leafTag(f, door)] }))
+        try {
+            e.remove();
+        }
+        catch { /* Already gone. */ }
+}
+const liveLeaf = (job) => { const e = job.leaf ? world.getEntity(job.leaf) : undefined; return e?.isValid ? e : undefined; };
+function spawnLeaf(d, f, door, job) {
+    const fraction = job.progress / travel(door);
+    clearLeaves(d, f, door);
+    const leaf = d.spawnEntity(LEAF, { x: (door.min.x + door.max.x + 1) / 2, y: door.min.y, z: door.min.z + 0.5 }, fraction > 0.5 ? { spawnEvent: NS + "from_open" } : undefined);
+    leaf.setRotation({ x: 0, y: 0 });
+    leaf.addTag(leafTag(f, door));
+    leaf.setProperty(NS + "progress", fraction);
+    job.leaf = leaf.id;
+}
+/** Leaves outlive their slide only when a chunk or world unloads mid-travel. */
+export function registerDoorEvents() {
+    world.afterEvents.entityLoad.subscribe(({ entity }) => {
+        try {
+            if (entity.typeId === LEAF && ![...moving.values()].some(j => j.leaf === entity.id))
+                entity.remove();
+        }
+        catch { /* Already gone. */ }
+    });
+}
 export function requestDoor(f, door, open) {
+    const key = `${f.id}:${door.id}`, running = moving.get(key);
+    // Reversing mid-travel resumes from where the leaf actually is.
+    const progress = running ? running.progress : (door.open ? travel(door) : 0);
     door.open = open;
     mark(f);
-    moving.set(`${f.id}:${door.id}`, { f, door, index: 0 });
+    moving.set(key, { f, door, progress, target: open ? travel(door) : 0, repaint: false, started: false, leaf: running?.leaf });
     if (door.kind === "blast")
         sound(f, "blast_door_warning", door.min);
 }
-export function restoreDoors(f) { for (const door of f.doors)
-    moving.set(`${f.id}:${door.id}`, { f, door, index: 0 }); }
+export function restoreDoors(f) {
+    for (const door of f.doors) {
+        const at = door.open ? travel(door) : 0;
+        moving.set(`${f.id}:${door.id}`, { f, door, progress: at, target: at, repaint: true, started: true });
+    }
+}
 export function toggleDoor(player, f, door) {
     if (!mayOpen(f.state, getClearance(player), door.clearance)) {
         sound(f, "access_denied", door.min);
@@ -23,33 +94,59 @@ export function toggleDoor(player, f, door) {
     sound(f, "access_granted", door.min);
     requestDoor(f, door, !door.open);
 }
-function occupied(d, a, b) {
+function occupied(d, door) {
+    const a = door.min, b = door.max;
     const c = { x: (a.x + b.x + 1) / 2, y: (a.y + b.y + 1) / 2, z: (a.z + b.z + 1) / 2 };
-    return d.getEntities({ location: c, maxDistance: 8 }).some(e => inside(e.location, { min: { x: a.x - 0.7, y: a.y - 1.9, z: a.z - 0.7 }, max: { x: b.x + 1.7, y: b.y + 1, z: b.z + 1.7 } }));
+    const reach = Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z) / 2 + 4;
+    return d.getEntities({ location: c, maxDistance: reach }).some(e => e.typeId !== LEAF && inside(e.location, { min: { x: a.x - 0.7, y: a.y - 1.9, z: a.z - 0.7 }, max: { x: b.x + 1.7, y: b.y + 1, z: b.z + 1.7 } }));
 }
 export function tickDoors() {
     let writes = 0;
     for (const [key, job] of [...moving]) {
         const { f, door } = job, d = dim(f);
-        if (writes >= 18)
+        if (writes >= 32)
             break;
         if (!nearby(f) || !loaded(d, door.min) || !loaded(d, door.max))
             continue;
-        const width = door.max.x - door.min.x + 1;
-        if (job.index >= width) {
+        const height = door.max.y - door.min.y + 1;
+        if (job.repaint) {
+            // A leaf left over from a slide interrupted by a reload or unload.
+            if (usesLeaf(door)) {
+                clearLeaves(d, f, door);
+                job.leaf = undefined;
+            }
+            for (let row = 0; row < height; row++)
+                paintRow(d, door, row, job.progress);
+            job.repaint = false;
+            writes += height;
+        }
+        if (job.progress === job.target) {
+            if (job.leaf) {
+                clearLeaves(d, f, door);
+                job.leaf = undefined;
+            }
             moving.delete(key);
             continue;
         }
-        const col = door.open ? Math.floor(width / 2) + (job.index % 2 === 0 ? Math.ceil(job.index / 2) : -Math.ceil(job.index / 2)) : job.index;
-        const a = { ...door.min, x: door.min.x + col }, b = { ...door.max, x: door.min.x + col };
+        const next = job.progress + (job.target > job.progress ? 1 : -1);
         // Never materialize a steel door around an entity. Retry while obstructed.
-        if (!door.open && occupied(d, a, b))
+        if (next < job.progress && occupied(d, door))
             continue;
-        fill(d, a, b, idFor(door), { [NS + "open"]: door.open });
-        if (job.index === 0 && door.kind === "blast")
-            sound(f, "blast_door_movement", door.min);
-        job.index++;
-        writes++;
+        if (!job.started) {
+            job.started = true;
+            if (door.kind === "blast")
+                sound(f, "blast_door_movement", door.min);
+        }
+        // A new leaf gets one tick to reach clients before the blocks it covers are cleared.
+        if (usesLeaf(door) && !liveLeaf(job)) {
+            spawnLeaf(d, f, door, job);
+            continue;
+        }
+        const from = job.progress;
+        job.progress = next;
+        if (usesLeaf(door))
+            liveLeaf(job)?.setProperty(NS + "progress", next / travel(door));
+        writes += paintStep(d, door, from, next);
         // Round-robin prevents a blocked door or a distant facility starving others.
         moving.delete(key);
         moving.set(key, job);

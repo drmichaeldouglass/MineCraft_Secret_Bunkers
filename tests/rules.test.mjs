@@ -43,17 +43,17 @@ test("beam intersection handles horizontal, vertical and degenerate segments",()
 test("600 layouts: required rooms, non-overlap, floor alignment, bounds, unique IDs",()=>{
   for(let levels=3;levels<=8;levels++)for(let seed=0;seed<100;seed++){
     const f=planBunker({x:-32,y:80,z:10},levels,seed,true);
-    assert.equal(f.modules.length,levels*15+1);assert.equal(f.floors.length,levels+1);
+    assert.equal(f.modules.length,levels*9+1);assert.equal(f.floors.length,levels+1);
     assert.equal(new Set(f.doors.map(d=>d.id)).size,f.doors.length);
     assert.equal(new Set(f.turrets.map(t=>t.id)).size,f.turrets.length);
     for(let floor=1;floor<=levels;floor++){
       const mods=f.modules.filter(m=>m.floor===floor),core=mods.find(m=>m.role==="vertical_core");
-      assert.ok(core);assert.equal(core.pos.x+6.5,f.floors[floor].destination.x);
-      assert.equal(core.pos.z+6.5,f.floors[floor].destination.z);
+      assert.ok(core);assert.equal(core.pos.x+4.5,f.floors[floor].destination.x);
+      assert.equal(core.pos.z+4.5,f.floors[floor].destination.z);
       assert.equal(f.floors[floor].y,80-floor*9);
       assert.ok(mods.some(m=>m.role===["security","barracks","command","generator","vault","archive","laboratory","vault"][floor-1]));
       for(let a=0;a<mods.length;a++)for(let b=a+1;b<mods.length;b++){
-        const box=m=>({min:m.pos,max:{x:m.pos.x+12,y:m.pos.y+6,z:m.pos.z+12}});
+        const box=m=>({min:m.pos,max:{x:m.pos.x+8,y:m.pos.y+6,z:m.pos.z+8}});
         assert.equal(intersects(box(mods[a]),box(mods[b])),false);
       }
     }

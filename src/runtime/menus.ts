@@ -5,7 +5,7 @@ import { planBunker } from "../generation/planner.js";
 import { facilities, mark, save } from "./store.js";
 import { build, originAt } from "./generation.js";
 import { abortDestruct, armDestruct, requestDoor, setSecurity, toggleDoor } from "./security.js";
-import { delay, dim, findFacility, getClearance, report, sound, tell } from "./world.js";
+import { delay, dim, fade, findFacility, getClearance, report, shake, sound, tell } from "./world.js";
 const busy=new Set<string>();
 export function runMenu(player:Player,work:()=>Promise<void>):void {
   if(busy.has(player.id))return;
@@ -48,10 +48,10 @@ export async function deployment(player:Player):Promise<void> {
   const origin=originAt(player),id=`sf_${Date.now().toString(36)}_${Math.floor(Math.random()*9999)}`;
   const plan=planBunker(origin,levels,seed,defences,id);
   const confirm=await new MessageFormData().title("CONFIRM DEPLOYMENT")
-    .body(`${levels} underground floors • seed ${seed}\n\nEntrance: ${origin.x+32}, ${origin.y+1}, ${origin.z}\nFootprint: 65 × 60 blocks\nLowest floor: Y ${plan.bounds.min.y}\n\nConstruction replaces blocks inside the modules, entrance and escape route. Stay nearby while it builds.`)
+    .body(`${levels} underground floors • seed ${seed}\n\nEntrance: ${origin.x+13}, ${origin.y+1}, ${origin.z}\nReserved: ${plan.bounds.max.x-plan.bounds.min.x+1} × ${plan.bounds.max.z-plan.bounds.min.z+1} blocks\nLowest floor: Y ${plan.bounds.min.y}\n\nConstruction replaces blocks inside the modules, entrance and escape route. Stay nearby while it builds.`)
     .button1("Cancel").button2("Build bunker").show(player);
   if(confirm.canceled||confirm.selection!==1)return;creative(player);
-  if(distance(player.location,{x:origin.x+32,y:origin.y+1,z:origin.z-10})>16)throw Error("You moved away from the confirmed site. Deploy again here.");
+  if(distance(player.location,{x:origin.x+13,y:origin.y+1,z:origin.z-10})>16)throw Error("You moved away from the confirmed site. Deploy again here.");
   build(plan,player);
 }
 async function elevator(player:Player,f:Facility,pos:Vec):Promise<void> {
@@ -65,11 +65,24 @@ async function elevator(player:Player,f:Facility,pos:Vec):Promise<void> {
   const dest=f.floors[response.selection];if(!dest)return;check(player,f,pos,dest.clearance);
   if(f.state==="LOCKDOWN"&&getClearance(player)<4)throw Error("Lockdown engaged while you were selecting a floor.");
   if(Math.abs(player.location.x-current.destination.x)>2.5||Math.abs(player.location.z-current.destination.z)>2.5)throw Error("Step onto the cyan elevator pad and try again.");
-  sound(f,"elevator_move",pos);player.onScreenDisplay.setActionBar(`Travelling to ${dest.name}…`);
-  await delay(30);check(player,f,pos,dest.clearance);
-  // Recheck live state after movement delay; an open UI never grants lasting authority.
+  const from=f.floors.indexOf(current),to=response.selection,step=to>from?1:-1,passing=Math.abs(to-from);
+  if(passing===0){tell(player,`Already at ${dest.name}.`);return;}
+  const onPad=()=>Math.abs(player.location.x-current.destination.x)<=2.5&&Math.abs(player.location.z-current.destination.z)<=2.5;
+  // The car rumbles, each deck is called out as it passes, then the transfer hides behind a fade.
+  sound(f,"elevator_move",pos);
+  const hold=Math.max(6,Math.min(14,Math.round(48/passing)));
+  shake(player,passing*hold/20,0.07);
+  for(let i=1;i<=passing;i++){
+    await delay(hold);check(player,f,pos,dest.clearance);
+    if(!onPad())throw Error("Trip canceled because you left the elevator pad.");
+    const deck=f.floors[from+i*step];
+    if(player.isValid)player.onScreenDisplay.setActionBar(i===passing?`§bArriving • ${deck.name}`:`§7Passing • ${deck.name}`);
+  }
+  fade(player,0.2,0.3,0.45);
+  await delay(5);check(player,f,pos,dest.clearance);
+  // Recheck live state after the ride; an open UI never grants lasting authority.
   if((f as Facility).state==="DESTROYED"||(f.state==="LOCKDOWN"&&getClearance(player)<4))throw Error("The elevator is no longer available.");
-  if(Math.abs(player.location.x-current.destination.x)>2.5||Math.abs(player.location.z-current.destination.z)>2.5)throw Error("Trip canceled because you left the elevator pad.");
+  if(!onPad())throw Error("Trip canceled because you left the elevator pad.");
   const d=dim(f),feet=d.getBlock(dest.destination),head=d.getBlock({...dest.destination,y:dest.destination.y+1});
   const ground=d.getBlock({...dest.destination,y:dest.destination.y-1});
   if(!feet?.isAir||!head?.isAir||ground?.typeId!==NS+"elevator_pad")throw Error("The destination is obstructed or unloaded. Clear its pad before travel.");

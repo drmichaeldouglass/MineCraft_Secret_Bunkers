@@ -36,7 +36,7 @@ Original generated assets shipped in 0.1.0. All visual/audio entries still requi
 | `secretfacilities:alarm_panel` | Block | Shared interaction component; functional at registered positions | Original 32×32 | Full cube; invisible open-door geometry where needed | None | Vanilla placement; shared interaction sounds |
 | `secretfacilities:laser_emitter` | Block | Construction palette; available in Creative | Original 32×32 | Full cube; invisible open-door geometry where needed | None | Vanilla placement; shared interaction sounds |
 | `secretfacilities:laser_receiver` | Block | Construction palette; available in Creative | Original 32×32 | Full cube; invisible open-door geometry where needed | None | Vanilla placement; shared interaction sounds |
-| `secretfacilities:security_shutter` | Block | Generated doors / shutters | Original 32×32 | Full cube; invisible open-door geometry where needed | Scripted block retraction | Vanilla placement; shared interaction sounds |
+| `secretfacilities:security_shutter` | Block | Generated doors / shutters | Original 32×32 | Full cube; invisible open-door geometry where needed | Scripted 2-pixel block retraction | Vanilla placement; shared interaction sounds |
 | `secretfacilities:security_shutter_housing` | Block | Construction palette; available in Creative | Original 32×32 | Full cube; invisible open-door geometry where needed | None | Vanilla placement; shared interaction sounds |
 | `secretfacilities:door_control_panel` | Block | Shared interaction component; functional at registered positions | Original 32×32 | Full cube; invisible open-door geometry where needed | None | Vanilla placement; shared interaction sounds |
 | `secretfacilities:self_destruct_console` | Block | Shared interaction component; functional at registered positions | Original 32×32 | Full cube; invisible open-door geometry where needed | None | Vanilla placement; shared interaction sounds |
@@ -46,8 +46,8 @@ Original generated assets shipped in 0.1.0. All visual/audio entries still requi
 | `secretfacilities:laser_turret_mount` | Block | Construction palette; available in Creative | Original 32×32 | Full cube; invisible open-door geometry where needed | None | Vanilla placement; shared interaction sounds |
 | `secretfacilities:missile_turret_base` | Block | Construction block only; missile system deferred | Original 32×32 | Full cube; invisible open-door geometry where needed | None | Vanilla placement; shared interaction sounds |
 | `secretfacilities:defence_status_panel` | Block | Construction palette; available in Creative | Original 32×32 | Full cube; invisible open-door geometry where needed | None | Vanilla placement; shared interaction sounds |
-| `secretfacilities:blast_door` | Block | Generated doors / shutters | Original 32×32 | Full cube; invisible open-door geometry where needed | Scripted block retraction | Vanilla placement; shared interaction sounds |
-| `secretfacilities:security_door` | Block | Generated doors / shutters | Original 32×32 | Full cube; invisible open-door geometry where needed | Scripted block retraction | Vanilla placement; shared interaction sounds |
+| `secretfacilities:blast_door` | Block | Generated doors / shutters | Original 32×32 | Full cube; invisible open-door geometry where needed | Smooth moving leaf entity; blocks provide collision | Vanilla placement; shared interaction sounds |
+| `secretfacilities:security_door` | Block | Generated doors / shutters | Original 32×32 | Full cube; invisible open-door geometry where needed | Scripted 2-pixel block retraction | Vanilla placement; shared interaction sounds |
 | `secretfacilities:elevator_panel` | Block | Shared interaction component; functional at registered positions | Original 32×32 | Full cube; invisible open-door geometry where needed | None | Vanilla placement; shared interaction sounds |
 | `secretfacilities:elevator_pad` | Block | Construction palette; available in Creative | Original 32×32 | Full cube; invisible open-door geometry where needed | None | Vanilla placement; shared interaction sounds |
 | `secretfacilities:damaged_panel` | Block | Construction palette; available in Creative | Original 32×32 | Full cube; invisible open-door geometry where needed | None | Vanilla placement; shared interaction sounds |
@@ -64,6 +64,7 @@ Original generated assets shipped in 0.1.0. All visual/audio entries still requi
 | Identifier | Type | Implementation | Texture | Model | Animation | Sound |
 |---|---|---|---|---|---|---|
 | `secretfacilities:laser_turret` | Entity | Hostile-only laser defence; entrance and command zones | Original 64×64 atlas | Six named bones | Scripted entity rotation and pitch bone; game verification pending | Synthesized firing pulse |
+| `secretfacilities:blast_door_leaf` | Entity | Moving blast door leaf, present only while the entrance door travels | Shared blast door texture | 20 block-sized cubes | Client-eased slide driven by a synced property | Blast door sounds |
 | `secretfacilities:laser_beam` | Particle | Tripwires and turret shots | Original 8×8 white mask, tinted red | Billboard | 0.22-second particle lifetime | None |
 | `secretfacilities:laser_impact` | Particle | Hit marker | Shared white mask, tinted amber | Billboard | 0.22-second particle lifetime | Shared firing pulse |
 | Missile turret / projectile | Planned | Not shipped | Deferred | Deferred | Deferred | Deferred |

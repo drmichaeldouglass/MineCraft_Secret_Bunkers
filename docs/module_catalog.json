@@ -2,265 +2,265 @@
   {
     "identifier": "secretfacilities:bunker/office_north",
     "size": [
-      13,
+      9,
       7,
-      13
+      9
     ]
   },
   {
     "identifier": "secretfacilities:bunker/office_south",
     "size": [
-      13,
+      9,
       7,
-      13
+      9
     ]
   },
   {
     "identifier": "secretfacilities:bunker/briefing_north",
     "size": [
-      13,
+      9,
       7,
-      13
+      9
     ]
   },
   {
     "identifier": "secretfacilities:bunker/briefing_south",
     "size": [
-      13,
+      9,
       7,
-      13
+      9
     ]
   },
   {
     "identifier": "secretfacilities:bunker/security_north",
     "size": [
-      13,
+      9,
       7,
-      13
+      9
     ]
   },
   {
     "identifier": "secretfacilities:bunker/security_south",
     "size": [
-      13,
+      9,
       7,
-      13
+      9
     ]
   },
   {
     "identifier": "secretfacilities:bunker/archive_north",
     "size": [
-      13,
+      9,
       7,
-      13
+      9
     ]
   },
   {
     "identifier": "secretfacilities:bunker/archive_south",
     "size": [
-      13,
+      9,
       7,
-      13
+      9
     ]
   },
   {
     "identifier": "secretfacilities:bunker/barracks_north",
     "size": [
-      13,
+      9,
       7,
-      13
+      9
     ]
   },
   {
     "identifier": "secretfacilities:bunker/barracks_south",
     "size": [
-      13,
+      9,
       7,
-      13
+      9
     ]
   },
   {
     "identifier": "secretfacilities:bunker/medical_north",
     "size": [
-      13,
+      9,
       7,
-      13
+      9
     ]
   },
   {
     "identifier": "secretfacilities:bunker/medical_south",
     "size": [
-      13,
+      9,
       7,
-      13
+      9
     ]
   },
   {
     "identifier": "secretfacilities:bunker/canteen_north",
     "size": [
-      13,
+      9,
       7,
-      13
+      9
     ]
   },
   {
     "identifier": "secretfacilities:bunker/canteen_south",
     "size": [
-      13,
+      9,
       7,
-      13
+      9
     ]
   },
   {
     "identifier": "secretfacilities:bunker/command_north",
     "size": [
-      13,
+      9,
       7,
-      13
+      9
     ]
   },
   {
     "identifier": "secretfacilities:bunker/command_south",
     "size": [
-      13,
+      9,
       7,
-      13
+      9
     ]
   },
   {
     "identifier": "secretfacilities:bunker/server_north",
     "size": [
-      13,
+      9,
       7,
-      13
+      9
     ]
   },
   {
     "identifier": "secretfacilities:bunker/server_south",
     "size": [
-      13,
+      9,
       7,
-      13
+      9
     ]
   },
   {
     "identifier": "secretfacilities:bunker/generator_north",
     "size": [
-      13,
+      9,
       7,
-      13
+      9
     ]
   },
   {
     "identifier": "secretfacilities:bunker/generator_south",
     "size": [
-      13,
+      9,
       7,
-      13
+      9
     ]
   },
   {
     "identifier": "secretfacilities:bunker/workshop_north",
     "size": [
-      13,
+      9,
       7,
-      13
+      9
     ]
   },
   {
     "identifier": "secretfacilities:bunker/workshop_south",
     "size": [
-      13,
+      9,
       7,
-      13
+      9
     ]
   },
   {
     "identifier": "secretfacilities:bunker/utility_north",
     "size": [
-      13,
+      9,
       7,
-      13
+      9
     ]
   },
   {
     "identifier": "secretfacilities:bunker/utility_south",
     "size": [
-      13,
+      9,
       7,
-      13
+      9
     ]
   },
   {
     "identifier": "secretfacilities:bunker/vault_north",
     "size": [
-      13,
+      9,
       7,
-      13
+      9
     ]
   },
   {
     "identifier": "secretfacilities:bunker/vault_south",
     "size": [
-      13,
+      9,
       7,
-      13
+      9
     ]
   },
   {
     "identifier": "secretfacilities:bunker/laboratory_north",
     "size": [
-      13,
+      9,
       7,
-      13
+      9
     ]
   },
   {
     "identifier": "secretfacilities:bunker/laboratory_south",
     "size": [
-      13,
+      9,
       7,
-      13
+      9
     ]
   },
   {
     "identifier": "secretfacilities:bunker/hall",
     "size": [
-      13,
+      9,
       7,
-      13
+      9
     ]
   },
   {
     "identifier": "secretfacilities:bunker/hall_west",
     "size": [
-      13,
+      9,
       7,
-      13
+      9
     ]
   },
   {
     "identifier": "secretfacilities:bunker/hall_east",
     "size": [
-      13,
+      9,
       7,
-      13
+      9
     ]
   },
   {
     "identifier": "secretfacilities:bunker/core",
     "size": [
-      13,
+      9,
       7,
-      13
+      9
     ]
   },
   {
     "identifier": "secretfacilities:bunker/entrance",
     "size": [
-      21,
+      15,
       9,
-      32
+      22
     ]
   }
 ]

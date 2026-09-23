@@ -3,7 +3,7 @@ import { NS } from "./core/types.js";
 import { dirty, facilities, load, save } from "./runtime/store.js";
 import { giveKit, interact, runMenu, scheduleDevice } from "./runtime/menus.js";
 import { report } from "./runtime/world.js";
-import { restoreDoors, tickAlarms, tickDoors, tickLasers } from "./runtime/security.js";
+import { registerDoorEvents, restoreDoors, tickAlarms, tickDoors, tickLasers } from "./runtime/security.js";
 import { registerDefenceEvents, tickDefence } from "./runtime/defence.js";
 
 system.beforeEvents.startup.subscribe(event=>{
@@ -16,9 +16,9 @@ system.beforeEvents.startup.subscribe(event=>{
 });
 world.afterEvents.worldLoad.subscribe(()=>{
   try{load();for(const f of facilities.values())if(f.phase==="ready")restoreDoors(f);}catch(error){report(error);}
-  registerDefenceEvents();
+  registerDefenceEvents();registerDoorEvents();
   const safe=(work:()=>void)=>()=>{try{work();}catch(error){report(error);}};
-  system.runInterval(safe(tickDoors),6);
+  system.runInterval(safe(tickDoors),1);
   system.runInterval(safe(tickLasers),5);
   system.runInterval(safe(tickDefence),5);
   system.runInterval(safe(tickAlarms),10);

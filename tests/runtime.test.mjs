@@ -1,15 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { blocks, dimension, entities, finishBuild, playerAt, players, properties, reset, system } from "./mock-server.mjs";
+import { blocks, dimension, entities, finishBuild, playerAt, players, properties, reset, system, terrain } from "./mock-server.mjs";
 import { planBunker } from "../behavior_pack/scripts/generation/planner.js";
 import { facilities, load, mark, save } from "../behavior_pack/scripts/runtime/store.js";
-import { build } from "../behavior_pack/scripts/runtime/generation.js";
-import { armDestruct, abortDestruct, requestDoor, setSecurity, tickAlarms, tickDoors } from "../behavior_pack/scripts/runtime/security.js";
+import { build, originAt } from "../behavior_pack/scripts/runtime/generation.js";
+import { armDestruct, abortDestruct, LEAF, requestDoor, restoreDoors, setSecurity, SUBSTEPS, tickAlarms, tickDoors } from "../behavior_pack/scripts/runtime/security.js";
 import { tickDefence } from "../behavior_pack/scripts/runtime/defence.js";
 const ns="secretfacilities:",at=(x,y,z)=>blocks.get(`${x},${y},${z}`);
 const passable=b=>b&&(b.typeId==="minecraft:air"||b.typeId==="minecraft:ladder"||b.states[ns+"open"]===true);
-function flood(y,start,bounds={x0:0,x1:64,z0:0,z1:53}){
+function flood(y,start,bounds={x0:0,x1:26,z0:-4,z1:37}){
   const todo=[start],seen=new Set([start.join(",")]);
   for(let i=0;i<todo.length;i++){
     const [x,z]=todo[i];
@@ -23,7 +23,7 @@ function flood(y,start,bounds={x0:0,x1:64,z0:0,z1:53}){
 }
 function make(levels=5,seed=10){
   reset();facilities.clear();const f=planBunker({x:0,y:80,z:0},levels,seed,true,"test");
-  const p=playerAt({x:32,y:81,z:-10});players.push(p);build(f,p);finishBuild();assert.equal(f.phase,"ready");
+  const p=playerAt({x:13,y:81,z:-10});players.push(p);build(f,p);finishBuild();assert.equal(f.phase,"ready");
   return {f,p};
 }
 test("assembled voxel navigation for 3, 5 and 8 floor bunkers",()=>{
@@ -31,21 +31,56 @@ test("assembled voxel navigation for 3, 5 and 8 floor bunkers",()=>{
     const {f}=make(levels,42+levels);
     // Walkable room doors are open initially, not just connected abstractly.
     for(const floor of f.floors.slice(1)){
-      const seen=flood(floor.y+1,[32,19]);
+      const seen=flood(floor.y+1,[13,13]);
       for(const module of f.modules.filter(m=>m.pos.y===floor.y))
-        assert.ok(seen.has(`${module.pos.x+6},${module.pos.z+6}`),`${levels} floors: cannot reach ${module.template} at ${JSON.stringify(module.pos)}`);
+        assert.ok(seen.has(`${module.pos.x+4},${module.pos.z+4}`),`${levels} floors: cannot reach ${module.template} at ${JSON.stringify(module.pos)}`);
       for(const door of f.doors.filter(d=>d.min.y===floor.y+1))for(const reader of door.readers)
         assert.ok([[1,0],[-1,0],[0,1],[0,-1]].some(([dx,dz])=>seen.has(`${reader.x+dx},${reader.z+dz}`)),`Reader inaccessible at ${JSON.stringify(reader)}`);
-      assert.ok(seen.has("35,22"),"Emergency ladder approach disconnected");
+      assert.ok(seen.has("14,16"),"Emergency ladder approach disconnected");
     }
-    const escape=flood(f.floors[1].y+1,[32,19]);assert.ok(escape.has("32,50"),"B1 escape tunnel blocked");
+    const escape=flood(f.floors[1].y+1,[13,13]);assert.ok(escape.has("13,34"),"B1 escape tunnel blocked");
+    // Only the ladder itself may pierce a floor; any open column beside it is a drop to the bottom.
+    for(const floor of f.floors)assert.notEqual(at(14,floor.y,16).typeId,"minecraft:air",`Open drop beside the ladder at Y ${floor.y}`);
+    // The escape ladder must land players on a hut floor that leads to its exit.
+    const hut=f.origin.y;
+    for(let x=12;x<=14;x++)for(let z=33;z<=35;z++)if(x!==13||z!==35)
+      assert.notEqual(at(x,hut,z).typeId,"minecraft:air",`Escape hut floor open at ${x},${hut},${z}`);
+    assert.equal(at(13,hut,35).typeId,"minecraft:ladder","Escape ladder does not reach the hut");
+    assert.ok(flood(hut+1,[13,34],{x0:12,x1:14,z0:32,z1:35}).has("13,32"),"Escape hut exit unreachable");
     for(let y=f.floors.at(-1).y+1;y<=85;y++){
-      assert.equal(at(36,y,22).typeId,"minecraft:ladder");assert.equal(at(37,y,22).typeId,ns+"steel_wall");
+      assert.equal(at(15,y,16).typeId,"minecraft:ladder");assert.equal(at(16,y,16).typeId,ns+"steel_wall");
     }
-    const main=f.doors[0],bounds={x0:22,x1:42,z0:-6,z1:25};
-    assert.equal(flood(81,[32,-3],bounds).has("32,19"),false,"Closed blast door can be bypassed");
-    requestDoor(f,main,true);for(let n=0;n<20;n++)tickDoors();
-    assert.ok(flood(81,[32,-3],bounds).has("32,19"),"Open entrance does not connect to elevator");
+    const main=f.doors[0],bounds={x0:6,x1:20,z0:-4,z1:17};
+    assert.equal(flood(81,[13,-2],bounds).has("13,13"),false,"Closed blast door can be bypassed");
+    requestDoor(f,main,true);for(let n=0;n<40;n++)tickDoors();
+    assert.ok(flood(81,[13,-2],bounds).has("13,13"),"Open entrance does not connect to elevator");
+  }
+});
+test("the site survey refuses slopes and water, and rock encases every slab",()=>{
+  // A site that is not level is what leaves floors exposed through a hillside.
+  reset();facilities.clear();
+  const site=()=>{const p=playerAt({x:100,y:81,z:200});players.length=0;players.push(p);return p;};
+  assert.ok(originAt(site()),"flat ground must be accepted");
+  terrain.height=x=>80+Math.round((x-87)*0.7);
+  assert.throws(()=>originAt(site()),/rises and falls/,"a hillside must be refused");
+  // Level footprint, but a rise behind it would bury the escape hut's exit.
+  terrain.height=(x,z)=>z>=240?90:80;
+  assert.throws(()=>originAt(site()),/rises and falls/,"a rise over the escape hut must be refused");
+  terrain.height=()=>80;
+  const {f}=make(5);
+  // The outer skin of the underground footprint must be solid. The only permitted openings
+  // are the rear escape tunnel mouth and the emergency ladder shaft.
+  const open=[];
+  for(let y=f.floors.at(-1).y;y<=f.origin.y-1;y++)for(let x=0;x<=26;x++)for(let z=0;z<=26;z++){
+    if(x!==0&&x!==26&&z!==0&&z!==26)continue;
+    const b=at(x,y,z);if(!b||b.typeId==="minecraft:air")open.push(`${x},${y},${z}`);
+  }
+  assert.ok(open.every(k=>k.startsWith("12,")||k.startsWith("13,")||k.startsWith("14,")),
+    `Unexpected hole in the encasement: ${open.slice(0,5)}`);
+  // The emergency ladder passes through each slab as ladder blocks, not open air.
+  for(const floor of f.floors.slice(1))for(let x=0;x<=26;x++)for(let z=0;z<=26;z++){
+    for(const y of [floor.y+7,floor.y+8])
+      assert.notEqual(at(x,y,z)?.typeId,"minecraft:air",`Inter-floor slab open at ${x},${y},${z}`);
   }
 });
 test("snapshot persistence round trips large facilities and interrupted builds",()=>{
@@ -65,7 +100,56 @@ test("door obstruction delays closure without trapping entities",()=>{
   const {f}=make(),door=f.doors.find(d=>d.kind==="security");
   entities.push({id:"obstruction",typeId:"minecraft:cow",location:{...door.min},tags:[],isValid:true});
   requestDoor(f,door,false);tickDoors();assert.equal(at(door.min.x,door.min.y,door.min.z).states[ns+"open"],true);
-  entities.pop();for(let n=0;n<10;n++)tickDoors();assert.equal(at(door.min.x,door.min.y,door.min.z).states[ns+"open"],false);
+  entities.pop();for(let n=0;n<40;n++)tickDoors();assert.equal(at(door.min.x,door.min.y,door.min.z).states[ns+"open"],false);
+});
+test("room doors retract in two-pixel steps rather than popping open",()=>{
+  const {f}=make(3),door=f.doors.find(d=>d.kind==="security"),height=door.max.y-door.min.y+1;
+  const column=()=>[...Array(height).keys()].map(r=>{
+    const b=at(door.min.x+1,door.min.y+r,door.min.z);
+    return b.states[ns+"open"]===true?"open":String(b.states[ns+"slide"]);
+  }).join("|");
+  requestDoor(f,door,false);for(let n=0;n<height*SUBSTEPS+4;n++)tickDoors();
+  assert.equal(column(),new Array(height).fill("0").join("|"),"Should close to a solid leaf");
+  requestDoor(f,door,true);
+  const frames=[];for(let n=0;n<height*SUBSTEPS+4;n++){frames.push(column());tickDoors();}
+  // One frame per tick, eight per block of height, so the leaf lifts two pixels at a time.
+  assert.ok(new Set(frames).size>=height*SUBSTEPS,`Only ${new Set(frames).size} distinct frames for a ${height}-block door`);
+  assert.ok(frames.some(k=>/(^|\|)7(\||$)/.test(k)),"The finest partial-slide frame was never shown");
+  assert.equal(column(),new Array(height).fill("open").join("|"),"Should finish fully open");
+});
+test("the blast door slides as one smooth leaf and leaves nothing behind",()=>{
+  const {f}=make(3),door=f.doors[0],height=door.max.y-door.min.y+1,steps=height*SUBSTEPS,tag=`sf_door:${f.id}:${door.id}`;
+  // The leaf model in tools/build_assets.py is built for exactly this door.
+  assert.deepEqual([door.max.x-door.min.x+1,height,door.max.z-door.min.z+1],[5,4,1]);
+  const leaves=()=>entities.filter(e=>e.typeId===LEAF);
+  const rows=()=>[...Array(height).keys()].map(r=>at(door.min.x+2,door.min.y+r,door.min.z).states[ns+"open"]);
+  requestDoor(f,door,true);tickDoors();
+  // The leaf arrives one tick before any block is cleared, so the doorway never flashes open.
+  assert.equal(leaves().length,1);assert.deepEqual(rows(),new Array(height).fill(false));
+  assert.ok(leaves()[0].tags.includes(tag));assert.equal(leaves()[0].spawnEvent,undefined);
+  const progress=[];
+  for(let n=0;n<steps;n++){
+    tickDoors();const value=leaves()[0].getProperty(ns+"progress");progress.push(value);
+    // Courses the leaf has begun to leave are cleared; courses it still covers stay solid.
+    const lifted=Math.ceil(value*steps/SUBSTEPS);
+    assert.deepEqual(rows(),[...Array(height).keys()].map(r=>r<lifted),`Blocks disagree with the leaf at ${value}`);
+  }
+  assert.ok(progress.every((v,i)=>Math.abs(v-(i+1)/steps)<1e-9),"The leaf should rise one step per tick");
+  tickDoors();assert.equal(leaves().length,0,"The leaf must be removed once the door is open");
+  assert.deepEqual(rows(),new Array(height).fill(true));
+  // Closing starts from the top, is paused by an entity in the doorway, then resumes.
+  requestDoor(f,door,false);tickDoors();
+  assert.equal(leaves()[0].spawnEvent,ns+"from_open","A closing leaf must start fully raised");
+  for(let n=0;n<8;n++)tickDoors();
+  const cow={id:"cow",typeId:"minecraft:cow",location:{...door.min},tags:[],isValid:true};entities.push(cow);
+  const held=leaves()[0].getProperty(ns+"progress");for(let n=0;n<10;n++)tickDoors();
+  assert.equal(leaves()[0].getProperty(ns+"progress"),held,"The leaf must hold while the doorway is obstructed");
+  entities.splice(entities.indexOf(cow),1);
+  for(let n=0;n<steps;n++)tickDoors();
+  assert.deepEqual(rows(),new Array(height).fill(false));assert.equal(leaves().length,0);
+  // A leaf stranded by a reload mid-slide is cleared when the door is restored.
+  dimension.spawnEntity(LEAF,{...door.min}).addTag(tag);
+  restoreDoors(f);tickDoors();assert.equal(leaves().length,0,"Stale leaf survived a restore");
 });
 test("self-destruct abort cutoff and permanent bounded damage",()=>{
   const {f}=make(3);armDestruct(f);assert.equal(f.countdown,90);assert.ok(f.doors.every(d=>d.open));

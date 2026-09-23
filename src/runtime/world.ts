@@ -33,6 +33,12 @@ export function report(error:unknown,player?:Player):void {
   if(player?.isValid)tell(player,`§c${String(error).replace(/^Error: /,"")}`);
 }
 export const delay=(ticks:number):Promise<void> => new Promise(resolve=>system.runTimeout(resolve,ticks));
+export function shake(player:Player,seconds:number,intensity:number):void {
+  try{player.runCommand(`camerashake add @s ${intensity.toFixed(2)} ${seconds.toFixed(2)} positional`);}catch{/* Commands unavailable. */}
+}
+export function fade(player:Player,inTime:number,hold:number,outTime:number):void {
+  try{player.camera.fade({fadeColor:{red:0,green:0,blue:0},fadeTime:{fadeInTime:inTime,holdTime:hold,fadeOutTime:outTime}});}catch{/* Camera unavailable. */}
+}
 export function lineClear(d:Dimension,a:Vec,b:Vec):boolean {
   const length=distance(a,b);
   if(length<0.05)return true;

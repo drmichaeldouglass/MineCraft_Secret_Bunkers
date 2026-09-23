@@ -27,9 +27,10 @@ If the kit command is unavailable, use `/give @s secretfacilities:facility_deplo
 
 ## Included
 
-- A 65-block-wide modular command bunker with 3–8 underground floors and 33 binary `.mcstructure` templates.
+- A 27-block-square modular command bunker with 3–8 underground floors and 33 binary `.mcstructure` templates.
 - Seeded selection of offices, briefing rooms, security rooms, barracks, medical rooms, canteens, command rooms, server rooms, engineering rooms, archives, laboratories, and vaults.
-- A nine-block-wide entrance blast door, room security doors, readers, alarm shutters, and emergency lights.
+- A surveyed, level, dry site requirement and solid rock encasement, so no floor surfaces through a hillside.
+- A five-block-wide sliding entrance blast door, room security doors, readers, alarm shutters, and emergency lights.
 - Four clearance levels and a Creative-only master card.
 - Multi-floor elevator transfer pads, a continuous emergency ladder, and a B1 escape tunnel to a surface utility hut.
 - Horizontal and vertical laser grids, alert/lockdown controls, shared facility state, and saved configurations.

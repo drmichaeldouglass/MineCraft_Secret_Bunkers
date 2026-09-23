@@ -3,7 +3,7 @@ import { NS } from "./core/types.js";
 import { dirty, facilities, load, save } from "./runtime/store.js";
 import { giveKit, interact, runMenu, scheduleDevice } from "./runtime/menus.js";
 import { report } from "./runtime/world.js";
-import { restoreDoors, tickAlarms, tickDoors, tickLasers } from "./runtime/security.js";
+import { registerDoorEvents, restoreDoors, tickAlarms, tickDoors, tickLasers } from "./runtime/security.js";
 import { registerDefenceEvents, tickDefence } from "./runtime/defence.js";
 system.beforeEvents.startup.subscribe(event => {
     event.blockComponentRegistry.registerCustomComponent(NS + "interact", {
@@ -28,13 +28,14 @@ world.afterEvents.worldLoad.subscribe(() => {
         report(error);
     }
     registerDefenceEvents();
+    registerDoorEvents();
     const safe = (work) => () => { try {
         work();
     }
     catch (error) {
         report(error);
     } };
-    system.runInterval(safe(tickDoors), 6);
+    system.runInterval(safe(tickDoors), 1);
     system.runInterval(safe(tickLasers), 5);
     system.runInterval(safe(tickDefence), 5);
     system.runInterval(safe(tickAlarms), 10);

@@ -14,7 +14,7 @@ Choose dry, reasonably level, open land. The surface portal is anchored to the t
 
 Choose 3–8 underground floors, a seed, and whether to include defences. The default is five floors. The confirmation shows the entrance, depth and footprint before any construction begins.
 
-Construction replaces blocks in the modules and infrastructure. Its reserved bounds are 65 × 60 blocks horizontally, from nine blocks per underground floor below the portal to eight blocks above it. Existing registered facilities must have an eight-block gap. The alpha supports at most 16 registered facilities in one world.
+Construction replaces blocks in the modules and infrastructure. Its reserved bounds are 27 × 42 blocks horizontally (a 27 × 27 floor plate plus the rear escape tunnel), from nine blocks per underground floor below the portal to eight blocks above it. The site must be dry and level to within five blocks, and the underground volume is encased in stone. Existing registered facilities must have an eight-block gap. The alpha supports at most 16 registered facilities in one world.
 
 Stay near the entrance while construction runs. It places one template or installation operation every two ticks. If the site unloads or the game is closed during construction, return to the same area and use **Resume interrupted construction**. Resuming retries the saved build step; it does not undo already placed blocks. Keep other players out until construction is complete.
 

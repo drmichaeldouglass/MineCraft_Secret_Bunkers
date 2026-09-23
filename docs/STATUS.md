@@ -8,11 +8,11 @@ The source plan explicitly prioritizes a smaller reliable bunker and staged shar
 |---|---|---|
 | Foundation | BP/RP, pinned TypeScript/API pipeline, validation, packaging, source and tests | In-game import acceptance; CI |
 | Palette | 47 custom textured blocks, light state, seven items | Bespoke geometry for consoles, pipes, panels and readers; facility-specific palettes |
-| Modular construction | 33 binary templates; 13×7×13 rooms and halls; 9-block floor spacing | Separate corner/T/cross/stair exports, large room families, richer furniture |
+| Modular construction | 33 binary templates; 9×7×9 rooms and halls on a 3×3 grid; 9-block floor spacing | Separate corner/T/cross/stair exports, large room families, richer furniture |
 | Bunker generation | 3–8 floors; guaranteed connected hall and core; seed selects room types | More varied topology and weighted room pools; site preview; rollback/removal tooling |
-| Terrain entrance | Surface-height-anchored reinforced portal, nine-wide blast door | Hill-profile detection, arbitrary rotations, terrain blending and grading |
-| Doors | Stateful multi-block doors, sequential center-out retraction, reader clearance, obstruction handling | Sliding mesh animation, articulated locking assemblies |
-| Elevators | Clearance-controlled timed transfer pads, safe destination checks, emergency ladder | Cabin doors, floor indicators, freight/other visual variants |
+| Terrain entrance | Surveyed level/dry site, reinforced portal, five-wide blast door, solid rock encasement around every slab | Arbitrary rotations, cosmetic terrain blending and grading |
+| Doors | Stateful multi-block doors; smooth moving-leaf entrance blast door; 2-pixel, per-tick slide for room doors and shutters; reader clearance, obstruction handling | Articulated locking assemblies, distinct open/close sound layers |
+| Elevators | Clearance-controlled transfer pads with a rumbling ride, per-deck callouts, fade transfer, safe destination checks, emergency ladder | Cabin doors, physical shaft travel, freight variants |
 | Security | Horizontal/vertical grids, alert/lockdown, sirens, flashing lights, shutters | Local-response configuration UI; alarm/status console texture permutations |
 | Defence | Laser entity/model, aiming, local searches, cached targets, LOS, cooldown, modes, two zones | Native aggression adapter for neutral mobs, field performance measurements, richer animation/damage visuals |
 | Missiles | Construction base block only | Missile entity/projectile, minimum range, launch/reload, safe impact, tests |

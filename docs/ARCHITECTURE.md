@@ -24,7 +24,7 @@ Jigsaw generation is deliberately not shipped as untested example JSON. The chos
 
 The shared states are NORMAL, ALERT, LOCKDOWN, SELF_DESTRUCT and DESTROYED. Security transitions drive doors, shutters, lamps and turret mode evaluation. Door state is the requested open/closed state; block changes may lag while an animation runs, a chunk is unloaded or an entity obstructs closure. A reload reconciles physical doors to saved intent.
 
-Snapshots use two alternating banks of world dynamic properties. Each serialized chunk contains at most 12,000 characters; the bank pointer commits last. The world index stores facility IDs. Doors, elevator floors, build progress, grids, lights, zones, turret state and countdown are in each snapshot. Transient targets and animation progress are not saved.
+Snapshots use two alternating banks of world dynamic properties. Each serialized chunk contains at most 12,000 characters; the bank pointer commits last. The world index stores facility IDs. Doors, elevator floors, build progress, grids, lights, zones, turret state and countdown are in each snapshot. Transient targets and animation progress are not saved; a blast door leaf stranded by a reload is removed when the entity loads or the door is restored.
 
 Dynamic-property ownership depends on the BP header UUID. Keep that UUID stable when updating existing worlds. The current schema is 1. Content generation is idempotent at the operation level; turret spawning also checks a facility/turret tag before adding an entity.
 

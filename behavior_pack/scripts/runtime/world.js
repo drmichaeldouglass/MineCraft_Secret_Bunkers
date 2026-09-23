@@ -50,6 +50,18 @@ export function report(error, player) {
         tell(player, `§c${String(error).replace(/^Error: /, "")}`);
 }
 export const delay = (ticks) => new Promise(resolve => system.runTimeout(resolve, ticks));
+export function shake(player, seconds, intensity) {
+    try {
+        player.runCommand(`camerashake add @s ${intensity.toFixed(2)} ${seconds.toFixed(2)} positional`);
+    }
+    catch { /* Commands unavailable. */ }
+}
+export function fade(player, inTime, hold, outTime) {
+    try {
+        player.camera.fade({ fadeColor: { red: 0, green: 0, blue: 0 }, fadeTime: { fadeInTime: inTime, holdTime: hold, fadeOutTime: outTime } });
+    }
+    catch { /* Camera unavailable. */ }
+}
 export function lineClear(d, a, b) {
     const length = distance(a, b);
     if (length < 0.05)

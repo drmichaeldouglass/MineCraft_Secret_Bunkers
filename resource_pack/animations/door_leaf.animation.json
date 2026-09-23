@@ -1,0 +1,17 @@
+{
+  "format_version": "1.8.0",
+  "animations": {
+    "animation.secretfacilities.door_leaf.slide": {
+      "loop": true,
+      "bones": {
+        "leaf": {
+          "position": [
+            0,
+            "v.shown * 64",
+            0
+          ]
+        }
+      }
+    }
+  }
+}

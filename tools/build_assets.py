@@ -14,6 +14,9 @@ ROOT = Path(__file__).resolve().parents[1]
 BP, RP = ROOT / "behavior_pack", ROOT / "resource_pack"
 NS = "secretfacilities:"
 VERSION = [0, 1, 0]
+# Door frames per block of travel. Must match SUBSTEPS in src/runtime/security.ts.
+DOOR_SUBSTEPS = 8
+DOOR_PX = 16 // DOOR_SUBSTEPS
 BP_UUID = "9475140d-6c47-4789-994e-ebcad89c09c9"
 RP_UUID = "ff0f218a-08c7-43a1-8ab3-a19408a6eb20"
 
@@ -128,10 +131,17 @@ def textures():
             permutations=[{"condition":"q.block_state('secretfacilities:active')", "components":{
                 "minecraft:light_emission":15,"minecraft:material_instances":{"*":{"texture":"alarm_on","render_method":"opaque"}}}}]
         if name in ["blast_door", "security_door", "security_shutter"]:
-            description["states"]={NS+"open":[False,True]}
-            permutations=[{"condition":"q.block_state('secretfacilities:open')", "components":{
+            # 'slide' is how many 2-pixel steps the leaf has retracted upward into the lintel.
+            # Later permutations win, so the fully-open case is listed last.
+            description["states"]={NS+"open":[False,True],NS+"slide":list(range(DOOR_SUBSTEPS))}
+            permutations=[{"condition":f"q.block_state('{NS}slide') == {step}", "components":{
+                "minecraft:geometry":{"identifier":f"geometry.secretfacilities.door_slide_{step}"},
+                "minecraft:collision_box":{"origin":[-8,DOOR_PX*step,-8],"size":[16,16-DOOR_PX*step,16]},
+                "minecraft:selection_box":{"origin":[-8,DOOR_PX*step,-8],"size":[16,16-DOOR_PX*step,16]},
+                "minecraft:light_dampening":0}} for step in range(1,DOOR_SUBSTEPS)]
+            permutations.append({"condition":f"q.block_state('{NS}open')", "components":{
                 "minecraft:collision_box":False,"minecraft:selection_box":False,
-                "minecraft:geometry":{"identifier":"geometry.secretfacilities.empty"},"minecraft:light_dampening":0}}]
+                "minecraft:geometry":{"identifier":"geometry.secretfacilities.empty"},"minecraft:light_dampening":0}})
         write(BP / "blocks" / f"{name}.json",{"format_version":"1.21.90","minecraft:block":{
             "description":description,"components":components,**({"permutations":permutations} if permutations else {})}})
         lang.append(f"tile.{NS}{name}.name={name.replace('_',' ').title()}")
@@ -163,8 +173,17 @@ def textures():
     for pack in (BP,RP):
         write(pack/"texts/languages.json",["en_US"])
         (pack/"texts/en_US.lang").write_text("pack.name=Secret Facilities\npack.description=Command bunker · first playable alpha\n"+"\n".join(lang)+"\n")
-    write(RP/"models/blocks/empty.geo.json",{"format_version":"1.12.0","minecraft:geometry":[{
-        "description":{"identifier":"geometry.secretfacilities.empty","texture_width":16,"texture_height":16},"bones":[{"name":"root","pivot":[0,0,0]}]}]})
+    models=[{"description":{"identifier":"geometry.secretfacilities.empty","texture_width":16,"texture_height":16},
+              "bones":[{"name":"root","pivot":[0,0,0]}]}]
+    for step in range(1,DOOR_SUBSTEPS):
+        # Per-face UVs: box UV on a 16x16 block texture runs off the sprite and samples the atlas.
+        # Sides show the leaf's lower edge, so the texture rises with the leaf.
+        side={"uv":[0,DOOR_PX*step],"uv_size":[16,16-DOOR_PX*step]};cap={"uv":[0,0],"uv_size":[16,16]}
+        uv={face:side for face in ("north","south","east","west")}|{"up":cap,"down":cap}
+        models.append({"description":{"identifier":f"geometry.secretfacilities.door_slide_{step}",
+            "texture_width":16,"texture_height":16,"visible_bounds_width":2,"visible_bounds_height":2,"visible_bounds_offset":[0,0.5,0]},
+            "bones":[{"name":"leaf","pivot":[0,0,0],"cubes":[{"origin":[-8,DOOR_PX*step,-8],"size":[16,16-DOOR_PX*step,16],"uv":uv}]}]})
+    write(RP/"models/blocks/empty.geo.json",{"format_version":"1.12.0","minecraft:geometry":models})
 
 def turret():
     write(BP/"entities/laser_turret.json",{"format_version":"1.21.90","minecraft:entity":{
@@ -209,6 +228,49 @@ def turret():
                 "minecraft:particle_appearance_tinting":{"color":color}}}})
     save(Image.new("RGBA",(8,8),(255,255,255,255)),RP/"textures/particle/laser.png")
 
+# The entrance blast door is 5 wide and 4 tall; the planner test pins that size.
+LEAF_WIDTH, LEAF_HEIGHT = 5, 4
+
+def door_leaf():
+    """A moving copy of the blast door leaf. The client eases it toward the scripted
+    progress every frame, so the slide is smooth instead of stepping with block updates."""
+    progress=NS+"progress"
+    write(BP/"entities/blast_door_leaf.json",{"format_version":"1.21.90","minecraft:entity":{
+        "description":{"identifier":NS+"blast_door_leaf","is_spawnable":False,"is_summonable":True,"is_experimental":False,
+            "properties":{progress:{"type":"float","range":[0.0,1.0],"default":0.0,"client_sync":True}}},
+        "components":{"minecraft:type_family":{"family":["inanimate","secretfacilities_door"]},
+            "minecraft:health":{"value":1,"max":1},"minecraft:collision_box":{"width":0.1,"height":0.1},
+            "minecraft:damage_sensor":{"triggers":{"cause":"all","deals_damage":"no"}},
+            "minecraft:physics":{"has_gravity":False,"has_collision":False},
+            "minecraft:pushable":{"is_pushable":False,"is_pushable_by_piston":False},
+            "minecraft:knockback_resistance":{"value":1},"minecraft:body_rotation_blocked":{},"minecraft:fire_immune":{}},
+        # Spawning mid-travel starts the client at the right end, so a closing leaf never flashes shut.
+        "events":{NS+"from_open":{"set_property":{progress:1.0}}}}})
+    # One cube per door block, so the blast door texture tiles exactly like the blocks it covers.
+    # 15 px deep: just inside the wall above, which hides the leaf once it has slid up.
+    face={"uv":[0,0],"uv_size":[32,32]};edge={"uv":[0,0],"uv_size":[30,32]};cap={"uv":[0,0],"uv_size":[32,30]}
+    uv={"north":face,"south":face,"east":edge,"west":edge,"up":cap,"down":cap}
+    cubes=[{"origin":[-8*LEAF_WIDTH+16*i,16*j,-7.5],"size":[16,16,15],"uv":uv} for i in range(LEAF_WIDTH) for j in range(LEAF_HEIGHT)]
+    write(RP/"models/entity/blast_door_leaf.geo.json",{"format_version":"1.12.0","minecraft:geometry":[{
+        "description":{"identifier":"geometry.secretfacilities.blast_door_leaf","texture_width":32,"texture_height":32,
+            "visible_bounds_width":LEAF_WIDTH+1,"visible_bounds_height":2*LEAF_HEIGHT+1,"visible_bounds_offset":[0,LEAF_HEIGHT+0.5,0]},
+        "bones":[{"name":"leaf","pivot":[0,0,0],"cubes":cubes}]}]})
+    # Follow the server at slightly above door speed (one leaf height per 1.6 s); snap on large gaps.
+    follow=0.8
+    write(RP/"entity/blast_door_leaf.entity.json",{"format_version":"1.10.0","minecraft:client_entity":{
+        "description":{"identifier":NS+"blast_door_leaf","materials":{"default":"entity"},
+            "textures":{"default":"textures/blocks/blast_door"},"geometry":{"default":"geometry.secretfacilities.blast_door_leaf"},
+            "animations":{"slide":"animation.secretfacilities.door_leaf.slide"},
+            "scripts":{"initialize":["v.shown = -1;"],
+                "pre_animation":[f"t.target = q.property('{progress}');",
+                    f"v.shown = (v.shown < 0 || math.abs(t.target - v.shown) > 0.25) ? t.target : v.shown + math.clamp(t.target - v.shown, -{follow} * q.delta_time, {follow} * q.delta_time);"],
+                "animate":["slide"]},
+            "render_controllers":["controller.render.secretfacilities.door_leaf"]}}})
+    write(RP/"render_controllers/door_leaf.json",{"format_version":"1.8.0","render_controllers":{
+        "controller.render.secretfacilities.door_leaf":{"geometry":"Geometry.default","materials":[{"*":"Material.default"}],"textures":["Texture.default"]}}})
+    write(RP/"animations/door_leaf.animation.json",{"format_version":"1.8.0","animations":{
+        "animation.secretfacilities.door_leaf.slide":{"loop":True,"bones":{"leaf":{"position":[0,f"v.shown * {16*LEAF_HEIGHT}",0]}}}}})
+
 def sounds():
     definitions={}
     for name,duration in [("access_granted",0.22),("access_denied",0.3),("alarm_alert",1.8),("alarm_lockdown",1.8),
@@ -240,13 +302,15 @@ def nbt_payload(kind,value):
     raise ValueError(kind)
 
 class Template:
-    def __init__(self,name,size=(13,7,13)):
+    def __init__(self,name,size=(9,7,9)):
         self.name,self.size=name,size;self.blocks={}
         self.fill((0,0,0),tuple(n-1 for n in size),"minecraft:air")
     def set(self,x,y,z,block,states=None):
         if not (0<=x<self.size[0] and 0<=y<self.size[1] and 0<=z<self.size[2]):raise ValueError((self.name,x,y,z))
-        if states is None and block in ["blast_door","security_door","security_shutter"]:states={NS+"open":False}
+        # Palette entries carry every state, as game-saved structures do.
+        if states is None and block in ["blast_door","security_door","security_shutter"]:states={NS+"open":False,NS+"slide":0}
         if states is None and block=="emergency_light":states={NS+"active":False}
+        if states is None and block.endswith("_slab"):states={"minecraft:vertical_half":"bottom"}
         self.blocks[x,y,z]=(block if ":" in block else NS+block,tuple(sorted((states or {}).items())))
     def fill(self,a,b,block,states=None):
         for x in range(a[0],b[0]+1):
@@ -274,37 +338,37 @@ class Template:
 
 def room(role,side):
     t=Template(f"{role}_{side}");t.shell()
-    z=12 if side=="north" else 0
-    t.fill((5,1,z),(7,3,z),"minecraft:air")
+    z=8 if side=="north" else 0
+    far=1 if side=="north" else 7
+    t.fill((3,1,z),(5,3,z),"minecraft:air")
     # A 3-wide unbroken aisle always leads from the connector to the far wall.
-    for x in [3,9]:t.set(x,6,6,"industrial_light")
-    t.fill((1,1,1),(1,4,11),"concrete_panel")
-    t.fill((11,1,1),(11,4,11),"concrete_panel")
+    for x in [2,6]:t.set(x,6,4,"industrial_light")
+    t.fill((1,1,1),(1,4,7),"concrete_panel")
+    t.fill((7,1,1),(7,4,7),"concrete_panel")
     if role in ["server","archive","vault","utility"]:
-        for x in [2,3,9,10]:
-            for zz in [3,7]:t.fill((x,1,zz),(x,3,zz+1),"server_rack" if role=="server" else "steel_plate" if role=="vault" else "electrical_cabinet")
+        for x in [2,6]:
+            for zz in [2,5]:t.fill((x,1,zz),(x,3,zz+1),"server_rack" if role=="server" else "steel_plate" if role=="vault" else "electrical_cabinet")
     elif role in ["command","office","security","briefing"]:
-        for x in [2,9]:
-            for zz in [3,7]:
+        for x in [2,6]:
+            for zz in [2,5]:
                 t.set(x,1,zz,"steel_plate");t.set(x,2,zz,"control_cabinet");t.set(x,1,zz+1,"minecraft:polished_blackstone_brick_slab")
-        t.fill((3,3,1),(9,4,1),"facility_status_display")
+        t.fill((2,3,far),(6,4,far),"facility_status_display")
     elif role in ["generator","workshop"]:
-        for x in [2,9]:
-            t.fill((x,1,3),(x+1,2,8),"generator_panel");t.fill((x,4,2),(x,4,10),"pipe")
-        t.fill((2,0,2),(4,0,10),"concrete_warning_stripe")
+        for x in [2,6]:
+            t.fill((x,1,2),(x,2,6),"generator_panel");t.fill((x,4,1),(x,4,7),"pipe")
+        t.fill((2,0,1),(2,0,7),"concrete_warning_stripe")
     elif role in ["laboratory","medical"]:
-        for x in [2,9]:
-            t.fill((x,1,3),(x+1,1,9),"light_reinforced_concrete")
-            t.set(x,2,4,"security_glass");t.set(x,2,8,"utility_panel")
+        for x in [2,6]:
+            t.fill((x,1,2),(x,1,6),"light_reinforced_concrete")
+            t.set(x,2,3,"security_glass");t.set(x,2,5,"utility_panel")
     elif role=="barracks":
-        for x in [2,9]:
-            for zz in [2,6,9]:
-                t.fill((x,1,zz),(x+1,1,zz+1),"minecraft:gray_wool");t.set(x,1,zz,"minecraft:white_wool")
+        for x in [2,6]:
+            for zz in [1,4,6]:
+                t.fill((x,1,zz),(x,1,zz+1),"minecraft:gray_wool");t.set(x,1,zz,"minecraft:white_wool")
     elif role=="canteen":
-        for x in [2,9]:
-            t.fill((x,1,3),(x+1,1,9),"steel_plate")
-        t.fill((2,1,1),(4,1,1),"light_reinforced_concrete")
-        t.fill((8,1,1),(10,1,1),"light_reinforced_concrete")
+        for x in [2,6]:
+            t.fill((x,1,2),(x,1,6),"steel_plate")
+        t.fill((2,1,far),(6,1,far),"light_reinforced_concrete")
     return t
 
 def structures():
@@ -313,31 +377,31 @@ def structures():
         for side in ["north","south"]:templates.append(room(role,side))
     for name in ["hall","hall_west","hall_east","core"]:
         t=Template(name);t.shell()
-        t.fill((1,1,1),(11,5,3),"dark_reinforced_concrete");t.fill((1,1,9),(11,5,11),"dark_reinforced_concrete")
-        t.fill((5,1,0),(7,3,12),"minecraft:air")
-        if name!="hall_west":t.fill((0,1,4),(0,4,8),"minecraft:air")
-        if name!="hall_east":t.fill((12,1,4),(12,4,8),"minecraft:air")
-        t.fill((2,6,6),(10,6,6),"industrial_light")
-        t.fill((0,0,4),(12,0,4),"concrete_warning_stripe")
-        t.fill((0,0,8),(12,0,8),"concrete_warning_stripe")
+        t.fill((1,1,1),(7,5,2),"dark_reinforced_concrete");t.fill((1,1,6),(7,5,7),"dark_reinforced_concrete")
+        t.fill((3,1,0),(5,3,8),"minecraft:air")
+        if name!="hall_west":t.fill((0,1,3),(0,4,5),"minecraft:air")
+        if name!="hall_east":t.fill((8,1,3),(8,4,5),"minecraft:air")
+        t.fill((2,6,4),(6,6,4),"industrial_light")
+        t.fill((0,0,3),(8,0,3),"concrete_warning_stripe")
+        t.fill((0,0,5),(8,0,5),"concrete_warning_stripe")
         if name=="core":
-            t.fill((1,1,1),(11,5,11),"minecraft:air")
-            t.fill((4,0,4),(8,0,8),"elevator_pad")
-            t.set(8,2,7,"elevator_panel")
+            t.fill((1,1,1),(7,5,7),"minecraft:air")
+            t.fill((3,0,3),(5,0,5),"elevator_pad")
+            t.set(6,2,5,"elevator_panel")
         templates.append(t)
-    # Authored entrance, 21 wide x 9 high x 32 deep; its rear core aligns with all floors.
-    t=Template("entrance",(21,9,32));t.shell()
-    t.fill((0,0,0),(20,8,5),"minecraft:air");t.fill((0,0,0),(20,0,5),"reinforced_concrete")
-    for x in [0,1,19,20]:t.fill((x,1,5),(x,7,12),"dark_reinforced_concrete")
-    t.fill((0,7,5),(20,8,12),"concrete_panel")
-    t.fill((0,1,6),(20,6,6),"concrete_panel")
-    t.fill((6,1,6),(14,5,6),"blast_door")
-    t.fill((6,1,7),(14,5,18),"minecraft:air")
-    t.fill((4,1,19),(16,6,30),"minecraft:air")
-    t.fill((8,0,23),(12,0,27),"elevator_pad")
-    t.set(12,2,26,"elevator_panel")
-    for x in [2,18]:t.fill((x,1,2),(x,1,2),"laser_turret_mount")
-    for z in [10,16,22,28]:t.fill((8,7,z),(12,7,z),"industrial_light")
+    # Authored entrance, 15 wide x 9 high x 22 deep; its rear core aligns with all floors.
+    t=Template("entrance",(15,9,22));t.shell()
+    t.fill((0,0,0),(14,8,3),"minecraft:air");t.fill((0,0,0),(14,0,3),"reinforced_concrete")
+    for x in [0,1,13,14]:t.fill((x,1,3),(x,7,10),"dark_reinforced_concrete")
+    t.fill((0,7,3),(14,8,10),"concrete_panel")
+    t.fill((0,1,4),(14,6,4),"concrete_panel")
+    t.fill((5,1,4),(9,4,4),"blast_door")
+    t.fill((5,1,5),(9,5,12),"minecraft:air")
+    t.fill((3,1,13),(11,6,20),"minecraft:air")
+    t.fill((6,0,16),(8,0,18),"elevator_pad")
+    t.set(9,2,18,"elevator_panel")
+    for x in [2,12]:t.set(x,1,1,"laser_turret_mount")
+    for z in [8,12,16,20]:t.fill((6,7,z),(8,7,z),"industrial_light")
     templates.append(t)
     catalog=[t.export() for t in templates]
     write(ROOT/"tools/generated/template_voxels.json",catalog)
@@ -361,7 +425,7 @@ def asset_inventory():
         note="Construction palette; available in Creative"
         animation="None"
         if name in INTERACTIVE:note="Shared interaction component; functional at registered positions"
-        if name in ["blast_door","security_door","security_shutter"]:note="Generated doors / shutters";animation="Scripted block retraction"
+        if name in ["blast_door","security_door","security_shutter"]:note="Generated doors / shutters";animation="Scripted 2-pixel block retraction" if name!="blast_door" else "Smooth moving leaf entity; blocks provide collision"
         if name=="emergency_light":note="Registered facility alarm lamps";animation="Flashing state permutation"
         if name=="missile_turret_base":note="Construction block only; missile system deferred"
         lines.append(f"| `{NS}{name}` | Block | {note} | Original 32×32 | Full cube; invisible open-door geometry where needed | {animation} | Vanilla placement; shared interaction sounds |")
@@ -371,6 +435,7 @@ def asset_inventory():
         "| Identifier | Type | Implementation | Texture | Model | Animation | Sound |",
         "|---|---|---|---|---|---|---|",
         "| `secretfacilities:laser_turret` | Entity | Hostile-only laser defence; entrance and command zones | Original 64×64 atlas | Six named bones | Scripted entity rotation and pitch bone; game verification pending | Synthesized firing pulse |",
+        "| `secretfacilities:blast_door_leaf` | Entity | Moving blast door leaf, present only while the entrance door travels | Shared blast door texture | 20 block-sized cubes | Client-eased slide driven by a synced property | Blast door sounds |",
         "| `secretfacilities:laser_beam` | Particle | Tripwires and turret shots | Original 8×8 white mask, tinted red | Billboard | 0.22-second particle lifetime | None |",
         "| `secretfacilities:laser_impact` | Particle | Hit marker | Shared white mask, tinted amber | Billboard | 0.22-second particle lifetime | Shared firing pulse |",
         "| Missile turret / projectile | Planned | Not shipped | Deferred | Deferred | Deferred | Deferred |", "",
@@ -389,7 +454,7 @@ def main():
         "dependencies":[{"uuid":RP_UUID,"version":VERSION},{"module_name":"@minecraft/server","version":"2.0.0"},{"module_name":"@minecraft/server-ui","version":"2.0.0"}]})
     write(RP/"manifest.json",{"format_version":2,"header":{"name":"Secret Facilities RP","description":"Original industrial pixel art, turret model, effects and sounds","uuid":RP_UUID,"version":VERSION,"min_engine_version":[1,21,90]},
         "modules":[{"type":"resources","uuid":"071c689c-24f6-45d4-8aaa-4843be1664cf","version":VERSION}]})
-    textures();turret();sounds();structures();icon();asset_inventory()
+    textures();turret();door_leaf();sounds();structures();icon();asset_inventory()
     print(f"Built {len(BLOCKS)} blocks, {len(ITEMS)} items, 33 structure templates, turret, particles and 11 sounds.")
 
 if __name__=="__main__":main()
