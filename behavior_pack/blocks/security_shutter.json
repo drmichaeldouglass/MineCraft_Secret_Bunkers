@@ -46,6 +46,12 @@
           "minecraft:geometry": {
             "identifier": "geometry.secretfacilities.door_slide_1"
           },
+          "minecraft:material_instances": {
+            "*": {
+              "texture": "security_shutter",
+              "render_method": "alpha_test"
+            }
+          },
           "minecraft:collision_box": {
             "origin": [
               -8,
@@ -78,6 +84,12 @@
         "components": {
           "minecraft:geometry": {
             "identifier": "geometry.secretfacilities.door_slide_2"
+          },
+          "minecraft:material_instances": {
+            "*": {
+              "texture": "security_shutter",
+              "render_method": "alpha_test"
+            }
           },
           "minecraft:collision_box": {
             "origin": [
@@ -112,6 +124,12 @@
           "minecraft:geometry": {
             "identifier": "geometry.secretfacilities.door_slide_3"
           },
+          "minecraft:material_instances": {
+            "*": {
+              "texture": "security_shutter",
+              "render_method": "alpha_test"
+            }
+          },
           "minecraft:collision_box": {
             "origin": [
               -8,
@@ -144,6 +162,12 @@
         "components": {
           "minecraft:geometry": {
             "identifier": "geometry.secretfacilities.door_slide_4"
+          },
+          "minecraft:material_instances": {
+            "*": {
+              "texture": "security_shutter",
+              "render_method": "alpha_test"
+            }
           },
           "minecraft:collision_box": {
             "origin": [
@@ -178,6 +202,12 @@
           "minecraft:geometry": {
             "identifier": "geometry.secretfacilities.door_slide_5"
           },
+          "minecraft:material_instances": {
+            "*": {
+              "texture": "security_shutter",
+              "render_method": "alpha_test"
+            }
+          },
           "minecraft:collision_box": {
             "origin": [
               -8,
@@ -210,6 +240,12 @@
         "components": {
           "minecraft:geometry": {
             "identifier": "geometry.secretfacilities.door_slide_6"
+          },
+          "minecraft:material_instances": {
+            "*": {
+              "texture": "security_shutter",
+              "render_method": "alpha_test"
+            }
           },
           "minecraft:collision_box": {
             "origin": [
@@ -244,6 +280,12 @@
           "minecraft:geometry": {
             "identifier": "geometry.secretfacilities.door_slide_7"
           },
+          "minecraft:material_instances": {
+            "*": {
+              "texture": "security_shutter",
+              "render_method": "alpha_test"
+            }
+          },
           "minecraft:collision_box": {
             "origin": [
               -8,
@@ -276,8 +318,12 @@
         "components": {
           "minecraft:collision_box": false,
           "minecraft:selection_box": false,
-          "minecraft:geometry": {
-            "identifier": "geometry.secretfacilities.empty"
+          "minecraft:geometry": "minecraft:geometry.full_block",
+          "minecraft:material_instances": {
+            "*": {
+              "texture": "door_open",
+              "render_method": "alpha_test"
+            }
           },
           "minecraft:light_dampening": 0
         }

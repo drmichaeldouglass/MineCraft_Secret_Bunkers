@@ -147,6 +147,9 @@
     },
     "alarm_on": {
       "textures": "textures/blocks/alarm_on"
+    },
+    "door_open": {
+      "textures": "textures/blocks/door_open"
     }
   }
 }

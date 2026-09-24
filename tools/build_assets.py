@@ -134,20 +134,28 @@ def textures():
             # 'slide' is how many 2-pixel steps the leaf has retracted upward into the lintel.
             # Later permutations win, so the fully-open case is listed last.
             description["states"]={NS+"open":[False,True],NS+"slide":list(range(DOOR_SUBSTEPS))}
+            # Anything short of a solid cube must not use 'opaque': the client then treats the block
+            # as fully occluding, culls the neighbouring faces and the world shows through (x-ray).
             permutations=[{"condition":f"q.block_state('{NS}slide') == {step}", "components":{
                 "minecraft:geometry":{"identifier":f"geometry.secretfacilities.door_slide_{step}"},
+                "minecraft:material_instances":{"*":{"texture":name,"render_method":"alpha_test"}},
                 "minecraft:collision_box":{"origin":[-8,DOOR_PX*step,-8],"size":[16,16-DOOR_PX*step,16]},
                 "minecraft:selection_box":{"origin":[-8,DOOR_PX*step,-8],"size":[16,16-DOOR_PX*step,16]},
                 "minecraft:light_dampening":0}} for step in range(1,DOOR_SUBSTEPS)]
+            # Open doors are drawn as a fully transparent cube. A geometry with no cubes breaks
+            # the client's chunk meshing, and whole sections of the bunker and terrain vanish.
             permutations.append({"condition":f"q.block_state('{NS}open')", "components":{
                 "minecraft:collision_box":False,"minecraft:selection_box":False,
-                "minecraft:geometry":{"identifier":"geometry.secretfacilities.empty"},"minecraft:light_dampening":0}})
+                "minecraft:geometry":"minecraft:geometry.full_block",
+                "minecraft:material_instances":{"*":{"texture":"door_open","render_method":"alpha_test"}},
+                "minecraft:light_dampening":0}})
         write(BP / "blocks" / f"{name}.json",{"format_version":"1.21.90","minecraft:block":{
             "description":description,"components":components,**({"permutations":permutations} if permutations else {})}})
         lang.append(f"tile.{NS}{name}.name={name.replace('_',' ').title()}")
     alarm = Image.open(RP / "textures/blocks/emergency_light.png").convert("RGBA")
     ImageDraw.Draw(alarm).rectangle((5,9,26,22),fill=(255,65,35))
     save(alarm, RP / "textures/blocks/alarm_on.png"); terrain["alarm_on"]={"textures":"textures/blocks/alarm_on"}
+    save(Image.new("RGBA",(32,32)), RP / "textures/blocks/door_open.png"); terrain["door_open"]={"textures":"textures/blocks/door_open"}
     for name,color in ITEMS.items():
         im=Image.new("RGBA",(32,32));d=ImageDraw.Draw(im)
         if "keycard" in name:
@@ -173,8 +181,7 @@ def textures():
     for pack in (BP,RP):
         write(pack/"texts/languages.json",["en_US"])
         (pack/"texts/en_US.lang").write_text("pack.name=Secret Facilities\npack.description=Command bunker · first playable alpha\n"+"\n".join(lang)+"\n")
-    models=[{"description":{"identifier":"geometry.secretfacilities.empty","texture_width":16,"texture_height":16},
-              "bones":[{"name":"root","pivot":[0,0,0]}]}]
+    models=[]
     for step in range(1,DOOR_SUBSTEPS):
         # Per-face UVs: box UV on a 16x16 block texture runs off the sprite and samples the atlas.
         # Sides show the leaf's lower edge, so the texture rises with the leaf.
@@ -183,7 +190,7 @@ def textures():
         models.append({"description":{"identifier":f"geometry.secretfacilities.door_slide_{step}",
             "texture_width":16,"texture_height":16,"visible_bounds_width":2,"visible_bounds_height":2,"visible_bounds_offset":[0,0.5,0]},
             "bones":[{"name":"leaf","pivot":[0,0,0],"cubes":[{"origin":[-8,DOOR_PX*step,-8],"size":[16,16-DOOR_PX*step,16],"uv":uv}]}]})
-    write(RP/"models/blocks/empty.geo.json",{"format_version":"1.12.0","minecraft:geometry":models})
+    write(RP/"models/blocks/door_slide.geo.json",{"format_version":"1.12.0","minecraft:geometry":models})
 
 def turret():
     write(BP/"entities/laser_turret.json",{"format_version":"1.21.90","minecraft:entity":{
