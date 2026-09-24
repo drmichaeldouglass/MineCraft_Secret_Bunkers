@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { clearance, isHostile, mayOpen, defenceActive, segmentDistance } from "../behavior_pack/scripts/core/rules.js";
-import { planBunker } from "../behavior_pack/scripts/generation/planner.js";
+import fs from "node:fs";
+import { FLOOR_PROGRAMS, planBunker, ROOM_ROLES } from "../behavior_pack/scripts/generation/planner.js";
 import { intersects } from "../behavior_pack/scripts/core/types.js";
 const ns="secretfacilities:";
 test("clearance hierarchy and Creative-only master card",()=>{
@@ -51,13 +52,25 @@ test("600 layouts: required rooms, non-overlap, floor alignment, bounds, unique 
       assert.ok(core);assert.equal(core.pos.x+4.5,f.floors[floor].destination.x);
       assert.equal(core.pos.z+4.5,f.floors[floor].destination.z);
       assert.equal(f.floors[floor].y,80-floor*9);
-      assert.ok(mods.some(m=>m.role===["security","barracks","command","generator","vault","archive","laboratory","vault"][floor-1]));
+      // Every fixed room of the floor's program is present; the rest come from its pool.
+      const program=FLOOR_PROGRAMS[floor-1],rooms=mods.filter(m=>m.pos.z!==core.pos.z).map(m=>m.role);
+      assert.equal(rooms.length,6);
+      for(const role of new Set(program.fixed))
+        assert.ok(rooms.filter(r=>r===role).length>=program.fixed.filter(r=>r===role).length,`B${floor} is missing its ${role}`);
+      for(const role of rooms)assert.ok(program.fixed.includes(role)||program.pool.includes(role),`B${floor} has a stray ${role}`);
+      assert.equal(mods.find(m=>m.pos.x===core.pos.x-9&&m.pos.z===core.pos.z-9).role,program.fixed[0]);
       for(let a=0;a<mods.length;a++)for(let b=a+1;b<mods.length;b++){
         const box=m=>({min:m.pos,max:{x:m.pos.x+8,y:m.pos.y+6,z:m.pos.z+8}});
         assert.equal(intersects(box(mods[a]),box(mods[b])),false);
       }
     }
-    for(const door of f.doors)for(const pos of [door.min,door.max,...door.readers]){
+    // Charges sit one block outside the walls: never inside a room, never in the open.
+    assert.equal(f.charges.length,levels*12-1+4);
+    for(const c of f.charges){
+      const x=c.x+32,z=c.z-10;
+      assert.ok(c.y>80?(x===5||x===21):(x===-1||x===27||z===-1||z===27),`charge inside the walls at ${JSON.stringify(c)}`);
+    }
+    for(const door of f.doors)for(const pos of [door.min,door.max,...door.readers,...f.charges]){
       assert.ok(pos.x>=f.bounds.min.x&&pos.x<=f.bounds.max.x);
       assert.ok(pos.y>=f.bounds.min.y&&pos.y<=f.bounds.max.y);
       assert.ok(pos.z>=f.bounds.min.z&&pos.z<=f.bounds.max.z);
@@ -78,6 +91,7 @@ test("every generated fixture claims a distinct block",()=>{
     for(const floor of f.floors)claim(floor.panel,`panel:${floor.name}`);
     for(const light of f.lights)claim(light,"light");
     for(const turret of f.turrets)claim({...turret.pos,y:turret.pos.y-1},`mount:${turret.id}`);
+    for(const charge of f.charges)claim(charge,"charge");
     for(const door of f.doors){
       for(let x=door.min.x;x<=door.max.x;x++)for(let y=door.min.y;y<=door.max.y;y++)for(let z=door.min.z;z<=door.max.z;z++)
         claim({x,y,z},`door:${door.id}`);
@@ -96,4 +110,10 @@ test("seed repeatability and invalid depth guards",()=>{
   for(const levels of [0,2,9,3.2])assert.throws(()=>planBunker(args[0],levels,1,false));
   assert.throws(()=>planBunker({x:0,y:0,z:0},8,1,false));
   assert.equal(planBunker(...args.slice(0,3),false).turrets.length,0);
+});
+test("every room the floor programs can place has north and south templates",()=>{
+  const names=new Set(JSON.parse(fs.readFileSync(new URL("../tools/generated/template_voxels.json",import.meta.url),"utf8")).map(t=>t.name));
+  assert.equal(ROOM_ROLES.length,19);
+  for(const role of ROOM_ROLES)for(const side of ["north","south"])assert.ok(names.has(`${role}_${side}`),`${role}_${side} missing`);
+  for(const name of ["bedroom","lounge","farm","mining"])assert.ok(ROOM_ROLES.includes(name));
 });

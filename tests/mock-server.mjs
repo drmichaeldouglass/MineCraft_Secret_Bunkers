@@ -2,7 +2,7 @@ import fs from "node:fs";
 const catalog=JSON.parse(fs.readFileSync(new URL("../tools/generated/template_voxels.json",import.meta.url),"utf8"));
 const templates=new Map(catalog.map(t=>["secretfacilities:bunker/"+t.name,t]));
 const xyz=p=>`${Math.floor(p.x)},${Math.floor(p.y)},${Math.floor(p.z)}`;
-export const blocks=new Map(),properties=new Map(),players=[],entities=[],tasks=new Map();
+export const blocks=new Map(),properties=new Map(),players=[],entities=[],tasks=new Map(),explosions=[],particles=[];
 // Terrain profile the site survey reads. Flat by default; tests override it to model slopes
 // and standing water (the water surface y, or undefined for a dry column).
 export const terrain={height:()=>80,water:()=>undefined};
@@ -16,6 +16,7 @@ export const GameMode={Creative:"Creative",Survival:"Survival"};
 export const EntityDamageCause={entityAttack:"entityAttack"};
 export class ItemStack{constructor(typeId){this.typeId=typeId;}}
 export class BlockVolume{constructor(a,b){this.a=a;this.b=b;}}
+export class MolangVariableMap{constructor(){this.values={};}setFloat(k,v){this.values[k]=v;}setVector3(k,v){this.values[k]={...v};}}
 export class BlockPermutation{static resolve(typeId,states={}){return {typeId,states};}}
 export const dimension={
   id:"minecraft:overworld",
@@ -38,7 +39,8 @@ export const dimension={
     getComponent(){return undefined;},setRotation(v){this.rotation=v;},applyDamage(value){this.damage=(this.damage??0)+value;},
     getProperty(k){return this.properties.get(k);},setProperty(k,v){this.properties.set(k,v);},
     remove(){this.isValid=false;entities.splice(entities.indexOf(this),1);}};entities.push(e);return e;},
-  spawnParticle(){},spawnItem(){},getBlockFromRay(){return undefined;},
+  spawnParticle(id,location,vars){particles.push({id,location,vars:vars?.values});},spawnItem(){},getBlockFromRay(){return undefined;},
+  createExplosion(location,radius,options){explosions.push({location,radius,options});return true;},
 };
 const signal={subscribe(){}};
 export const world={getDimension(){return dimension;},getAllPlayers(){return players;},getEntity(id){return entities.find(e=>e.id===id);},
@@ -59,4 +61,4 @@ export function playerAt(location){return {id:"player1",typeId:"minecraft:player
   camera:{fade(){}},
   getComponent(){return {container:{size:1,getItem(){return {typeId:"secretfacilities:keycard_master"};}}};}};}
 export function finishBuild(){for(let i=0;i<1500&&tasks.size;i++){for(const work of [...tasks.values()])work();system.currentTick+=2;}if(tasks.size)throw Error("Build did not finish");}
-export function reset(){blocks.clear();properties.clear();players.length=0;entities.length=0;tasks.clear();system.currentTick=0;terrain.height=()=>80;terrain.water=()=>undefined;}
+export function reset(){blocks.clear();properties.clear();players.length=0;entities.length=0;tasks.clear();explosions.length=0;particles.length=0;system.currentTick=0;terrain.height=()=>80;terrain.water=()=>undefined;}

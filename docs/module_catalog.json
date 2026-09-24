@@ -1,53 +1,5 @@
 [
   {
-    "identifier": "secretfacilities:bunker/office_north",
-    "size": [
-      9,
-      7,
-      9
-    ]
-  },
-  {
-    "identifier": "secretfacilities:bunker/office_south",
-    "size": [
-      9,
-      7,
-      9
-    ]
-  },
-  {
-    "identifier": "secretfacilities:bunker/briefing_north",
-    "size": [
-      9,
-      7,
-      9
-    ]
-  },
-  {
-    "identifier": "secretfacilities:bunker/briefing_south",
-    "size": [
-      9,
-      7,
-      9
-    ]
-  },
-  {
-    "identifier": "secretfacilities:bunker/security_north",
-    "size": [
-      9,
-      7,
-      9
-    ]
-  },
-  {
-    "identifier": "secretfacilities:bunker/security_south",
-    "size": [
-      9,
-      7,
-      9
-    ]
-  },
-  {
     "identifier": "secretfacilities:bunker/archive_north",
     "size": [
       9,
@@ -80,7 +32,7 @@
     ]
   },
   {
-    "identifier": "secretfacilities:bunker/medical_north",
+    "identifier": "secretfacilities:bunker/bedroom_north",
     "size": [
       9,
       7,
@@ -88,7 +40,23 @@
     ]
   },
   {
-    "identifier": "secretfacilities:bunker/medical_south",
+    "identifier": "secretfacilities:bunker/bedroom_south",
+    "size": [
+      9,
+      7,
+      9
+    ]
+  },
+  {
+    "identifier": "secretfacilities:bunker/briefing_north",
+    "size": [
+      9,
+      7,
+      9
+    ]
+  },
+  {
+    "identifier": "secretfacilities:bunker/briefing_south",
     "size": [
       9,
       7,
@@ -128,7 +96,7 @@
     ]
   },
   {
-    "identifier": "secretfacilities:bunker/server_north",
+    "identifier": "secretfacilities:bunker/farm_north",
     "size": [
       9,
       7,
@@ -136,7 +104,7 @@
     ]
   },
   {
-    "identifier": "secretfacilities:bunker/server_south",
+    "identifier": "secretfacilities:bunker/farm_south",
     "size": [
       9,
       7,
@@ -160,7 +128,7 @@
     ]
   },
   {
-    "identifier": "secretfacilities:bunker/workshop_north",
+    "identifier": "secretfacilities:bunker/laboratory_north",
     "size": [
       9,
       7,
@@ -168,7 +136,119 @@
     ]
   },
   {
-    "identifier": "secretfacilities:bunker/workshop_south",
+    "identifier": "secretfacilities:bunker/laboratory_south",
+    "size": [
+      9,
+      7,
+      9
+    ]
+  },
+  {
+    "identifier": "secretfacilities:bunker/lounge_north",
+    "size": [
+      9,
+      7,
+      9
+    ]
+  },
+  {
+    "identifier": "secretfacilities:bunker/lounge_south",
+    "size": [
+      9,
+      7,
+      9
+    ]
+  },
+  {
+    "identifier": "secretfacilities:bunker/medical_north",
+    "size": [
+      9,
+      7,
+      9
+    ]
+  },
+  {
+    "identifier": "secretfacilities:bunker/medical_south",
+    "size": [
+      9,
+      7,
+      9
+    ]
+  },
+  {
+    "identifier": "secretfacilities:bunker/mining_north",
+    "size": [
+      9,
+      7,
+      9
+    ]
+  },
+  {
+    "identifier": "secretfacilities:bunker/mining_south",
+    "size": [
+      9,
+      7,
+      9
+    ]
+  },
+  {
+    "identifier": "secretfacilities:bunker/office_north",
+    "size": [
+      9,
+      7,
+      9
+    ]
+  },
+  {
+    "identifier": "secretfacilities:bunker/office_south",
+    "size": [
+      9,
+      7,
+      9
+    ]
+  },
+  {
+    "identifier": "secretfacilities:bunker/security_north",
+    "size": [
+      9,
+      7,
+      9
+    ]
+  },
+  {
+    "identifier": "secretfacilities:bunker/security_south",
+    "size": [
+      9,
+      7,
+      9
+    ]
+  },
+  {
+    "identifier": "secretfacilities:bunker/server_north",
+    "size": [
+      9,
+      7,
+      9
+    ]
+  },
+  {
+    "identifier": "secretfacilities:bunker/server_south",
+    "size": [
+      9,
+      7,
+      9
+    ]
+  },
+  {
+    "identifier": "secretfacilities:bunker/storage_north",
+    "size": [
+      9,
+      7,
+      9
+    ]
+  },
+  {
+    "identifier": "secretfacilities:bunker/storage_south",
     "size": [
       9,
       7,
@@ -208,7 +288,7 @@
     ]
   },
   {
-    "identifier": "secretfacilities:bunker/laboratory_north",
+    "identifier": "secretfacilities:bunker/workshop_north",
     "size": [
       9,
       7,
@@ -216,7 +296,7 @@
     ]
   },
   {
-    "identifier": "secretfacilities:bunker/laboratory_south",
+    "identifier": "secretfacilities:bunker/workshop_south",
     "size": [
       9,
       7,

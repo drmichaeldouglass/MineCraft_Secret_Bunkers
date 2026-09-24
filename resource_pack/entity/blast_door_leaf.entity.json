@@ -20,7 +20,7 @@
           "v.phase = -1; v.motion = 0; v.elapsed = 0; v.s = 0; v.shown = 0;"
         ],
         "pre_animation": [
-          "v.elapsed = (q.property('secretfacilities:phase') != v.phase || q.property('secretfacilities:motion') != v.motion) ? 0 : v.elapsed + q.delta_time;v.phase = q.property('secretfacilities:phase');v.motion = q.property('secretfacilities:motion');v.s = math.clamp(v.phase + v.motion * v.elapsed / 1.6, 0, 1);v.shown = v.s * v.s * (3 - 2 * v.s);"
+          "v.elapsed = (q.property('secretfacilities:phase') != v.phase || q.property('secretfacilities:motion') != v.motion) ? 0 : v.elapsed + q.delta_time;v.phase = q.property('secretfacilities:phase');v.motion = q.property('secretfacilities:motion');v.s = math.clamp(v.phase + v.motion * v.elapsed / 2.0, 0, 1);v.shown = v.s * v.s * (3 - 2 * v.s);"
         ],
         "animate": [
           "slide"

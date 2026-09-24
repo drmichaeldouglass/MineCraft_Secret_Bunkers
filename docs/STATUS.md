@@ -8,16 +8,16 @@ The source plan explicitly prioritizes a smaller reliable bunker and staged shar
 |---|---|---|
 | Foundation | BP/RP, pinned TypeScript/API pipeline, validation, packaging, source and tests | In-game import acceptance; CI |
 | Palette | 47 custom textured blocks, light state, seven items | Bespoke geometry for consoles, pipes, panels and readers; facility-specific palettes |
-| Modular construction | 33 binary templates; 9×7×9 rooms and halls on a 3×3 grid; 9-block floor spacing | Separate corner/T/cross/stair exports, large room families, richer furniture |
-| Bunker generation | 3–8 floors; guaranteed connected hall and core; seed selects room types | More varied topology and weighted room pools; site preview; rollback/removal tooling |
-| Terrain entrance | Surveyed site levelled by cut-and-fill earthworks, reinforced portal, five-wide blast door, solid rock encasement around every slab | Arbitrary rotations, sloped terrain blending at the pad edge |
-| Doors | Stateful multi-block doors; smooth moving-leaf entrance blast door; 2-pixel, per-tick slide for room doors and shutters; reader clearance, obstruction handling | Articulated locking assemblies, distinct open/close sound layers |
+| Modular construction | 43 binary templates; 19 furnished room roles with working vanilla furniture; 9×7×9 rooms and halls on a 3×3 grid; 9-block floor spacing | Separate corner/T/cross/stair exports, large room families |
+| Bunker generation | 3–8 floors; guaranteed connected hall and core; each floor has a purpose with fixed rooms and a seeded pool | More varied topology; site preview; rollback/removal tooling |
+| Terrain entrance | Surveyed site levelled by cut-and-fill earthworks, then buried under a seeded mountain with an overhung portal and open approach; five-wide split blast door; solid rock encasement around every slab | Arbitrary rotations; trees and biome dressing on the mountain |
+| Doors | Stateful multi-block doors; entrance blast door whose two leaves part at a seam and slide sideways; 2-pixel, per-tick slide for room doors and shutters; reader clearance, obstruction handling | Articulated locking assemblies, distinct open/close sound layers |
 | Elevators | Clearance-controlled transfer pads with a rumbling ride, per-deck callouts, fade transfer, safe destination checks, emergency ladder | Cabin doors, physical shaft travel, freight variants |
 | Security | Horizontal/vertical grids, alert/lockdown, sirens, flashing lights, shutters | Local-response configuration UI; alarm/status console texture permutations |
-| Defence | Laser entity/model, aiming, local searches, cached targets, LOS, cooldown, modes, two zones | Native aggression adapter for neutral mobs, field performance measurements, richer animation/damage visuals |
+| Defence | Laser entity/model, aiming, solid glowing beam, local searches, cached targets, LOS, cooldown, modes, two zones | Native aggression adapter for neutral mobs, field performance measurements, richer animation/damage visuals |
 | Missiles | Construction base block only | Missile entity/projectile, minimum range, launch/reload, safe impact, tests |
 | Escape | B1 tunnel, climbable exit shaft, surface utility hut | Terrain-aware remote exits and alternative escape modules |
-| Self-destruct | Two confirmations, countdown/abort, final turret cutoff, bounded damage, destroyed state | Cinematic sequence and more varied damaged rooms |
+| Self-destruct | Two confirmations, countdown/abort, final turret cutoff, TNT charges around every floor, floor-by-floor demolition with real explosions, sealed portal, destroyed state | Mountain collapse; demolition of the escape route after evacuation |
 | Persistence | Per-facility two-bank snapshots; saved build step, doors, floors, zones, countdown, turret state | Migration beyond schema 1, transactional rollback of terrain |
 | Natural generation | Not enabled | Jigsaw pools/sets/processors and biome feature rules after in-game template acceptance |
 | Facility variety | Command bunker only | Estate, mountain, Arctic, desert, island, silo, laboratory, listening station, metro and volcano |
@@ -27,7 +27,7 @@ The source plan explicitly prioritizes a smaller reliable bunker and staged shar
 
 No guards, soldiers, custom enemy NPCs, loot system, missions, quests, story campaign, hacking puzzles, camera detection, handheld weapons, functional silo missiles, or submarines were added.
 
-Furniture uses construction blocks, including decorative bunks and archive cabinets. These are not functional beds, loot chests or inventory containers.
+Rooms are furnished with working vanilla beds, containers, workstations, crops and ore. Containers start empty; there is no loot system.
 
 ## Follow-on order
 

@@ -4,10 +4,17 @@
     "animation.secretfacilities.door_leaf.slide": {
       "loop": true,
       "bones": {
-        "leaf": {
+        "left": {
           "position": [
+            "-v.shown * 40",
             0,
-            "v.shown * 64",
+            0
+          ]
+        },
+        "right": {
+          "position": [
+            "v.shown * 40",
+            0,
             0
           ]
         }

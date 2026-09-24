@@ -6,7 +6,7 @@ A Minecraft **Bedrock Edition** add-on built from `Secret_Facilities_Plan.md`.
 
 [Download the add-on](dist/Secret_Facilities_0.1.0.mcaddon) · [Installation and controls](docs/PLAY_GUIDE.md) · [Test checklist](docs/TESTING.md) · [Implementation status](docs/STATUS.md)
 
-![Generated bunker floor plan](docs/bunker-preview.png)
+![Generated bunker floor plans](docs/bunker-preview.png)
 
 The preview is rendered from the actual assembled block data in the test harness. It is not a Minecraft screenshot.
 
@@ -20,23 +20,25 @@ The preview is rendered from the actual assembled block data in the test harness
    /scriptevent secretfacilities:kit
    ```
 
-4. Stand on open ground. Hills, dips and shallow water are levelled automatically. Use the device, choose 3–8 floors, and confirm the displayed site. **Deployment replaces terrain/buildings in its footprint.** Use a test world or a backup.
+4. Stand on open ground. Hills, dips and shallow water are levelled automatically, and a mountain is raised over the finished bunker. Use the device, choose 3–8 floors, and confirm the displayed site. **Deployment replaces terrain/buildings in its footprint.** Use a test world or a backup.
 5. Stay near the build until “Bunker ready” appears. The entrance faces north (−Z). Use its reader with a keycard in your inventory.
 
 If the kit command is unavailable, use `/give @s secretfacilities:facility_deployment_device`, then choose **Get development kit** in its menu.
 
 ## Included
 
-- A 27-block-square modular command bunker with 3–8 underground floors and 33 binary `.mcstructure` templates.
-- Seeded selection of offices, briefing rooms, security rooms, barracks, medical rooms, canteens, command rooms, server rooms, engineering rooms, archives, laboratories, and vaults.
+- A 27-block-square modular command bunker with 3–8 underground floors and 43 binary `.mcstructure` templates.
+- Floors with a purpose — living quarters, command, engineering & mining, hydroponics, research — furnished from 19 room types with working vanilla blocks: bunk rooms and bedrooms with real beds, lounges, mess halls, hydroponic farms with growing crops, live mining faces full of ore, workshops, labs, infirmaries, data centres, strongrooms and supply depots.
+- The whole site buried under a seeded mountain, with an open, overhung portal and approach cut and the escape hut dug into its back.
 - Automatic cut-and-fill site levelling and solid rock encasement, so no floor surfaces through a hillside.
-- A five-block-wide sliding entrance blast door, room security doors, readers, alarm shutters, and emergency lights.
+- A five-block-wide entrance blast door that splits down the middle and slides apart sideways, room security doors, readers, alarm shutters, and emergency lights.
 - Four clearance levels and a Creative-only master card.
 - Multi-floor elevator transfer pads, a continuous emergency ladder, and a B1 escape tunnel to a surface utility hut.
 - Horizontal and vertical laser grids, alert/lockdown controls, shared facility state, and saved configurations.
 - Two exterior laser turrets and one command-level turret when defences are enabled; range, line-of-sight, reload, zone controls, and a conservative hostile-only target filter.
-- A two-confirmation, 90-second self-destruct sequence with evacuation, abort window, bounded room damage, and permanent system shutdown.
-- 47 custom construction/control blocks, seven custom items, original 32×32 pixel textures, a turret model, aiming animation, two particles, eleven synthesized sounds, and pack icons.
+- A two-confirmation, 90-second self-destruct sequence with evacuation and an abort window, then TNT charges built into the rock around every floor blow and the bunker is demolished floor by floor.
+- Turret shots drawn as a solid, glowing laser beam.
+- 47 custom construction/control blocks, seven custom items, original 32×32 pixel textures, a turret model, aiming animation, three particles, eleven synthesized sounds, and pack icons.
 
 ## Build from source
 

@@ -1,4 +1,4 @@
-import { BlockPermutation, BlockVolume, GameMode, system, world } from "@minecraft/server";
+import { BlockPermutation, BlockVolume, GameMode, MolangVariableMap, system, world } from "@minecraft/server";
 import { clearance } from "../core/rules.js";
 import { distance, inside, NS } from "../core/types.js";
 import { facilities } from "./store.js";
@@ -84,4 +84,16 @@ export function beam(d, a, b, step = 0.7, max = 36) {
             return;
         }
     }
+}
+/** A turret shot: one emitter draws the whole beam as a dense, glowing, full-bright core and halo
+ *  from muzzle to target, instead of a dotted trail of separate particles. */
+export function turretBeam(d, a, b) {
+    const span = { x: b.x - a.x, y: b.y - a.y, z: b.z - a.z }, vars = new MolangVariableMap();
+    vars.setVector3("variable.span", span);
+    vars.setFloat("variable.length", Math.hypot(span.x, span.y, span.z));
+    try {
+        d.spawnParticle(NS + "turret_beam", a, vars);
+        d.spawnParticle(NS + "laser_impact", b);
+    }
+    catch { /* Unloaded. */ }
 }

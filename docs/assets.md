@@ -46,7 +46,7 @@ Original generated assets shipped in 0.1.0. All visual/audio entries still requi
 | `secretfacilities:laser_turret_mount` | Block | Construction palette; available in Creative | Original 32×32 | Full cube; invisible open-door geometry where needed | None | Vanilla placement; shared interaction sounds |
 | `secretfacilities:missile_turret_base` | Block | Construction block only; missile system deferred | Original 32×32 | Full cube; invisible open-door geometry where needed | None | Vanilla placement; shared interaction sounds |
 | `secretfacilities:defence_status_panel` | Block | Construction palette; available in Creative | Original 32×32 | Full cube; invisible open-door geometry where needed | None | Vanilla placement; shared interaction sounds |
-| `secretfacilities:blast_door` | Block | Generated doors / shutters | Original 32×32 | Full cube; invisible open-door geometry where needed | Smooth moving leaf entity; blocks provide collision | Vanilla placement; shared interaction sounds |
+| `secretfacilities:blast_door` | Block | Generated doors / shutters | Original 32×32 | Full cube; invisible open-door geometry where needed | Split leaves slide apart as an entity; blocks provide collision | Vanilla placement; shared interaction sounds |
 | `secretfacilities:security_door` | Block | Generated doors / shutters | Original 32×32 | Full cube; invisible open-door geometry where needed | Scripted 2-pixel block retraction | Vanilla placement; shared interaction sounds |
 | `secretfacilities:elevator_panel` | Block | Shared interaction component; functional at registered positions | Original 32×32 | Full cube; invisible open-door geometry where needed | None | Vanilla placement; shared interaction sounds |
 | `secretfacilities:elevator_pad` | Block | Construction palette; available in Creative | Original 32×32 | Full cube; invisible open-door geometry where needed | None | Vanilla placement; shared interaction sounds |
@@ -64,9 +64,10 @@ Original generated assets shipped in 0.1.0. All visual/audio entries still requi
 | Identifier | Type | Implementation | Texture | Model | Animation | Sound |
 |---|---|---|---|---|---|---|
 | `secretfacilities:laser_turret` | Entity | Hostile-only laser defence; entrance and command zones | Original 64×64 atlas | Six named bones | Scripted entity rotation and pitch bone; game verification pending | Synthesized firing pulse |
-| `secretfacilities:blast_door_leaf` | Entity | Moving blast door leaf, present only while the entrance door travels | Shared blast door texture | 20 block-sized cubes | Client-eased slide driven by a synced property | Blast door sounds |
-| `secretfacilities:laser_beam` | Particle | Tripwires and turret shots | Original 8×8 white mask, tinted red | Billboard | 0.22-second particle lifetime | None |
-| `secretfacilities:laser_impact` | Particle | Hit marker | Shared white mask, tinted amber | Billboard | 0.22-second particle lifetime | Shared firing pulse |
+| `secretfacilities:blast_door_leaf` | Entity | Two blast door leaves that part at a central seam and slide sideways into the wall, present only while the entrance door travels | Shared blast door texture | Two bones of block-column cubes | Client-eased slide driven by a synced property | Blast door sounds |
+| `secretfacilities:turret_beam` | Particle | Turret shot: one emitter draws a solid glowing beam from muzzle to target | Original 16×16 soft glow, additive, unlit | Dense billboards placed along the shot | 0.32-second fade | Shared firing pulse |
+| `secretfacilities:laser_beam` | Particle | Tripwire grids | Original 8×8 white mask, tinted red | Billboard | 0.22-second particle lifetime | None |
+| `secretfacilities:laser_impact` | Particle | Hit flash and sparks | Shared soft glow, additive | Billboards with gravity | Up to 0.45 seconds | Shared firing pulse |
 | Missile turret / projectile | Planned | Not shipped | Deferred | Deferred | Deferred | Deferred |
 
 ## Audio
@@ -79,7 +80,7 @@ Eleven original mono WAV assets are mapped through `resource_pack/sounds/sound_d
 
 ## Structures
 
-33 authored/generated binary templates: 14 room roles in north/south connector orientations, four hall/core modules and the surface entrance. See `module_catalog.json`. Programmed overlays add doors, readers, controls, grids, shafts, escape route and turrets.
+43 authored/generated binary templates: 19 furnished room roles (bedrooms, bunk rooms, lounges, mess halls, hydroponic farms, mining faces, workshops, labs and more) in north/south connector orientations, four hall/core modules and the surface entrance. Rooms use vanilla furniture with block entity data for bed colours. See `module_catalog.json`. Programmed overlays add doors, readers, controls, grids, shafts, escape route, turrets, the covering mountain and TNT demolition charges.
 
 ## Other
 

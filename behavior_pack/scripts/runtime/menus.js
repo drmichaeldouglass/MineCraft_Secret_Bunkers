@@ -5,6 +5,7 @@ import { planBunker } from "../generation/planner.js";
 import { facilities, mark, save } from "./store.js";
 import { build, originAt } from "./generation.js";
 import { abortDestruct, armDestruct, requestDoor, setSecurity, toggleDoor } from "./security.js";
+import { charges } from "./destruct.js";
 import { delay, dim, fade, findFacility, getClearance, report, shake, sound, tell } from "./world.js";
 const busy = new Set();
 export function runMenu(player, work) {
@@ -78,7 +79,7 @@ export async function deployment(player) {
     plan.ground = site.ground;
     const earthworks = site.cut || site.fill ? `\n\nUneven ground is levelled: cut up to ${site.cut} and filled up to ${site.fill} blocks.` : "";
     const confirm = await new MessageFormData().title("CONFIRM DEPLOYMENT")
-        .body(`${levels} underground floors • seed ${seed}\n\nEntrance: ${origin.x + 13}, ${origin.y + 1}, ${origin.z}\nReserved: ${plan.bounds.max.x - plan.bounds.min.x + 1} × ${plan.bounds.max.z - plan.bounds.min.z + 1} blocks\nLowest floor: Y ${plan.bounds.min.y}${earthworks}\n\nConstruction replaces blocks inside the modules, entrance and escape route. Stay nearby while it builds.`)
+        .body(`${levels} underground floors • seed ${seed}\n\nEntrance: ${origin.x + 13}, ${origin.y + 1}, ${origin.z}\nReserved: ${plan.bounds.max.x - plan.bounds.min.x + 1} × ${plan.bounds.max.z - plan.bounds.min.z + 1} blocks\nLowest floor: Y ${plan.bounds.min.y}${earthworks}\n\nConstruction levels the site, replaces blocks inside the modules, entrance and escape route, and raises a mountain over it all. Stay nearby while it builds.`)
         .button1("Cancel").button2("Build bunker").show(player);
     if (confirm.canceled || confirm.selection !== 1)
         return;
@@ -208,11 +209,13 @@ async function destruct(player, f, pos) {
         }
         return;
     }
-    const armed = await new MessageFormData().title("ARM SELF-DESTRUCT").body("Command authorization required. Arming prepares a 90-second evacuation sequence. A second confirmation is required.").button1("Cancel").button2("Arm console").show(player);
+    const { armed: ready, total } = charges(f);
+    const status = total ? `\n\nDemolition charges in place: ${ready} of ${total}.` : "";
+    const armed = await new MessageFormData().title("ARM SELF-DESTRUCT").body(`Command authorization required. Arming prepares a 90-second evacuation sequence. A second confirmation is required.${status}`).button1("Cancel").button2("Arm console").show(player);
     if (armed.canceled || armed.selection !== 1)
         return;
     check(player, f, pos, 4);
-    const auth = await new MessageFormData().title("AUTHORIZE DESTRUCTION").body("Start a 90-second countdown?\n\nDoors open for evacuation. Turrets shut down for the final 10 seconds. Rooms are damaged and the facility becomes permanently disabled.\n\nEscape via the B1 rear tunnel or emergency ladder.").button1("Disarm").button2("Start countdown").show(player);
+    const auth = await new MessageFormData().title("AUTHORIZE DESTRUCTION").body("Start a 90-second countdown?\n\nDoors open for evacuation. Turrets shut down for the final 10 seconds. At zero the charges fire floor by floor from the deepest level up: every room is gutted, the lobby caves in and the portal is sealed with rubble. Anyone still inside will not survive.\n\nEscape via the emergency ladder or the B1 rear tunnel to the hut behind the mountain.").button1("Disarm").button2("Start countdown").show(player);
     if (auth.canceled || auth.selection !== 1)
         return;
     check(player, f, pos, 4);

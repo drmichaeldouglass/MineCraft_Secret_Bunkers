@@ -18,10 +18,11 @@ system.beforeEvents.startup.subscribe(event => {
     });
 });
 world.afterEvents.worldLoad.subscribe(() => {
+    // A demolished or demolishing facility's doors are rubble now; repainting them would rebuild them.
     try {
         load();
         for (const f of facilities.values())
-            if (f.phase === "ready")
+            if (f.phase === "ready" && f.destructionStep === undefined && f.state !== "DESTROYED")
                 restoreDoors(f);
     }
     catch (error) {

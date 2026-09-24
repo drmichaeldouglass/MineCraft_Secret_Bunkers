@@ -142,6 +142,12 @@ def textures():
                 "minecraft:collision_box":{"origin":[-8,DOOR_PX*step,-8],"size":[16,16-DOOR_PX*step,16]},
                 "minecraft:selection_box":{"origin":[-8,DOOR_PX*step,-8],"size":[16,16-DOOR_PX*step,16]},
                 "minecraft:light_dampening":0}} for step in range(1,DOOR_SUBSTEPS)]
+            if name=="blast_door":
+                # The blast door does not retract; its two leaves slide apart as an entity. While they
+                # move, any slide state keeps the block solid but draws it invisible, so the leaves show.
+                permutations=[{"condition":f"q.block_state('{NS}slide') > 0", "components":{
+                    "minecraft:material_instances":{"*":{"texture":"door_open","render_method":"alpha_test"}},
+                    "minecraft:light_dampening":0}}]
             # Open doors are drawn as a fully transparent cube. A geometry with no cubes breaks
             # the client's chunk meshing, and whole sections of the bunker and terrain vanish.
             permutations.append({"condition":f"q.block_state('{NS}open')", "components":{
@@ -226,22 +232,57 @@ def turret():
         "controller.render.secretfacilities.turret":{"geometry":"Geometry.default","materials":[{"*":"Material.default"}],"textures":["Texture.default"]}}})
     write(RP/"animations/turret.animation.json",{"format_version":"1.8.0","animations":{
         "animation.secretfacilities.turret.aim":{"loop":True,"bones":{"pitch_mount":{"rotation":["query.target_x_rotation",0,0]}}}}})
-    for name,color,size in [("laser_beam",[1,0.13,0.09,1],0.055),("laser_impact",[1,0.65,0.2,1],0.15)]:
-        write(RP/"particles"/f"{name}.json",{"format_version":"1.10.0","particle_effect":{
-            "description":{"identifier":NS+name,"basic_render_parameters":{"material":"particles_alpha","texture":"textures/particle/laser"}},
-            "components":{"minecraft:emitter_rate_instant":{"num_particles":1},"minecraft:emitter_lifetime_once":{"active_time":0.1},
-                "minecraft:emitter_shape_point":{},"minecraft:particle_lifetime_expression":{"max_lifetime":0.22},
-                "minecraft:particle_appearance_billboard":{"size":[size,size],"facing_camera_mode":"lookat_xyz","uv":{"texture_width":8,"texture_height":8,"uv":[0,0],"uv_size":[8,8]}},
-                "minecraft:particle_appearance_tinting":{"color":color}}}})
+    # Tripwire grids keep their faint dotted beam.
+    write(RP/"particles/laser_beam.json",{"format_version":"1.10.0","particle_effect":{
+        "description":{"identifier":NS+"laser_beam","basic_render_parameters":{"material":"particles_alpha","texture":"textures/particle/laser"}},
+        "components":{"minecraft:emitter_rate_instant":{"num_particles":1},"minecraft:emitter_lifetime_once":{"active_time":0.1},
+            "minecraft:emitter_shape_point":{},"minecraft:particle_lifetime_expression":{"max_lifetime":0.22},
+            "minecraft:particle_appearance_billboard":{"size":[0.055,0.055],"facing_camera_mode":"lookat_xyz","uv":{"texture_width":8,"texture_height":8,"uv":[0,0],"uv_size":[8,8]}},
+            "minecraft:particle_appearance_tinting":{"color":[1,0.13,0.09,1]}}}})
     save(Image.new("RGBA",(8,8),(255,255,255,255)),RP/"textures/particle/laser.png")
+    # A soft round glow; drawn additively and unlit, overlapping sprites fuse into a solid light.
+    glow=Image.new("RGBA",(16,16))
+    for x in range(16):
+        for y in range(16):
+            r=math.hypot(x-7.5,y-7.5)/8;glow.putpixel((x,y),(255,255,255,int(255*max(0,1-r)**1.6)))
+    save(glow,RP/"textures/particle/laser_glow.png")
+    fade="(1 - v.particle_age / v.particle_lifetime)"
+    # The turret beam is one emitter per shot. Every sprite sits at a random point along the shot
+    # (script variable 'span' is the muzzle-to-target vector), densely enough to read as one solid
+    # beam: a white-hot core, a red body and a wide faint halo, all fading together.
+    layer=lambda core,body,halo:f"(v.particle_random_2 < 0.5 ? {core} : (v.particle_random_2 < 0.82 ? {body} : {halo}))"
+    size=f"{layer(0.045,0.1,0.24)} * (1 - 0.5 * v.particle_age / v.particle_lifetime)"
+    write(RP/"particles/turret_beam.json",{"format_version":"1.10.0","particle_effect":{
+        "description":{"identifier":NS+"turret_beam","basic_render_parameters":{"material":"particles_add","texture":"textures/particle/laser_glow"}},
+        "components":{"minecraft:emitter_rate_instant":{"num_particles":"math.clamp(v.length * 24, 12, 720)"},
+            "minecraft:emitter_lifetime_once":{"active_time":0.05},"minecraft:emitter_shape_point":{},
+            "minecraft:particle_lifetime_expression":{"max_lifetime":0.32},
+            "minecraft:particle_motion_parametric":{"relative_position":[f"v.span.{a} * v.particle_random_1" for a in "xyz"]},
+            "minecraft:particle_appearance_billboard":{"size":[size,size],"facing_camera_mode":"lookat_xyz",
+                "uv":{"texture_width":16,"texture_height":16,"uv":[0,0],"uv_size":[16,16]}},
+            "minecraft:particle_appearance_tinting":{"color":["1",layer(0.82,0.2,0.08),layer(0.78,0.12,0.05),f"{layer(1,0.85,0.4)} * {fade}"]}}}})
+    # Where the beam lands: a hot flash and a spray of sparks.
+    write(RP/"particles/laser_impact.json",{"format_version":"1.10.0","particle_effect":{
+        "description":{"identifier":NS+"laser_impact","basic_render_parameters":{"material":"particles_add","texture":"textures/particle/laser_glow"}},
+        "components":{"minecraft:emitter_rate_instant":{"num_particles":18},"minecraft:emitter_lifetime_once":{"active_time":0.05},
+            "minecraft:emitter_shape_sphere":{"radius":0.1,"direction":"outwards"},
+            "minecraft:particle_initial_speed":"v.particle_random_3 < 0.15 ? 0 : math.random(2, 5)",
+            "minecraft:particle_motion_dynamic":{"linear_acceleration":[0,-9,0],"linear_drag_coefficient":3},
+            "minecraft:particle_lifetime_expression":{"max_lifetime":"math.random(0.2, 0.45)"},
+            "minecraft:particle_appearance_billboard":{"size":[f"(v.particle_random_3 < 0.15 ? 0.45 : 0.06) * {fade}"]*2,"facing_camera_mode":"lookat_xyz",
+                "uv":{"texture_width":16,"texture_height":16,"uv":[0,0],"uv_size":[16,16]}},
+            "minecraft:particle_appearance_tinting":{"color":["1","0.55 + 0.35 * v.particle_random_4","0.2",fade]}}}})
 
 # The entrance blast door is 5 wide and 4 tall; the planner test pins that size.
 LEAF_WIDTH, LEAF_HEIGHT = 5, 4
+# Ticks per block each leaf slides. Must match BLAST_RATE in src/runtime/security.ts.
+LEAF_RATE = 16
 
 def door_leaf():
-    """A moving copy of the blast door leaf. The server says where the leaf starts and which
-    way it moves; the client then animates it every frame on its own clock, eased in and out,
-    so the slide is smooth instead of stepping with block updates and network jitter."""
+    """The moving blast door: two leaves that part at a central seam and slide sideways into the
+    wall on either side. The server says where they start and which way they move; the client
+    animates them every frame on its own clock, eased in and out, so the slide is smooth instead
+    of stepping with block updates and network jitter."""
     phase,motion=NS+"phase",NS+"motion"
     write(BP/"entities/blast_door_leaf.json",{"format_version":"1.21.90","minecraft:entity":{
         "description":{"identifier":NS+"blast_door_leaf","is_spawnable":False,"is_summonable":True,"is_experimental":False,
@@ -253,20 +294,32 @@ def door_leaf():
             "minecraft:physics":{"has_gravity":False,"has_collision":False},
             "minecraft:pushable":{"is_pushable":False,"is_pushable_by_piston":False},
             "minecraft:knockback_resistance":{"value":1},"minecraft:body_rotation_blocked":{},"minecraft:fire_immune":{}},
-        # Spawning mid-travel starts the client at the right end, so a closing leaf never flashes shut.
+        # Spawning mid-travel starts the client at the right end, so a closing door never flashes shut.
         "events":{NS+"from_open":{"set_property":{phase:1.0}}}}})
-    # One cube per door block, so the blast door texture tiles exactly like the blocks it covers.
-    # 15 px deep: just inside the wall above, which hides the leaf once it has slid up.
-    face={"uv":[0,0],"uv_size":[32,32]};edge={"uv":[0,0],"uv_size":[30,32]};cap={"uv":[0,0],"uv_size":[32,30]}
-    uv={"north":face,"south":face,"east":edge,"west":edge,"up":cap,"down":cap}
-    cubes=[{"origin":[-8*LEAF_WIDTH+16*i,16*j,-7.5],"size":[16,16,15],"uv":uv} for i in range(LEAF_WIDTH) for j in range(LEAF_HEIGHT)]
+    # One cube per door column, so the texture tiles exactly like the blocks it replaces; the
+    # centre column is split between the two leaves at the seam. 15 px deep, just inside the wall
+    # either side, which hides each leaf once it has slid into its pocket.
+    half=8*LEAF_WIDTH
+    bones=[]
+    for bone,sign in [("left",-1),("right",1)]:
+        # Block column edges, measured from the seam: 0, 8, 24, 40 px for a five-wide door.
+        edges=[0]+[e for e in range(8,half+1,16)]
+        cubes=[]
+        for a,b in zip(edges,edges[1:]):
+            w=b-a;x0=sign*b if sign<0 else a
+            # A half-width cube shows the half of the tile nearest the seam.
+            u=(16 if sign<0 else 0) if w<16 else 0
+            face={"uv":[u,0],"uv_size":[2*w,32]};cap={"uv":[u,0],"uv_size":[2*w,30]};edge={"uv":[0,0],"uv_size":[30,32]}
+            uv={"north":face,"south":face,"east":edge,"west":edge,"up":cap,"down":cap}
+            cubes+=[{"origin":[x0,16*j,-7.5],"size":[w,16,15],"uv":uv} for j in range(LEAF_HEIGHT)]
+        bones.append({"name":bone,"pivot":[0,0,0],"cubes":cubes})
     write(RP/"models/entity/blast_door_leaf.geo.json",{"format_version":"1.12.0","minecraft:geometry":[{
         "description":{"identifier":"geometry.secretfacilities.blast_door_leaf","texture_width":32,"texture_height":32,
-            "visible_bounds_width":LEAF_WIDTH+1,"visible_bounds_height":2*LEAF_HEIGHT+1,"visible_bounds_offset":[0,LEAF_HEIGHT+0.5,0]},
-        "bones":[{"name":"leaf","pivot":[0,0,0],"cubes":cubes}]}]})
-    # Seconds for a full slide: one 2-pixel step per server tick. Must match travel() in security.ts.
-    duration=LEAF_HEIGHT*DOOR_SUBSTEPS/20
-    # Restart the clock whenever the server re-anchors the leaf (start, stop or reversal), advance
+            "visible_bounds_width":2*LEAF_WIDTH+1,"visible_bounds_height":LEAF_HEIGHT+1,"visible_bounds_offset":[0,LEAF_HEIGHT/2,0]},
+        "bones":bones}]})
+    # Seconds for a full slide: each leaf travels half the door width. Must match travel() in security.ts.
+    duration=LEAF_WIDTH/2*LEAF_RATE/20
+    # Restart the clock whenever the server re-anchors the leaves (start, stop or reversal), advance
     # the phase linearly from there, and draw it through the same ease-in-out the server uses
     # for the collision blocks: 3s^2 - 2s^3.
     script=(f"v.elapsed = (q.property('{phase}') != v.phase || q.property('{motion}') != v.motion) ? 0 : v.elapsed + q.delta_time;"
@@ -282,8 +335,10 @@ def door_leaf():
             "render_controllers":["controller.render.secretfacilities.door_leaf"]}}})
     write(RP/"render_controllers/door_leaf.json",{"format_version":"1.8.0","render_controllers":{
         "controller.render.secretfacilities.door_leaf":{"geometry":"Geometry.default","materials":[{"*":"Material.default"}],"textures":["Texture.default"]}}})
+    # Each leaf slides half the door width away from the seam, in opposite directions.
     write(RP/"animations/door_leaf.animation.json",{"format_version":"1.8.0","animations":{
-        "animation.secretfacilities.door_leaf.slide":{"loop":True,"bones":{"leaf":{"position":[0,f"v.shown * {16*LEAF_HEIGHT}",0]}}}}})
+        "animation.secretfacilities.door_leaf.slide":{"loop":True,"bones":{
+            "left":{"position":[f"-v.shown * {half}",0,0]},"right":{"position":[f"v.shown * {half}",0,0]}}}}})
 
 def sounds():
     definitions={}
@@ -315,9 +370,13 @@ def nbt_payload(kind,value):
     if kind==10:return b"".join(bytes([k])+nbt_string(n)+nbt_payload(k,v) for n,(k,v) in value.items())+b"\0"
     raise ValueError(kind)
 
+# Must match ROOM_ROLES in src/generation/planner.ts: every role the floor programs can place.
+ROOM_ROLES=sorted(["archive","barracks","bedroom","briefing","canteen","command","farm","generator","laboratory","lounge",
+    "medical","mining","office","security","server","storage","utility","vault","workshop"])
+
 class Template:
     def __init__(self,name,size=(9,7,9)):
-        self.name,self.size=name,size;self.blocks={}
+        self.name,self.size=name,size;self.blocks={};self.entities={}
         self.fill((0,0,0),tuple(n-1 for n in size),"minecraft:air")
     def set(self,x,y,z,block,states=None):
         if not (0<=x<self.size[0] and 0<=y<self.size[1] and 0<=z<self.size[2]):raise ValueError((self.name,x,y,z))
@@ -326,6 +385,9 @@ class Template:
         if states is None and block=="emergency_light":states={NS+"active":False}
         if states is None and block.endswith("_slab"):states={"minecraft:vertical_half":"bottom"}
         self.blocks[x,y,z]=(block if ":" in block else NS+block,tuple(sorted((states or {}).items())))
+    def entity(self,x,y,z,data):
+        """Block entity data, as game-saved structures carry for beds, chests and the like."""
+        self.entities[x,y,z]={**data,"x":(3,x),"y":(3,y),"z":(3,z)}
     def fill(self,a,b,block,states=None):
         for x in range(a[0],b[0]+1):
             for y in range(a[1],b[1]+1):
@@ -345,49 +407,225 @@ class Template:
             pals.append({"name":(8,name),"states":(10,{k:(1 if isinstance(v,bool) else 3 if isinstance(v,int) else 8,int(v) if isinstance(v,bool) else v) for k,v in states}),"version":(3,(1<<24)|(21<<16)|(90<<8)|3)})
         root={"format_version":(3,1),"size":(9,(3,list(self.size))),"structure_world_origin":(9,(3,[0,0,0])),
               "structure":(10,{"block_indices":(9,(9,[(3,indices),(3,[-1]*len(indices))])),"entities":(9,(10,[])),
-              "palette":(10,{"default":(10,{"block_palette":(9,(10,pals)),"block_position_data":(10,{})})})})}
+              "palette":(10,{"default":(10,{"block_palette":(9,(10,pals)),"block_position_data":(10,{
+                  str((x*sy+y)*sz+z):(10,{"block_entity_data":(10,data)}) for (x,y,z),data in sorted(self.entities.items())})})})})}
         path=BP/"structures/secretfacilities/bunker"/f"{self.name}.mcstructure";path.parent.mkdir(parents=True,exist_ok=True)
         path.write_bytes(b"\x0a\x00\x00"+nbt_payload(10,root))
         return {"name":self.name,"size":list(self.size),"palette":[[n,dict(s)] for n,s in palette],"indices":indices}
 
+# Room furniture is authored facing north (door in the south wall at z=8, far wall at z=0) and
+# mirrored for south-facing rooms. Interior: x 1..7, z 1..7. The aisle x 3..5 stays walkable from
+# the door to the room's centre, and x 6..7 at the door row stays clear for the keycard reader.
+FACE={"down":0,"up":1,"north":2,"south":3,"west":4,"east":5}
+BED={"south":0,"west":1,"north":2,"east":3}
+# Stairs' weirdo_direction names the side their tall back is on.
+STAIR={"east":0,"west":1,"south":2,"north":3}
+OPPOSITE={"north":"south","south":"north","east":"west","west":"east","up":"up","down":"down"}
+STEP={"north":(0,-1),"south":(0,1),"west":(-1,0),"east":(1,0)}
+WALKABLE=("minecraft:air","minecraft:rail")
+BED_RED,BED_WHITE,BED_BLUE,BED_GREEN=14,0,11,13
+
+class Room:
+    def __init__(self,role,side):
+        self.t=Template(f"{role}_{side}");self.t.shell();self.south=side=="south";self.rng=random.Random(f"{role}_{side}")
+        self.t.fill((3,1,self.z(8)),(5,3,self.z(8)),"minecraft:air")
+        for x in [2,6]:self.put(x,6,4,"industrial_light")
+    def z(self,z):return 8-z if self.south else z
+    def d(self,direction):return {"north":"south","south":"north"}.get(direction,direction) if self.south else direction
+    def put(self,x,y,z,block,states=None):self.t.set(x,y,self.z(z),block,states)
+    def box(self,a,b,block,states=None):
+        for x in range(a[0],b[0]+1):
+            for y in range(a[1],b[1]+1):
+                for z in range(a[2],b[2]+1):self.put(x,y,z,block,states)
+    def floor(self,block):self.box((1,0,1),(7,0,7),block)
+    def cardinal(self,x,y,z,block,facing):self.put(x,y,z,block,{"minecraft:cardinal_direction":self.d(facing)})
+    def chest(self,x,y,z,facing):self.cardinal(x,y,z,"minecraft:chest",facing)
+    def barrel(self,x,y,z,facing):self.put(x,y,z,"minecraft:barrel",{"facing_direction":FACE[self.d(facing)],"open_bit":False})
+    def chair(self,x,z,facing,block="minecraft:mangrove_stairs"):
+        self.put(x,1,z,block,{"weirdo_direction":STAIR[self.d(OPPOSITE[facing])],"upside_down_bit":False})
+    def table(self,x,y,z,block="minecraft:mangrove_slab"):self.put(x,y,z,block,{"minecraft:vertical_half":"top"})
+    def lantern(self,x,y,z,hanging=False):self.put(x,y,z,"minecraft:lantern",{"hanging":hanging})
+    def cauldron(self,x,y,z):self.put(x,y,z,"minecraft:cauldron",{"cauldron_liquid":"water","fill_level":6})
+    def brewing(self,x,y,z):self.put(x,y,z,"minecraft:brewing_stand",{f"brewing_stand_slot_{c}_bit":False for c in "abc"})
+    def lectern(self,x,y,z,facing):self.put(x,y,z,"minecraft:lectern",{"minecraft:cardinal_direction":self.d(facing),"powered_bit":False})
+    def crop(self,x,z,block):
+        self.put(x,0,z,"minecraft:farmland",{"moisturized_amount":7})
+        self.put(x,1,z,block,{"growth":self.rng.randint(2,7)})
+    def bed(self,x,z,head,color):
+        dx,dz=STEP[head];hx,hz=x+dx,z+dz
+        for (bx,bz),is_head in [((x,z),False),((hx,hz),True)]:
+            self.put(bx,1,bz,"minecraft:bed",{"direction":BED[self.d(head)],"head_piece_bit":is_head,"occupied_bit":False})
+            # The colour lives in the bed's block entity; without one the game draws a default bed.
+            self.t.entity(bx,1,self.z(bz),{"id":(8,"Bed"),"color":(1,color),"isMovable":(1,1)})
+    def check(self):
+        """The aisle must stay walkable from the door to the room centre, and the reader spot clear."""
+        for z in range(4,8):
+            for x in range(3,6):
+                for y in (1,2):
+                    block=self.t.blocks[x,y,self.z(z)][0]
+                    assert block in WALKABLE or block.endswith("_carpet"),(self.t.name,x,y,z,block)
+        for y in (1,2,3):assert self.t.blocks[6,y,self.z(7)][0]=="minecraft:air",(self.t.name,"reader")
+        return self.t
+
 def room(role,side):
-    t=Template(f"{role}_{side}");t.shell()
-    z=8 if side=="north" else 0
-    far=1 if side=="north" else 7
-    t.fill((3,1,z),(5,3,z),"minecraft:air")
-    # A 3-wide unbroken aisle always leads from the connector to the far wall.
-    for x in [2,6]:t.set(x,6,4,"industrial_light")
-    t.fill((1,1,1),(1,4,7),"concrete_panel")
-    t.fill((7,1,1),(7,4,7),"concrete_panel")
-    if role in ["server","archive","vault","utility"]:
-        for x in [2,6]:
-            for zz in [2,5]:t.fill((x,1,zz),(x,3,zz+1),"server_rack" if role=="server" else "steel_plate" if role=="vault" else "electrical_cabinet")
-    elif role in ["command","office","security","briefing"]:
-        for x in [2,6]:
-            for zz in [2,5]:
-                t.set(x,1,zz,"steel_plate");t.set(x,2,zz,"control_cabinet");t.set(x,1,zz+1,"minecraft:polished_blackstone_brick_slab")
-        t.fill((2,3,far),(6,4,far),"facility_status_display")
-    elif role in ["generator","workshop"]:
-        for x in [2,6]:
-            t.fill((x,1,2),(x,2,6),"generator_panel");t.fill((x,4,1),(x,4,7),"pipe")
-        t.fill((2,0,1),(2,0,7),"concrete_warning_stripe")
-    elif role in ["laboratory","medical"]:
-        for x in [2,6]:
-            t.fill((x,1,2),(x,1,6),"light_reinforced_concrete")
-            t.set(x,2,3,"security_glass");t.set(x,2,5,"utility_panel")
-    elif role=="barracks":
-        for x in [2,6]:
-            for zz in [1,4,6]:
-                t.fill((x,1,zz),(x,1,zz+1),"minecraft:gray_wool");t.set(x,1,zz,"minecraft:white_wool")
-    elif role=="canteen":
-        for x in [2,6]:
-            t.fill((x,1,2),(x,1,6),"steel_plate")
-        t.fill((2,1,far),(6,1,far),"light_reinforced_concrete")
-    return t
+    r=Room(role,side);rng=r.rng
+    if role=="bedroom":  # Officer's quarters: double bed, desk, wardrobe, bookshelf.
+        r.floor("minecraft:mangrove_planks");r.box((3,1,3),(5,1,5),"minecraft:blue_carpet")
+        for x in [1,2]:r.bed(x,2,"north",BED_BLUE)
+        r.barrel(3,1,1,"up");r.lantern(3,2,1);r.chest(1,1,3,"south")
+        r.box((6,1,1),(7,3,1),"minecraft:bookshelf")
+        for z in [3,4]:r.table(7,1,z)
+        r.chair(6,4,"east");r.lantern(7,2,3)
+        for z in [5,6]:
+            for y in [1,2]:r.barrel(7,y,z,"west")
+        r.lantern(4,5,3,True)
+    elif role=="barracks":  # Bunk room: eight beds with lockers between them.
+        for z in [1,2,4,5]:r.bed(2,z,"west",BED_RED);r.bed(6,z,"east",BED_RED)
+        for y in [1,2]:r.barrel(1,y,3,"east");r.barrel(2,y,3,"east");r.barrel(7,y,3,"west");r.barrel(6,y,3,"west")
+        r.chest(1,1,6,"east");r.chest(7,1,6,"west")
+        for z in [2,5]:r.lantern(4,5,z,True)
+    elif role=="lounge":  # Recreation: sofas facing a screen, coffee table, music.
+        r.floor("minecraft:mangrove_planks");r.box((3,1,4),(5,1,5),"minecraft:red_carpet")
+        r.box((3,1,1),(5,1,1),"minecraft:black_concrete");r.box((3,2,1),(5,3,1),"facility_status_display")
+        for x in [2,6]:r.box((x,1,1),(x,2,1),"minecraft:noteblock")
+        for z in [2,3,4]:r.chair(1,z,"east");r.chair(7,z,"west")
+        r.table(1,1,5);r.lantern(1,2,5);r.table(7,1,5)
+        r.table(4,1,3);r.put(4,2,3,"minecraft:cake",{"bite_counter":0})
+        r.box((1,1,7),(1,3,7),"minecraft:bookshelf");r.put(2,1,7,"minecraft:jukebox")
+        r.lantern(4,5,4,True)
+    elif role=="canteen":  # Mess hall with a galley along the far wall.
+        r.cardinal(1,1,1,"minecraft:smoker","south");r.cardinal(2,1,1,"minecraft:furnace","south")
+        for x in [3,4,5]:r.table(x,1,1,"minecraft:polished_blackstone_brick_slab")
+        r.cauldron(6,1,1);r.barrel(7,1,1,"south");r.barrel(7,2,1,"south")
+        for z in [3,4,5,6]:
+            r.table(1,1,z);r.chair(2,z,"west");r.table(7,1,z);r.chair(6,z,"east")
+        r.put(1,2,4,"minecraft:cake",{"bite_counter":0});r.put(7,2,5,"minecraft:cake",{"bite_counter":0})
+    elif role=="farm":  # Hydroponics bay: irrigated crop beds under grow lights.
+        r.box((3,0,4),(5,0,7),"grated_floor")
+        rows={1:"minecraft:wheat",2:"minecraft:carrots",3:"minecraft:potatoes"}
+        for z,crop in rows.items():
+            for x in range(1,8):
+                if (x,z)!=(4,2):r.crop(x,z,crop)
+        r.put(4,0,2,"minecraft:water",{"liquid_depth":0})
+        for z in [4,5,6]:
+            for x in [1,2]:r.crop(x,z,"minecraft:beetroot")
+            for x in [6,7]:r.crop(x,z,"minecraft:wheat")
+        # Crops need light 9 to grow; a lamp directly above gives 10, one block aside 9.
+        r.box((1,6,2),(7,6,2),"minecraft:sea_lantern")
+        for x in [1,2,6,7]:r.put(x,6,5,"minecraft:sea_lantern")
+        r.put(1,1,7,"minecraft:composter",{"composter_fill_level":0});r.chest(2,1,7,"south")
+    elif role=="mining":  # Excavation: a live rock face with ore, a railed drift and ore processing.
+        ores=[("minecraft:coal_ore",8),("minecraft:iron_ore",7),("minecraft:copper_ore",5),("minecraft:gold_ore",3),
+              ("minecraft:redstone_ore",3),("minecraft:lapis_ore",2),("minecraft:deepslate_diamond_ore",1)]
+        for x in range(1,8):
+            for y in range(1,6):
+                for z in [0,1,2]:
+                    roll=rng.random()*100;block="minecraft:stone"
+                    for ore,chance in ores:
+                        if roll<chance:block=ore;break
+                        roll-=chance
+                    else:block=rng.choice(["minecraft:stone","minecraft:stone","minecraft:andesite","minecraft:tuff"])
+                    r.put(x,y,z,block)
+        for z in [1,2]:r.box((4,1,z),(4,2,z),"minecraft:air")
+        for z in range(1,8):r.put(4,1,z,"minecraft:rail",{"rail_direction":0})
+        for x in [2,6]:r.box((x,1,3),(x,3,3),"minecraft:mangrove_fence")
+        r.box((2,4,3),(6,4,3),"minecraft:mangrove_planks")
+        r.box((1,0,3),(2,0,7),"minecraft:cobblestone");r.box((6,0,3),(7,0,7),"minecraft:cobblestone")
+        r.put(1,1,3,"minecraft:gravel");r.put(7,1,3,"minecraft:cobblestone")
+        r.cardinal(1,1,4,"minecraft:blast_furnace","east");r.cardinal(1,1,5,"minecraft:furnace","east")
+        r.chest(1,1,6,"east");r.put(2,1,6,"minecraft:crafting_table")
+        r.chest(7,1,4,"west");r.barrel(7,1,5,"west");r.barrel(7,2,5,"west")
+        r.lantern(4,5,5,True)
+    elif role=="workshop":  # Fabrication: a full workbench line and tool storage.
+        r.box((2,0,1),(2,0,7),"concrete_warning_stripe")
+        r.put(1,1,2,"minecraft:crafting_table");r.put(1,1,3,"minecraft:smithing_table")
+        r.cardinal(1,1,4,"minecraft:stonecutter_block","east");r.cardinal(1,1,5,"minecraft:furnace","east")
+        r.cardinal(1,1,6,"minecraft:blast_furnace","east")
+        r.put(3,1,1,"minecraft:fletching_table");r.put(4,1,1,"minecraft:cartography_table");r.chest(5,1,1,"south")
+        for z in [2,3,4,5]:
+            for y in [1,2]:r.barrel(7,y,z,"west")
+        for x in [1,7]:r.box((x,5,1),(x,5,7),"pipe")
+    elif role=="generator":  # Power plant: a caged reactor core between generator banks.
+        r.box((3,1,1),(3,4,1),"minecraft:iron_bars");r.box((5,1,1),(5,4,1),"minecraft:iron_bars")
+        r.box((4,1,1),(4,4,1),"minecraft:sea_lantern");r.box((4,1,2),(4,4,2),"minecraft:iron_bars")
+        r.box((3,5,1),(5,5,2),"riveted_steel")
+        r.box((1,1,2),(1,2,6),"generator_panel");r.box((7,1,2),(7,2,6),"generator_panel")
+        for x in [1,7]:r.box((x,4,1),(x,4,7),"pipe");r.put(x,4,4,"pipe_junction")
+        for x in [2,6]:r.box((x,0,1),(x,0,7),"concrete_warning_stripe")
+        r.put(2,1,1,"electrical_cabinet");r.put(6,1,1,"electrical_cabinet")
+    elif role=="medical":  # Infirmary: patient beds, dispensary counter with brewing stands.
+        r.floor("minecraft:white_concrete")
+        for x,z in [(4,3),(4,4),(4,5),(3,4),(5,4)]:r.put(x,0,z,"minecraft:red_concrete")
+        for z in [2,5]:r.bed(2,z,"west",BED_WHITE)
+        r.put(1,1,3,"light_reinforced_concrete");r.brewing(1,2,3);r.chest(1,1,6,"east")
+        r.bed(6,1,"east",BED_WHITE)
+        r.box((7,1,2),(7,1,5),"light_reinforced_concrete");r.brewing(7,2,3);r.put(7,2,5,"utility_panel");r.cauldron(7,1,6)
+        r.box((3,1,1),(5,1,1),"minecraft:white_concrete");r.box((3,2,1),(5,2,1),"facility_status_display")
+    elif role=="laboratory":  # Research lab: glowing specimen tanks, enchanting and brewing benches.
+        r.floor("light_reinforced_concrete")
+        for x in [1,7]:r.put(x,1,1,"minecraft:sea_lantern");r.box((x,2,1),(x,3,1),"blast_resistant_glass")
+        r.put(4,1,1,"minecraft:enchanting_table")
+        for x in [2,3,5,6]:r.box((x,1,1),(x,2,1),"minecraft:bookshelf")
+        r.box((1,1,3),(1,1,6),"light_reinforced_concrete");r.brewing(1,2,4);r.brewing(1,2,6);r.cauldron(1,1,5)
+        r.box((7,1,3),(7,2,3),"security_glass");r.box((7,1,4),(7,1,6),"utility_panel");r.put(7,2,5,"minecraft:lantern",{"hanging":False})
+    elif role=="command":  # Command centre: display wall, console banks, strategy table.
+        r.box((2,1,1),(6,1,1),"control_cabinet");r.box((2,2,1),(6,4,1),"facility_status_display")
+        for x in [1,7]:r.box((x,1,2),(x,1,6),"control_cabinet");r.box((x,2,2),(x,2,6),"facility_status_display")
+        for z in [3,5]:r.chair(2,z,"west","minecraft:polished_blackstone_stairs");r.chair(6,z,"east","minecraft:polished_blackstone_stairs")
+        r.box((3,1,2),(5,1,2),"minecraft:cartography_table")
+    elif role=="office":  # Administration: two desks, filing, bookshelves and a lectern.
+        r.box((1,1,1),(2,3,1),"minecraft:bookshelf");r.box((6,1,1),(7,3,1),"minecraft:bookshelf")
+        r.lectern(4,1,1,"south");r.barrel(3,1,1,"south");r.barrel(5,1,1,"south")
+        for z in [3,4]:r.table(1,1,z);r.table(7,1,z)
+        r.chair(2,4,"west");r.chair(6,4,"east");r.lantern(1,2,3);r.lantern(7,2,3)
+        for y in [1,2]:r.barrel(1,y,6,"east");r.barrel(7,y,6,"west")
+    elif role=="briefing":  # Briefing room: projection wall, presenter's lectern, rows of seats.
+        r.box((2,1,1),(6,1,1),"minecraft:black_concrete");r.box((2,2,1),(6,4,1),"facility_status_display")
+        r.lectern(4,1,2,"south")
+        for z in [4,5,6]:
+            for x in [1,2,6,7]:r.chair(x,z,"north")
+    elif role=="security":  # Security office: monitor wall, duty desk, lockers and a holding cell.
+        r.box((1,1,2),(1,1,5),"control_cabinet");r.box((1,2,2),(1,3,5),"facility_status_display")
+        for z in [3,4]:r.table(2,1,z,"minecraft:polished_blackstone_brick_slab")
+        r.chair(3,3,"west","minecraft:polished_blackstone_stairs")
+        r.box((5,1,1),(5,3,3),"minecraft:iron_bars");r.box((6,1,3),(7,3,3),"minecraft:iron_bars")
+        r.put(7,1,1,"minecraft:polished_blackstone_brick_slab")
+        for z in [4,5]:
+            for y in [1,2]:r.barrel(7,y,z,"west")
+        r.chest(7,1,6,"west")
+    elif role=="server":  # Data centre: rack rows on a raised grated floor.
+        r.floor("grated_floor")
+        for x in [1,2,6,7]:
+            for z in [1,2,4,5]:r.box((x,1,z),(x,3,z),"server_rack")
+        r.box((4,5,1),(4,5,7),"cable_tray")
+    elif role=="archive":  # Records: shelving walls, filing chests and a reading lectern.
+        r.box((1,1,1),(1,4,6),"minecraft:bookshelf");r.box((7,1,1),(7,4,5),"minecraft:bookshelf")
+        for z in [2,5]:r.chest(2,1,z,"east");r.chest(6,1,z,"west")
+        r.table(4,1,1);r.lectern(3,1,1,"south");r.lectern(5,1,1,"south");r.lantern(4,5,3,True)
+    elif role=="vault":  # Strongroom: steel-lined barrel stacks and secured chests.
+        r.floor("diamond_plate_floor")
+        for z in range(1,6):
+            for y in [1,2]:r.barrel(1,y,z,"east");r.barrel(7,y,z,"west")
+        r.chest(3,1,1,"south");r.put(4,1,1,"steel_plate");r.chest(5,1,1,"south");r.box((3,2,1),(5,2,1),"riveted_steel")
+        r.box((2,1,1),(2,3,1),"steel_plate");r.box((6,1,1),(6,3,1),"steel_plate")
+    elif role=="utility":  # Water treatment: a reservoir, filter cauldrons, pumps and switchgear.
+        r.box((2,0,1),(6,0,2),"minecraft:water",{"liquid_depth":0});r.box((2,1,3),(6,1,3),"minecraft:iron_bars")
+        for z in [2,3,4,5]:r.cauldron(1,1,z)
+        for x in [1,7]:r.box((x,4,1),(x,4,7),"pipe")
+        r.put(1,4,2,"pipe_junction");r.put(1,4,5,"pipe_junction")
+        r.box((7,1,2),(7,2,5),"electrical_cabinet");r.put(7,1,6,"utility_panel")
+    elif role=="storage":  # Supply depot: barrel walls and chests.
+        for z in range(1,7):
+            for y in [1,2,3]:r.barrel(1,y,z,"east");r.barrel(7,y,z,"west")
+        for z in [2,4]:r.chest(2,1,z,"east");r.chest(6,1,z,"west")
+        for x in [3,4,5]:r.barrel(x,1,1,"south");r.barrel(x,2,1,"south")
+        r.lantern(4,5,4,True)
+    else:raise ValueError(role)
+    return r.check()
 
 def structures():
     templates=[]
-    for role in ["office","briefing","security","archive","barracks","medical","canteen","command","server","generator","workshop","utility","vault","laboratory"]:
+    for role in ROOM_ROLES:
         for side in ["north","south"]:templates.append(room(role,side))
     for name in ["hall","hall_west","hall_east","core"]:
         t=Template(name);t.shell()
@@ -439,7 +677,7 @@ def asset_inventory():
         note="Construction palette; available in Creative"
         animation="None"
         if name in INTERACTIVE:note="Shared interaction component; functional at registered positions"
-        if name in ["blast_door","security_door","security_shutter"]:note="Generated doors / shutters";animation="Scripted 2-pixel block retraction" if name!="blast_door" else "Smooth moving leaf entity; blocks provide collision"
+        if name in ["blast_door","security_door","security_shutter"]:note="Generated doors / shutters";animation="Scripted 2-pixel block retraction" if name!="blast_door" else "Split leaves slide apart as an entity; blocks provide collision"
         if name=="emergency_light":note="Registered facility alarm lamps";animation="Flashing state permutation"
         if name=="missile_turret_base":note="Construction block only; missile system deferred"
         lines.append(f"| `{NS}{name}` | Block | {note} | Original 32×32 | Full cube; invisible open-door geometry where needed | {animation} | Vanilla placement; shared interaction sounds |")
@@ -449,14 +687,15 @@ def asset_inventory():
         "| Identifier | Type | Implementation | Texture | Model | Animation | Sound |",
         "|---|---|---|---|---|---|---|",
         "| `secretfacilities:laser_turret` | Entity | Hostile-only laser defence; entrance and command zones | Original 64×64 atlas | Six named bones | Scripted entity rotation and pitch bone; game verification pending | Synthesized firing pulse |",
-        "| `secretfacilities:blast_door_leaf` | Entity | Moving blast door leaf, present only while the entrance door travels | Shared blast door texture | 20 block-sized cubes | Client-eased slide driven by a synced property | Blast door sounds |",
-        "| `secretfacilities:laser_beam` | Particle | Tripwires and turret shots | Original 8×8 white mask, tinted red | Billboard | 0.22-second particle lifetime | None |",
-        "| `secretfacilities:laser_impact` | Particle | Hit marker | Shared white mask, tinted amber | Billboard | 0.22-second particle lifetime | Shared firing pulse |",
+        "| `secretfacilities:blast_door_leaf` | Entity | Two blast door leaves that part at a central seam and slide sideways into the wall, present only while the entrance door travels | Shared blast door texture | Two bones of block-column cubes | Client-eased slide driven by a synced property | Blast door sounds |",
+        "| `secretfacilities:turret_beam` | Particle | Turret shot: one emitter draws a solid glowing beam from muzzle to target | Original 16×16 soft glow, additive, unlit | Dense billboards placed along the shot | 0.32-second fade | Shared firing pulse |",
+        "| `secretfacilities:laser_beam` | Particle | Tripwire grids | Original 8×8 white mask, tinted red | Billboard | 0.22-second particle lifetime | None |",
+        "| `secretfacilities:laser_impact` | Particle | Hit flash and sparks | Shared soft glow, additive | Billboards with gravity | Up to 0.45 seconds | Shared firing pulse |",
         "| Missile turret / projectile | Planned | Not shipped | Deferred | Deferred | Deferred | Deferred |", "",
         "## Audio", "", "Eleven original mono WAV assets are mapped through `resource_pack/sounds/sound_definitions.json`.", "",
         "`access_granted`, `access_denied`, `alarm_alert`, `alarm_lockdown`, `blast_door_movement`, `blast_door_warning`, `elevator_move`, `elevator_arrive`, `laser_turret_fire`, `warning_beep`, `destruction`.", "",
         "`warning_beep` is available for future countdown polish; the other sound events are wired to the shared systems. No third-party audio is included.", "",
-        "## Structures", "", "33 authored/generated binary templates: 14 room roles in north/south connector orientations, four hall/core modules and the surface entrance. See `module_catalog.json`. Programmed overlays add doors, readers, controls, grids, shafts, escape route and turrets.", "",
+        "## Structures", "", "43 authored/generated binary templates: 19 furnished room roles (bedrooms, bunk rooms, lounges, mess halls, hydroponic farms, mining faces, workshops, labs and more) in north/south connector orientations, four hall/core modules and the surface entrance. Rooms use vanilla furniture with block entity data for bed colours. See `module_catalog.json`. Programmed overlays add doors, readers, controls, grids, shafts, escape route, turrets, the covering mountain and TNT demolition charges.", "",
         "## Other", "", "Both packs include an original 128×128 bunker icon and en_US names. Advanced control models, damaged turret models, directional animated doors, facility-specific palettes and cinematic particles are deferred."])
     (ROOT/"docs").mkdir(exist_ok=True)
     (ROOT/"docs/assets.md").write_text("\n".join(lines)+"\n")
@@ -469,6 +708,6 @@ def main():
     write(RP/"manifest.json",{"format_version":2,"header":{"name":"Secret Facilities RP","description":"Original industrial pixel art, turret model, effects and sounds","uuid":RP_UUID,"version":VERSION,"min_engine_version":[1,21,90]},
         "modules":[{"type":"resources","uuid":"071c689c-24f6-45d4-8aaa-4843be1664cf","version":VERSION}]})
     textures();turret();door_leaf();sounds();structures();icon();asset_inventory()
-    print(f"Built {len(BLOCKS)} blocks, {len(ITEMS)} items, 33 structure templates, turret, particles and 11 sounds.")
+    print(f"Built {len(BLOCKS)} blocks, {len(ITEMS)} items, {2*len(ROOM_ROLES)+5} structure templates, turret, particles and 11 sounds.")
 
 if __name__=="__main__":main()

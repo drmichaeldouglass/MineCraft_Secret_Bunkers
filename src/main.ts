@@ -15,7 +15,8 @@ system.beforeEvents.startup.subscribe(event=>{
   });
 });
 world.afterEvents.worldLoad.subscribe(()=>{
-  try{load();for(const f of facilities.values())if(f.phase==="ready")restoreDoors(f);}catch(error){report(error);}
+  // A demolished or demolishing facility's doors are rubble now; repainting them would rebuild them.
+  try{load();for(const f of facilities.values())if(f.phase==="ready"&&f.destructionStep===undefined&&f.state!=="DESTROYED")restoreDoors(f);}catch(error){report(error);}
   registerDefenceEvents();registerDoorEvents();
   const safe=(work:()=>void)=>()=>{try{work();}catch(error){report(error);}};
   system.runInterval(safe(tickDoors),1);

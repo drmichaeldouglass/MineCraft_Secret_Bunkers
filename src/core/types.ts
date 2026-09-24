@@ -18,6 +18,8 @@ export interface Facility {
   zones: Record<string, DefenceMode>; lasersEnabled: boolean;
   consoles: { pos: Vec; kind: "security" | "defence" | "destruct"; zone: string }[];
   countdown?: number; destructionStep?: number;
+  /** Demolition charges: vanilla TNT sealed in the rock just outside the walls. Absent for older facilities. */
+  charges?: Vec[];
   /** Natural surface block the site is levelled with. Absent for facilities built before levelling. */
   ground?: string;
 }

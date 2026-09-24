@@ -2,7 +2,7 @@ import { EntityDamageCause, system, world, type Entity } from "@minecraft/server
 import { isHostile, defenceActive } from "../core/rules.js";
 import { add, distance, NS, type Facility, type Turret } from "../core/types.js";
 import { facilities, mark } from "./store.js";
-import { beam, dim, lineClear, nearby, sound } from "./world.js";
+import { dim, lineClear, nearby, sound, turretBeam } from "./world.js";
 interface Tracking { target?:string; nextScan:number; nextShot:number; entity?:string }
 const cache=new Map<string,Tracking>();
 const allowed=(e:Entity):boolean=>e.isValid&&isHostile(e.typeId,e.getComponent("minecraft:tameable")?.isTamed??false);
@@ -34,7 +34,7 @@ function update(f:Facility,t:Turret):void {
   if(system.currentTick<tracking.nextShot)return;
   if(!lineClear(d,source,aim)){tracking.target=undefined;return;}
   tracking.nextShot=system.currentTick+20;
-  beam(d,source,aim);d.spawnParticle(NS+"laser_impact",aim);
+  turretBeam(d,source,aim);
   target.applyDamage(5,{cause:EntityDamageCause.entityAttack,damagingEntity:entity});
   sound(f,"laser_turret_fire",source,0.3);
 }

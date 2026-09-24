@@ -1,42 +1,61 @@
 import { system, world } from "@minecraft/server";
 import { defenceActive, mayOpen, segmentDistance } from "../core/rules.js";
-import { add, distance, inside, NS } from "../core/types.js";
+import { distance, inside, NS } from "../core/types.js";
 import { facilities, mark, save } from "./store.js";
 import { beam, dim, fill, getClearance, lineClear, loaded, nearby, set, sound, tell } from "./world.js";
+import { demolish } from "./destruct.js";
 const moving = new Map();
 /** Two-pixel sub-steps the leaf travels; eight per block of door height, one per tick. */
 export const SUBSTEPS = 8;
+/** Ticks per block each blast door leaf slides sideways. Must match LEAF_RATE in tools/build_assets.py. */
+export const BLAST_RATE = 16;
+/** Blast door 'slide' state while its leaves are in motion: still solid, but drawn invisible so the
+ *  moving leaves show through. Only the blast door defines this permutation. */
+const HIDDEN = 1;
 export const LEAF = NS + "blast_door_leaf";
 function idFor(door) { return door.kind === "blast" ? "blast_door" : door.kind === "shutter" ? "security_shutter" : "security_door"; }
-const travel = (door) => (door.max.y - door.min.y + 1) * SUBSTEPS;
 /** The blast door is drawn in motion by a leaf entity the client slides smoothly;
- *  its blocks only supply collision and the solid courses the leaf is hidden behind. */
+ *  its blocks only supply collision and the solid door shown at rest. */
 const usesLeaf = (door) => door.kind === "blast";
+const width = (door) => door.max.x - door.min.x + 1;
+/** Steps of a full open or close: the blast door's two leaves each travel half its width. */
+export const travel = (door) => usesLeaf(door) ? Math.round(width(door) / 2 * BLAST_RATE) : (door.max.y - door.min.y + 1) * SUBSTEPS;
 const leafTag = (f, door) => `sf_door:${f.id}:${door.id}`;
 /** Ease in and out, so the heavy leaf starts and stops gently. Must match the client script. */
 export const ease = (phase) => phase * phase * (3 - 2 * phase);
-/** Courses of a leaf door the leaf has started to leave, at a given step of its travel. */
-const lifted = (door, progress) => Math.ceil(ease(progress / travel(door)) * (door.max.y - door.min.y + 1) - 1e-9);
-/** Paint one horizontal course of the leaf. Stepped doors: courses below the moving edge
- *  are gone, the edge course shows its offset, and courses above are still solid.
- *  Leaf doors: any course the leaf has started to leave is cleared so the leaf shows there. */
-function paintRow(d, door, row, progress) {
-    const y = door.min.y + row;
-    if (usesLeaf(door)) {
-        fill(d, { ...door.min, y }, { ...door.max, y }, idFor(door), { [NS + "open"]: row < lifted(door, progress), [NS + "slide"]: 0 });
-        return;
+/** Blocks each blast door leaf has slid away from the centre seam at a given step. */
+export const slid = (door, progress) => ease(progress / travel(door)) * width(door) / 2;
+/** A blast door column is passable only once both leaves have slid entirely clear of it,
+ *  so a player can never walk through a leaf that is still drawn there. */
+function clearOf(door, progress, column) {
+    const half = width(door) / 2;
+    return slid(door, progress) >= Math.max(half - column, column + 1 - half) - 1e-9;
+}
+function leafStates(door, progress, column, inMotion) {
+    const open = clearOf(door, progress, column);
+    return { [NS + "open"]: open, [NS + "slide"]: !open && inMotion ? HIDDEN : 0 };
+}
+/** Paint the blast door's columns whose state differs between two moments. Returns the number of fills. */
+function paintLeafDoor(d, door, from, to, wasMoving, isMoving, all = false) {
+    let fills = 0;
+    for (let i = 0; i < width(door); i++) {
+        const before = leafStates(door, from, i, wasMoving), after = leafStates(door, to, i, isMoving);
+        if (!all && before[NS + "open"] === after[NS + "open"] && before[NS + "slide"] === after[NS + "slide"])
+            continue;
+        const x = door.min.x + i;
+        fill(d, { ...door.min, x }, { ...door.max, x }, idFor(door), after);
+        fills++;
     }
-    const edge = Math.floor(progress / SUBSTEPS);
+    return fills;
+}
+/** Paint one horizontal course of a stepped door: courses below the moving edge are gone,
+ *  the edge course shows its offset, and courses above are still solid. */
+function paintRow(d, door, row, progress) {
+    const y = door.min.y + row, edge = Math.floor(progress / SUBSTEPS);
     fill(d, { ...door.min, y }, { ...door.max, y }, idFor(door), { [NS + "open"]: row < edge, [NS + "slide"]: row === edge ? progress % SUBSTEPS : 0 });
 }
 /** Repaint only the courses a single step changes. Returns the number of fills. */
-function paintStep(d, door, from, to) {
-    if (usesLeaf(door)) {
-        const a = lifted(door, from), b = lifted(door, to);
-        for (let row = Math.min(a, b); row < Math.max(a, b); row++)
-            paintRow(d, door, row, to);
-        return Math.abs(a - b);
-    }
+function paintStep(d, door, to) {
     const edge = Math.min(door.max.y - door.min.y, Math.floor(to / SUBSTEPS));
     paintRow(d, door, edge, to);
     if (edge > 0) {
@@ -53,7 +72,7 @@ function clearLeaves(d, f, door) {
         catch { /* Already gone. */ }
 }
 const liveLeaf = (job) => { const e = job.leaf ? world.getEntity(job.leaf) : undefined; return e?.isValid ? e : undefined; };
-/** Which way the leaf travels this tick: 1 up, -1 down, 0 held. */
+/** Which way the leaves travel this tick: 1 opening, -1 closing, 0 held. */
 const heading = (job) => Math.sign(job.target - job.progress);
 /** The client animates the leaf on its own clock from where it was last told it started,
  *  so the slide stays smooth whatever the tick rate or network jitter. The server only
@@ -87,7 +106,7 @@ export function requestDoor(f, door, open) {
     const progress = running ? running.progress : (door.open ? travel(door) : 0);
     door.open = open;
     mark(f);
-    moving.set(key, { f, door, progress, target: open ? travel(door) : 0, repaint: false, started: false, leaf: running?.leaf, motion: running?.motion });
+    moving.set(key, { f, door, progress, target: open ? travel(door) : 0, repaint: false, started: false, leaf: running?.leaf, motion: running?.motion, hidden: running?.hidden });
     if (door.kind === "blast")
         sound(f, "blast_door_warning", door.min);
 }
@@ -122,20 +141,28 @@ export function tickDoors() {
             continue;
         const height = door.max.y - door.min.y + 1;
         if (job.repaint) {
-            // A leaf left over from a slide interrupted by a reload or unload.
             if (usesLeaf(door)) {
+                // A leaf left over from a slide interrupted by a reload or unload.
                 clearLeaves(d, f, door);
                 job.leaf = undefined;
+                job.hidden = false;
+                writes += paintLeafDoor(d, door, job.progress, job.progress, false, false, true);
             }
-            for (let row = 0; row < height; row++)
-                paintRow(d, door, row, job.progress);
+            else {
+                for (let row = 0; row < height; row++)
+                    paintRow(d, door, row, job.progress);
+                writes += height;
+            }
             job.repaint = false;
-            writes += height;
         }
         if (job.progress === job.target) {
-            if (job.leaf) {
+            if (job.leaf || job.hidden) {
+                // At rest the door blocks draw the door again, then the leaves can go.
+                if (usesLeaf(door))
+                    writes += paintLeafDoor(d, door, job.progress, job.progress, true, false);
                 clearLeaves(d, f, door);
                 job.leaf = undefined;
+                job.hidden = false;
             }
             moving.delete(key);
             continue;
@@ -153,7 +180,7 @@ export function tickDoors() {
                 sound(f, "blast_door_movement", door.min);
         }
         // A new, resumed or reversed leaf gets one tick to reach clients before the blocks move,
-        // so the blocks never run ahead of the leaf the player sees.
+        // so the doorway never opens ahead of the leaves the player sees.
         if (usesLeaf(door) && !leaf) {
             spawnLeaf(d, f, door, job);
             continue;
@@ -164,7 +191,13 @@ export function tickDoors() {
         }
         const from = job.progress;
         job.progress = next;
-        writes += paintStep(d, door, from, next);
+        if (usesLeaf(door)) {
+            // The first step hands the picture over to the leaves: the resting door blocks turn invisible.
+            writes += paintLeafDoor(d, door, from, next, job.hidden === true, true, !job.hidden);
+            job.hidden = true;
+        }
+        else
+            writes += paintStep(d, door, next);
         // Round-robin prevents a blocked door or a distant facility starving others.
         moving.delete(key);
         moving.set(key, job);
@@ -277,28 +310,12 @@ export function tickAlarms() {
                     if (p.dimension.id === f.dimension && inside(p.location, f.bounds, 5))
                         p.onScreenDisplay.setActionBar(`§cEVACUATE • ${f.countdown}s • rear B1 escape tunnel`);
             }
-            else {
-                // Bounded structural damage, never a chain of uncontrolled explosions.
-                f.destructionStep ?? (f.destructionStep = 0);
-                const floor = f.floors.slice(1)[f.destructionStep];
-                if (floor) {
-                    const center = add(f.origin, { x: 6, y: floor.y - f.origin.y, z: 6 });
-                    if (loaded(d, center)) {
-                        fill(d, add(center, { x: -3, y: 0, z: -3 }), add(center, { x: 3, y: 0, z: 3 }), "damaged_panel");
-                        for (const x of [-2, 2])
-                            fill(d, add(center, { x, y: 1, z: -1 }), add(center, { x, y: 3, z: 1 }), "damaged_panel");
-                        sound(f, "destruction", center);
-                        f.destructionStep++;
-                        mark(f);
-                    }
+            else if (demolish(f)) {
+                for (const t of f.turrets) {
+                    t.enabled = false;
+                    t.damaged = true;
                 }
-                else {
-                    for (const t of f.turrets) {
-                        t.enabled = false;
-                        t.damaged = true;
-                    }
-                    setSecurity(f, "DESTROYED");
-                }
+                setSecurity(f, "DESTROYED");
             }
         }
     }

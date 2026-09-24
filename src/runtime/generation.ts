@@ -1,6 +1,7 @@
 import { BlockVolume, GameMode, system, world, type Block, type Dimension, type Player } from "@minecraft/server";
 import { add, intersects, NS, type Facility, type Vec } from "../core/types.js";
 import { FLOOR_STEP, MODULE } from "../generation/planner.js";
+import { column, MOUNTAIN, PAD, PEAK } from "../generation/mountain.js";
 import { facilities, mark, save } from "./store.js";
 import { dim, fill, loaded, report, set, tell } from "./world.js";
 const active=new Set<string>();
@@ -9,11 +10,11 @@ type Operation=()=>void;
  *  to a level pad, so no floor surfaces through a hillside. Columns are sampled every few blocks. */
 export const MAX_CUT=12, MAX_FILL=12;
 const SURVEY_STEP=5;
-/** The pad extends past the reserved bounds so its edge is not the bunker's wall, and is cleared
- *  well above the highest cut so trees on it do not float. Bands keep each fill small. */
-const PAD_MARGIN=2, CLEAR_HEIGHT=MAX_CUT+12, PAD_BAND=6;
+/** The pad is cleared well above the highest cut so trees on it do not float, and above the
+ *  mountain's peak so none of the old hill pokes through it. Bands keep each fill small. */
+const CLEAR_HEIGHT=Math.max(MAX_CUT+12,PEAK+2), PAD_BAND=6;
 /** What the fill below the pad may replace: holes, caves, water and lava, never solid ground. */
-const LOOSE=["minecraft:air","minecraft:water","minecraft:flowing_water","minecraft:lava","minecraft:flowing_lava"];
+export const LOOSE=["minecraft:air","minecraft:water","minecraft:flowing_water","minecraft:lava","minecraft:flowing_lava"];
 const EARTH=["minecraft:grass_block","minecraft:dirt","minecraft:coarse_dirt","minecraft:podzol","minecraft:mycelium",
   "minecraft:snow","minecraft:moss_block","minecraft:mud"];
 const ROCK=["minecraft:stone","minecraft:deepslate","minecraft:andesite","minecraft:diorite","minecraft:granite",
@@ -37,13 +38,15 @@ function installations(f:Facility):Operation[] {
     ops.push(()=>{fill(d,{x:o.x+16,y,z:o.z+16},{x:o.x+16,y:top,z:o.z+16},"steel_wall");
       fill(d,{x:o.x+15,y,z:o.z+16},{x:o.x+15,y:top,z:o.z+16},"minecraft:ladder",{facing_direction:4});});}
   // B1 rear escape tunnel and a second ladder to a discreet surface utility hut.
-  ops.push(()=>{fill(d,p(11,-9,26),p(15,-5,36),"reinforced_concrete");fill(d,p(12,-8,26),p(14,-6,35),"minecraft:air");
+  // It opens from the back of the room south of the lobby, whose aisle is cleared through to it.
+  ops.push(()=>{fill(d,p(11,-9,26),p(15,-5,36),"reinforced_concrete");fill(d,p(12,-8,22),p(14,-6,35),"minecraft:air");
     set(d,p(13,-5,31),"industrial_light");});
   ops.push(()=>{fill(d,p(11,-5,32),p(15,4,36),"reinforced_concrete");fill(d,p(12,-5,33),p(14,3,35),"minecraft:air");
     // Hut floor; the ladder then cuts its own opening. Without it the exit is two blocks of open shaft away.
     fill(d,p(12,0,33),p(14,0,35),"industrial_floor");
-    fill(d,p(13,-8,35),p(13,3,35),"minecraft:ladder",{facing_direction:2});
-    fill(d,p(12,1,32),p(14,2,32),"minecraft:air");set(d,p(13,4,34),"industrial_light");});
+    fill(d,p(12,-8,34),p(12,3,34),"minecraft:ladder",{facing_direction:5});
+    // The hut is dug into the back of the mountain, so its door faces away from it, south.
+    fill(d,p(13,1,36),p(14,2,36),"minecraft:air");set(d,p(13,4,34),"industrial_light");});
   for(const door of f.doors)ops.push(()=>{
     const id=door.kind==="blast"?"blast_door":door.kind==="shutter"?"security_shutter":"security_door";
     fill(d,door.min,door.max,id,{[NS+"open"]:door.open,[NS+"slide"]:0});
@@ -75,11 +78,11 @@ function installations(f:Facility):Operation[] {
 function earthworks(f:Facility):Operation[] {
   // Facilities deployed before levelling existed resume their build without it.
   if(!f.ground)return [];
-  const d=dim(f),y=f.origin.y,[top,under]=padMaterial(f.ground),m=PAD_MARGIN,ops:Operation[]=[];
-  const x0=f.bounds.min.x-m,x1=f.bounds.max.x+m,z1=f.bounds.max.z+m;
+  const d=dim(f),o=f.origin,y=o.y,[top,under]=padMaterial(f.ground),ops:Operation[]=[];
+  const x0=o.x+PAD.x0,x1=o.x+PAD.x1,z1=o.z+PAD.z1;
   // The pad's margin may reach unloaded chunks; those edges are simply left as they are.
   const edge={ignoreChunkBoundErrors:true};
-  for(let z=f.bounds.min.z-m;z<=z1;z+=PAD_BAND){const zb=Math.min(z+PAD_BAND-1,z1);
+  for(let z=o.z+PAD.z0;z<=z1;z+=PAD_BAND){const zb=Math.min(z+PAD_BAND-1,z1);
     ops.push(()=>{
       d.fillBlocks(new BlockVolume({x:x0,y:y+1,z},{x:x1,y:y+CLEAR_HEIGHT,z:zb}),"minecraft:air",edge);
       d.fillBlocks(new BlockVolume({x:x0,y:y-MAX_FILL,z},{x:x1,y:y-1,z:zb}),under,{...edge,blockFilter:{includeTypes:LOOSE}});
@@ -88,16 +91,63 @@ function earthworks(f:Facility):Operation[] {
   }
   return ops;
 }
-/** Solid rock around every underground slab, so no floor can surface through a hillside. */
+/** Solid rock around every underground slab, so no floor can surface through a hillside.
+ *  It reaches two blocks past the walls, sealing in the demolition charges. */
 function encasement(f:Facility):Operation[] {
   const d=dim(f),o=f.origin,span=3*MODULE-1,ops:Operation[]=[];
   for(const floor of f.floors.slice(1))for(let band=0;band<3;band++){
-    const z=o.z+band*MODULE,top=floor.y+FLOOR_STEP-1;
-    ops.push(()=>fill(d,{x:o.x,y:floor.y,z},{x:o.x+span,y:top,z:z+MODULE-1},"minecraft:stone"));
+    const z0=o.z+(band===0?-2:band*MODULE),z1=o.z+(band===2?span+2:(band+1)*MODULE-1),top=floor.y+FLOOR_STEP-1;
+    ops.push(()=>fill(d,{x:o.x-2,y:floor.y,z:z0},{x:o.x+span+2,y:top,z:z1},"minecraft:stone"));
   }
   // Ground the entrance forecourt so it never juts out over a slope.
   ops.push(()=>fill(d,{x:o.x+6,y:o.y-4,z:o.z-4},{x:o.x+20,y:o.y-1,z:o.z-1},"minecraft:stone"));
   return ops;
+}
+/** Ground cover the mountain's skirts may bury, besides air and liquids. */
+const COVERABLE=[...LOOSE,"minecraft:short_grass","minecraft:tall_grass","minecraft:fern","minecraft:large_fern",
+  "minecraft:snow_layer","minecraft:dandelion","minecraft:poppy","minecraft:deadbush"];
+/** Heap the mountain over the finished bunker, one row of columns per operation. Over the pad the
+ *  column is built from just above the ground or a structure's roof; beyond it the skirts are only
+ *  laid into air and water, so they drape over the surrounding terrain instead of cutting it. */
+function mountain(f:Facility):Operation[] {
+  if(!f.charges)return [];
+  const d=dim(f),o=f.origin,[top,under]=padMaterial(f.ground??"minecraft:grass_block"),ops:Operation[]=[];
+  const core=under==="minecraft:dirt"?"minecraft:stone":under,edge={ignoreChunkBoundErrors:true};
+  const only={...edge,blockFilter:{includeTypes:COVERABLE}};
+  const lay=(x:number,z:number,a:number,b:number,block:string)=>{
+    if(b>=a)d.fillBlocks(new BlockVolume({x:o.x+x,y:o.y+a,z:o.z+z},{x:o.x+x,y:o.y+b,z:o.z+z}),block,only);
+  };
+  for(let z=MOUNTAIN.z0;z<=MOUNTAIN.z1;z++)ops.push(()=>{
+    for(let x=MOUNTAIN.x0;x<=MOUNTAIN.x1;x++){
+      const c=column(f.seed,x,z);
+      if(c.open){
+        // Keep the approach and the hut's apron open at pad level, whatever the terrain beyond does.
+        d.fillBlocks(new BlockVolume({x:o.x+x,y:o.y+1,z:o.z+z},{x:o.x+x,y:o.y+CLEAR_HEIGHT,z:o.z+z}),"minecraft:air",edge);
+        lay(x,z,-MAX_FILL,-1,under);
+        const path=z<0&&Math.abs(x-13)<=2;
+        d.fillBlocks(new BlockVolume({x:o.x+x,y:o.y,z:o.z+z},{x:o.x+x,y:o.y,z:o.z+z}),path?"minecraft:coarse_dirt":top,edge);
+        continue;
+      }
+      if(!c.top)continue;
+      // Steep faces and the summit are bare rock; gentler slopes carry the local soil.
+      const slope=Math.max(...[[1,0],[-1,0],[0,1],[0,-1]].map(([dx,dz])=>Math.abs(c.top-column(f.seed,x+dx,z+dz).top)));
+      const rock=(x*7+z*13+f.seed)%5===0?"minecraft:andesite":core;
+      const surface=c.top>=PEAK-2?"minecraft:snow":slope>=3?rock:top;
+      lay(x,z,c.base,c.top-4,core);
+      lay(x,z,Math.max(c.base,c.top-3),c.top-1,slope>=3?rock:under);
+      lay(x,z,Math.max(c.base,c.top),c.top,surface);
+    }
+  });
+  return ops;
+}
+/** Vanilla TNT sealed in the rock just outside the walls, and floodlights marking the portal. */
+function charges(f:Facility):Operation[] {
+  if(!f.charges)return [];
+  const d=dim(f),o=f.origin;
+  return [()=>{
+    for(const c of f.charges!)set(d,c,"minecraft:tnt");
+    for(const x of [5,21])set(d,add(o,{x,y:6,z:-3}),"floodlight");
+  }];
 }
 export function build(f:Facility,player:Player):void {
   if(player.getGameMode()!==GameMode.Creative)throw Error("Deployment is Creative-only.");
@@ -105,16 +155,17 @@ export function build(f:Facility,player:Player):void {
   if(facilities.size>=16&&!facilities.has(f.id))throw Error("This alpha supports at most 16 registered facilities per world.");
   for(const other of facilities.values())if(other.id!==f.id && other.dimension===f.dimension && intersects(f.bounds,other.bounds,8))throw Error("Another facility overlaps this site. Move farther away.");
   const d=dim(f);
-  for(const x of [f.bounds.min.x,f.bounds.max.x])for(const z of [f.bounds.min.z,f.bounds.max.z])
-    if(!loaded(d,{x,y:f.origin.y,z}))throw Error("The full site must be loaded. Move closer or raise simulation distance, then retry.");
+  // The mountain's skirts may run into unloaded chunks; the pad itself must be loaded.
+  for(const x of [PAD.x0,PAD.x1])for(const z of [PAD.z0,PAD.z1])
+    if(!loaded(d,add(f.origin,{x,y:0,z})))throw Error("The full site must be loaded. Move closer or raise simulation distance, then retry.");
   facilities.set(f.id,f);f.phase="building";save(f);active.add(f.id);
-  // Level ground, then rock, then modules carved into it, then fittings.
+  // Level ground, then rock, then modules carved into it, then fittings, then the mountain over it all.
   const ops:Operation[]=[...earthworks(f),...encasement(f)];
   ops.push(...f.modules.map(m=>()=>{
     if(!loaded(d,m.pos)||!loaded(d,add(m.pos,{x:m.template==="entrance"?14:MODULE-1,y:m.template==="entrance"?8:6,z:m.template==="entrance"?21:MODULE-1})))throw Error("Build paused because its chunks unloaded. Return here and use Resume in the deployment device.");
     world.structureManager.place(NS+"bunker/"+m.template,d,m.pos,{includeEntities:false});
   }));
-  ops.push(...installations(f));
+  ops.push(...installations(f),...mountain(f),...charges(f));
   const task=system.runInterval(()=>{
     try{
       if(f.buildStep>=ops.length){

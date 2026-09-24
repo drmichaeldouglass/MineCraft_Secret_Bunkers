@@ -10,7 +10,7 @@ Microsoft's [1.21.90 creator notes](https://learn.microsoft.com/en-us/minecraft/
 
 `src/core` has no Minecraft imports. It contains geometry, security access, targeting, defence modes and seed generation. `src/generation/planner.ts` produces a serializable facility plan. Runtime modules consume that plan instead of duplicating bunker-specific security behavior.
 
-Floor topology is currently a fixed connected five-by-three module grid, with a hall spine and central core. The seed varies room roles, not the overall graph. Every floor contains its required role; doors sit at compatible room connectors. Bounds, overlays and system positions are explicit and testable.
+Floor topology is currently a fixed connected three-by-three module grid, with a hall spine and central core. Each floor has a program (`FLOOR_PROGRAMS` in the planner): fixed rooms that always appear and a pool the seed draws the rest from without replacement. The seed varies room roles and positions, not the overall graph. Doors sit at compatible room connectors. After the fittings, a pure seeded heightfield (`src/generation/mountain.ts`) is heaped over the site, leaving the portal approach and escape apron open. Demolition charge positions are planned with the facility and placed last. Bounds, overlays and system positions are explicit and testable.
 
 `.mcstructure` files are uncompressed little-endian NBT with primary and secondary block-index layers, palettes, state values and origin. Assets are authored by `tools/build_assets.py`, decoded independently by `tools/validate.py`, and assembled in the simulated-world tests. No binary placeholder files are shipped.
 
