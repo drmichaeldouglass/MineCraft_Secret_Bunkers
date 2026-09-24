@@ -1,12 +1,32 @@
-import { GameMode, system, world, type Block, type Dimension, type Player } from "@minecraft/server";
+import { BlockVolume, GameMode, system, world, type Block, type Dimension, type Player } from "@minecraft/server";
 import { add, intersects, NS, type Facility, type Vec } from "../core/types.js";
 import { FLOOR_STEP, MODULE } from "../generation/planner.js";
 import { facilities, mark, save } from "./store.js";
 import { dim, fill, loaded, report, set, tell } from "./world.js";
 const active=new Set<string>();
 type Operation=()=>void;
-/** Columns are sampled every few blocks across the footprint, and must agree within this. */
-const SITE_RELIEF=5, SURVEY_STEP=5;
+/** Ground may rise or fall this far from the chosen surface level; earthworks cut and fill it
+ *  to a level pad, so no floor surfaces through a hillside. Columns are sampled every few blocks. */
+export const MAX_CUT=12, MAX_FILL=12;
+const SURVEY_STEP=5;
+/** The pad extends past the reserved bounds so its edge is not the bunker's wall, and is cleared
+ *  well above the highest cut so trees on it do not float. Bands keep each fill small. */
+const PAD_MARGIN=2, CLEAR_HEIGHT=MAX_CUT+12, PAD_BAND=6;
+/** What the fill below the pad may replace: holes, caves, water and lava, never solid ground. */
+const LOOSE=["minecraft:air","minecraft:water","minecraft:flowing_water","minecraft:lava","minecraft:flowing_lava"];
+const EARTH=["minecraft:grass_block","minecraft:dirt","minecraft:coarse_dirt","minecraft:podzol","minecraft:mycelium",
+  "minecraft:snow","minecraft:moss_block","minecraft:mud"];
+const ROCK=["minecraft:stone","minecraft:deepslate","minecraft:andesite","minecraft:diorite","minecraft:granite",
+  "minecraft:tuff","minecraft:calcite","minecraft:gravel"];
+/** The pad's top block and the fill under it, matched to the natural surface at the entrance. */
+export function padMaterial(ground:string):[string,string] {
+  if(ground==="minecraft:sand")return [ground,"minecraft:sandstone"];
+  if(ground==="minecraft:red_sand")return [ground,"minecraft:red_sandstone"];
+  if(EARTH.includes(ground))return [ground,"minecraft:dirt"];
+  if(ROCK.includes(ground))return [ground,"minecraft:stone"];
+  if(ground.endsWith("terracotta"))return [ground,ground];
+  return ["minecraft:grass_block","minecraft:dirt"];
+}
 function installations(f:Facility):Operation[] {
   const d=dim(f),o=f.origin,p=(x:number,y:number,z:number)=>add(o,{x,y,z}),low=f.floors[f.floors.length-1].y;
   const ops:Operation[]=[];
@@ -50,6 +70,24 @@ function installations(f:Facility):Operation[] {
   });
   return ops;
 }
+/** Level the site to the surface level: clear everything above it, fill every hole below it
+ *  down to the deepest permitted fill, and lay a matching surface. */
+function earthworks(f:Facility):Operation[] {
+  // Facilities deployed before levelling existed resume their build without it.
+  if(!f.ground)return [];
+  const d=dim(f),y=f.origin.y,[top,under]=padMaterial(f.ground),m=PAD_MARGIN,ops:Operation[]=[];
+  const x0=f.bounds.min.x-m,x1=f.bounds.max.x+m,z1=f.bounds.max.z+m;
+  // The pad's margin may reach unloaded chunks; those edges are simply left as they are.
+  const edge={ignoreChunkBoundErrors:true};
+  for(let z=f.bounds.min.z-m;z<=z1;z+=PAD_BAND){const zb=Math.min(z+PAD_BAND-1,z1);
+    ops.push(()=>{
+      d.fillBlocks(new BlockVolume({x:x0,y:y+1,z},{x:x1,y:y+CLEAR_HEIGHT,z:zb}),"minecraft:air",edge);
+      d.fillBlocks(new BlockVolume({x:x0,y:y-MAX_FILL,z},{x:x1,y:y-1,z:zb}),under,{...edge,blockFilter:{includeTypes:LOOSE}});
+      d.fillBlocks(new BlockVolume({x:x0,y,z},{x:x1,y,z:zb}),top,edge);
+    });
+  }
+  return ops;
+}
 /** Solid rock around every underground slab, so no floor can surface through a hillside. */
 function encasement(f:Facility):Operation[] {
   const d=dim(f),o=f.origin,span=3*MODULE-1,ops:Operation[]=[];
@@ -70,8 +108,8 @@ export function build(f:Facility,player:Player):void {
   for(const x of [f.bounds.min.x,f.bounds.max.x])for(const z of [f.bounds.min.z,f.bounds.max.z])
     if(!loaded(d,{x,y:f.origin.y,z}))throw Error("The full site must be loaded. Move closer or raise simulation distance, then retry.");
   facilities.set(f.id,f);f.phase="building";save(f);active.add(f.id);
-  // Rock first, then modules carved into it, then fittings.
-  const ops:Operation[]=encasement(f);
+  // Level ground, then rock, then modules carved into it, then fittings.
+  const ops:Operation[]=[...earthworks(f),...encasement(f)];
   ops.push(...f.modules.map(m=>()=>{
     if(!loaded(d,m.pos)||!loaded(d,add(m.pos,{x:m.template==="entrance"?14:MODULE-1,y:m.template==="entrance"?8:6,z:m.template==="entrance"?21:MODULE-1})))throw Error("Build paused because its chunks unloaded. Return here and use Resume in the deployment device.");
     world.structureManager.place(NS+"bunker/"+m.template,d,m.pos,{includeEntities:false});
@@ -105,30 +143,46 @@ function groundAt(d:Dimension,x:number,z:number):Block|undefined {
     return block;
   } catch { return undefined; }
 }
-/** An uneven or flooded site leaves floors exposed, so refuse it before anything is replaced. */
-function survey(d:Dimension,origin:Vec):void {
-  let low=Infinity,high=-Infinity,wet=0,unknown=0;
+/** The solid floor of a column, looking through canopy and any water or lava standing on it. */
+function floorAt(d:Dimension,x:number,z:number):{floor:number;liquid?:number}|undefined {
+  let block=groundAt(d,x,z),liquid:number|undefined;
+  try {
+    for(let i=0;i<64&&block&&(block.isLiquid||CANOPY.some(part=>block!.typeId.includes(part)));i++){
+      if(block.isLiquid)liquid??=block.location.y;
+      block=d.getBlock({x,y:block.location.y-1,z});
+    }
+  } catch { return undefined; }
+  if(!block||block.isLiquid)return undefined;
+  return {floor:block.location.y,liquid};
+}
+export interface Site { origin:Vec; ground:string; cut:number; fill:number }
+/** Measure the footprint and choose the surface level closest to the entrance ground that the
+ *  earthworks can reach everywhere. Only ground too steep to level, or water standing above
+ *  the pad where it would flood the entrance, is refused. */
+function survey(d:Dimension,origin:Vec):{level:number;cut:number;fill:number} {
+  let low=Infinity,high=-Infinity,unknown=0,liquid=-Infinity;
   const columns:[number,number][]=[];
   for(let x=0;x<=3*MODULE-1;x+=SURVEY_STEP)for(let z=-4;z<=3*MODULE-1;z+=SURVEY_STEP)columns.push([x,z]);
   // The escape hut stands behind the footprint; a rise there would bury its exit.
   for(const x of [11,15])for(const z of [31,36])columns.push([x,z]);
   for(const [x,z] of columns){
-    const column=groundAt(d,origin.x+x,origin.z+z);
+    const column=floorAt(d,origin.x+x,origin.z+z);
     if(!column){unknown++;continue;}
-    if(column.isLiquid){wet++;continue;}
-    low=Math.min(low,column.location.y);high=Math.max(high,column.location.y);
+    low=Math.min(low,column.floor);high=Math.max(high,column.floor);
+    if(column.liquid!==undefined)liquid=Math.max(liquid,column.liquid);
   }
   if(unknown>2)throw Error("The site is not fully loaded yet. Stand in the middle of it, wait a moment, then try again.");
-  if(wet)throw Error("Part of this footprint is water. Move to dry ground.");
-  if(high-low>SITE_RELIEF)throw Error(`This site rises and falls ${high-low} blocks across the footprint. Choose ground level to within ${SITE_RELIEF} blocks.`);
+  if(high-low>MAX_CUT+MAX_FILL)throw Error(`This site rises and falls ${high-low} blocks across the footprint. The bunker can level up to ${MAX_CUT+MAX_FILL}; try gentler ground.`);
+  const level=Math.min(Math.max(origin.y,high-MAX_CUT),low+MAX_FILL);
+  if(liquid>level)throw Error("Water or lava on this site sits above ground level and would flood the entrance. Move away from it.");
+  return {level,cut:Math.max(0,high-level),fill:Math.max(0,level-low)};
 }
-export function originAt(player:Player):Vec {
+export function originAt(player:Player):Site {
   if(player.dimension.id!=="minecraft:overworld")throw Error("Choose an Overworld surface site.");
   const x=Math.floor(player.location.x),z=Math.floor(player.location.z)+10;
   // Use the solid surface directly beneath the entrance rather than excavating at flight height.
   const ground=groundAt(player.dimension,x,z);
   if(!ground||ground.isLiquid)throw Error("Choose dry land for the main entrance.");
-  const origin={x:x-13,y:ground.location.y,z};
-  survey(player.dimension,origin);
-  return origin;
+  const {level,cut,fill}=survey(player.dimension,{x:x-13,y:ground.location.y,z});
+  return {origin:{x:x-13,y:level,z},ground:ground.typeId,cut,fill};
 }

@@ -10,7 +10,7 @@ The source plan explicitly prioritizes a smaller reliable bunker and staged shar
 | Palette | 47 custom textured blocks, light state, seven items | Bespoke geometry for consoles, pipes, panels and readers; facility-specific palettes |
 | Modular construction | 33 binary templates; 9×7×9 rooms and halls on a 3×3 grid; 9-block floor spacing | Separate corner/T/cross/stair exports, large room families, richer furniture |
 | Bunker generation | 3–8 floors; guaranteed connected hall and core; seed selects room types | More varied topology and weighted room pools; site preview; rollback/removal tooling |
-| Terrain entrance | Surveyed level/dry site, reinforced portal, five-wide blast door, solid rock encasement around every slab | Arbitrary rotations, cosmetic terrain blending and grading |
+| Terrain entrance | Surveyed site levelled by cut-and-fill earthworks, reinforced portal, five-wide blast door, solid rock encasement around every slab | Arbitrary rotations, sloped terrain blending at the pad edge |
 | Doors | Stateful multi-block doors; smooth moving-leaf entrance blast door; 2-pixel, per-tick slide for room doors and shutters; reader clearance, obstruction handling | Articulated locking assemblies, distinct open/close sound layers |
 | Elevators | Clearance-controlled transfer pads with a rumbling ride, per-deck callouts, fade transfer, safe destination checks, emergency ladder | Cabin doors, physical shaft travel, freight variants |
 | Security | Horizontal/vertical grids, alert/lockdown, sirens, flashing lights, shutters | Local-response configuration UI; alarm/status console texture permutations |

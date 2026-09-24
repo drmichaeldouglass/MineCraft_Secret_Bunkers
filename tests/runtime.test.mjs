@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { blocks, dimension, entities, finishBuild, playerAt, players, properties, reset, system, terrain } from "./mock-server.mjs";
+import { blockAt, blocks, dimension, entities, finishBuild, playerAt, players, properties, reset, system, terrain } from "./mock-server.mjs";
 import { planBunker } from "../behavior_pack/scripts/generation/planner.js";
 import { facilities, load, mark, save } from "../behavior_pack/scripts/runtime/store.js";
-import { build, originAt } from "../behavior_pack/scripts/runtime/generation.js";
+import { build, MAX_CUT, MAX_FILL, originAt } from "../behavior_pack/scripts/runtime/generation.js";
 import { armDestruct, abortDestruct, ease, LEAF, requestDoor, restoreDoors, setSecurity, SUBSTEPS, tickAlarms, tickDoors } from "../behavior_pack/scripts/runtime/security.js";
 import { tickDefence } from "../behavior_pack/scripts/runtime/defence.js";
 const ns="secretfacilities:",at=(x,y,z)=>blocks.get(`${x},${y},${z}`);
@@ -56,16 +56,55 @@ test("assembled voxel navigation for 3, 5 and 8 floor bunkers",()=>{
     assert.ok(flood(81,[13,-2],bounds).has("13,13"),"Open entrance does not connect to elevator");
   }
 });
-test("the site survey refuses slopes and water, and rock encases every slab",()=>{
-  // A site that is not level is what leaves floors exposed through a hillside.
+test("uneven sites are levelled instead of refused, within limits",()=>{
   reset();facilities.clear();
   const site=()=>{const p=playerAt({x:100,y:81,z:200});players.length=0;players.push(p);return p;};
-  assert.ok(originAt(site()),"flat ground must be accepted");
-  terrain.height=x=>80+Math.round((x-87)*0.7);
-  assert.throws(()=>originAt(site()),/rises and falls/,"a hillside must be refused");
-  // Level footprint, but a rise behind it would bury the escape hut's exit.
+  let s=originAt(site());
+  assert.deepEqual([s.origin.y,s.cut,s.fill,s.ground],[80,0,0,"minecraft:grass_block"],"flat ground needs no earthworks");
+  // A hillside the old five-block rule refused: about 18 blocks from one side to the other.
+  terrain.height=x=>80+Math.round((x-100)*0.7);
+  s=originAt(site());
+  assert.equal(s.origin.y,80,"The pad stays at the entrance ground when it can");
+  assert.ok(s.cut>5&&s.fill>5&&s.cut<=MAX_CUT&&s.fill<=MAX_FILL,`cut ${s.cut}, fill ${s.fill}`);
+  const f=planBunker(s.origin,3,10,true,"hill");f.ground=s.ground;build(f,site());finishBuild();
+  assert.equal(f.phase,"ready");
+  const o=f.origin,rel=(x,y,z)=>blockAt(o.x+x,o.y+y,o.z+z).typeId;
+  // Structures that stand above the pad: entrance, ladder shaft and escape hut.
+  const built=(x,z)=>(x>=6&&x<=20&&z>=-4&&z<=17)||(x>=15&&x<=16&&z===16)||(x>=11&&x<=15&&z>=32&&z<=36);
+  for(let x=-2;x<=28;x++)for(let z=-6;z<=39;z++){
+    if(built(x,z))continue;
+    assert.notEqual(rel(x,0,z),"minecraft:air",`No pad surface at ${x},${z}`);
+    for(let y=1;y<=MAX_CUT;y++)assert.equal(rel(x,y,z),"minecraft:air",`Hill left standing at ${x},${y},${z}`);
+    // Beside the rooms and escape tunnel, nothing under the pad may be left hollow.
+    if((x>=0&&x<=26&&z>=0&&z<=26)||(x>=11&&x<=15&&z>=26&&z<=36))continue;
+    for(let y=-MAX_FILL;y<0;y++)assert.notEqual(rel(x,y,z),"minecraft:air",`Hole left under the pad at ${x},${y},${z}`);
+  }
+  assert.equal(rel(0,-1,-6),"minecraft:dirt","The low side is backfilled with earth");
+  assert.equal(rel(28,0,-6),"minecraft:grass_block","The cut side gets a fresh surface");
+  // Too steep to level either way.
+  reset();facilities.clear();
+  terrain.height=x=>80+Math.round((x-100)*1.2);
+  assert.throws(()=>originAt(site()),/rises and falls/,"a cliff must be refused");
+  // A steep site whose entrance is on the low side is raised to a level the earthworks can reach.
+  terrain.height=x=>x<100?80:80+Math.round((x-100)*1.4);
+  s=originAt(site());assert.equal(s.cut,MAX_CUT);assert.ok(s.origin.y>80);
+  // Water level with the pad is filled; water standing above it would flood the entrance.
+  terrain.height=x=>x>=105?74:80;terrain.water=x=>x>=105?80:undefined;
+  s=originAt(site());assert.deepEqual([s.origin.y,s.fill],[80,6]);
+  const lake=planBunker(s.origin,3,10,true,"lake");lake.ground=s.ground;build(lake,site());finishBuild();
+  assert.ok(!["minecraft:air","minecraft:water"].includes(blockAt(lake.origin.x+27,77,lake.origin.z+26).typeId),"The bunker wall on the lake side is exposed");
+  assert.equal(blockAt(lake.origin.x+28,77,lake.origin.z+30).typeId,"minecraft:dirt","Lake water under the pad is filled");
+  reset();facilities.clear();
+  terrain.height=(x,z)=>z>=235?78:80;terrain.water=(x,z)=>z>=235?82:undefined;
+  assert.throws(()=>originAt(site()),/flood/,"water above the pad must be refused");
+  terrain.water=()=>undefined;
+  // A rise behind the footprint is cut back so the escape hut's exit stays open.
   terrain.height=(x,z)=>z>=240?90:80;
-  assert.throws(()=>originAt(site()),/rises and falls/,"a rise over the escape hut must be refused");
+  s=originAt(site());assert.equal(s.cut,10);
+  const hut=planBunker(s.origin,3,10,true,"hut");hut.ground=s.ground;build(hut,site());finishBuild();
+  for(const y of [1,2])assert.equal(blockAt(hut.origin.x+13,hut.origin.y+y,hut.origin.z+31).typeId,"minecraft:air","Hut exit buried");
+});
+test("rock encases every slab",()=>{
   terrain.height=()=>80;
   const {f}=make(5);
   // The outer skin of the underground footprint must be solid. The only permitted openings

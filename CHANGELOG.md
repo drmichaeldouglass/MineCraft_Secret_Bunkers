@@ -13,6 +13,8 @@
 
 - **The entrance blast door still stuttered.** The client chased a position the server re-sent every tick, so the leaf moved in stop-start bursts whenever updates arrived unevenly, and it started and stopped at full speed. The server now tells the leaf only where it starts, stops or reverses, and the client animates it every frame on its own clock with an ease-in-out. The collision blocks follow the same easing, so they stay in step with the leaf you see. Travel time is unchanged at 1.6 s.
 
+- **Finding a site was too hard.** Deployment refused any footprint whose ground varied by more than five blocks. Uneven ground is now levelled into a flat pad instead: hills are cut away and dips, caves, water and lava under the pad are backfilled with earth that matches the local surface. Sites are refused only if they rise and fall more than 24 blocks, or if water or lava stands above the pad where it would flood the entrance. The confirmation screen shows how much will be cut and filled.
+
 ### Found by review
 
 - Fixed the self-destruct console sharing a block with B3's security console, which made the entire self-destruct sequence unreachable: the console opened the security menu instead, and confirming "arm" silently raised an alert.

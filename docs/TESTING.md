@@ -35,7 +35,7 @@ Enable the content log and perform these checks in a disposable Creative world w
 - [ ] Deploy a five-floor defended bunker; remain nearby; inspect its entrance and all required floor roles.
 - [ ] Walk every room, climb between all levels, use the B1 escape route out through the surface hut, and test the 3-/8-floor extremes.
 - [ ] Test the deployment confirmation/cancel, overlap refusal, unloaded-site refusal and resume behavior.
-- [ ] Deploy beside a hill, a cliff and a shoreline; confirm the survey refuses each with a clear message.
+- [ ] Deploy on a hillside and a shoreline; confirm the site is levelled into a flat pad with matching surface blocks and no floating trees or flooding. Confirm a cliff is refused with a clear message.
 - [ ] After a successful deploy, walk and fly the whole perimeter: no floor, slab or room may be visible from outside.
 - [ ] Close/reopen the world mid-build and resume at the original site.
 - [ ] Test each keycard in isolation in Survival; confirm master alone grants nothing in Survival.
