@@ -20,7 +20,7 @@ The preview is rendered from the actual assembled block data in the test harness
    /scriptevent secretfacilities:kit
    ```
 
-4. Stand on dry, reasonably level ground. Use the device, choose 3–8 floors, and confirm the displayed site. **Deployment replaces terrain/buildings in its footprint.** Use a test world or a backup.
+4. Stand on open ground. Hills, dips and shallow water are levelled automatically. Use the device, choose 3–8 floors, and confirm the displayed site. **Deployment replaces terrain/buildings in its footprint.** Use a test world or a backup.
 5. Stay near the build until “Bunker ready” appears. The entrance faces north (−Z). Use its reader with a keycard in your inventory.
 
 If the kit command is unavailable, use `/give @s secretfacilities:facility_deployment_device`, then choose **Get development kit** in its menu.
@@ -29,7 +29,7 @@ If the kit command is unavailable, use `/give @s secretfacilities:facility_deplo
 
 - A 27-block-square modular command bunker with 3–8 underground floors and 33 binary `.mcstructure` templates.
 - Seeded selection of offices, briefing rooms, security rooms, barracks, medical rooms, canteens, command rooms, server rooms, engineering rooms, archives, laboratories, and vaults.
-- A surveyed, level, dry site requirement and solid rock encasement, so no floor surfaces through a hillside.
+- Automatic cut-and-fill site levelling and solid rock encasement, so no floor surfaces through a hillside.
 - A five-block-wide sliding entrance blast door, room security doors, readers, alarm shutters, and emergency lights.
 - Four clearance levels and a Creative-only master card.
 - Multi-floor elevator transfer pads, a continuous emergency ladder, and a B1 escape tunnel to a surface utility hut.

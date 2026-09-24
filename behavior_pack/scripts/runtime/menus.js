@@ -73,15 +73,17 @@ export async function deployment(player) {
     const raw = String(settings.formValues[2] ?? "").trim(), seed = raw ? Number(raw) : Math.floor(Math.random() * 2147483647);
     if (!Number.isSafeInteger(seed))
         throw Error("The layout seed must be a whole number.");
-    const origin = originAt(player), id = `sf_${Date.now().toString(36)}_${Math.floor(Math.random() * 9999)}`;
+    const site = originAt(player), origin = site.origin, start = player.location, id = `sf_${Date.now().toString(36)}_${Math.floor(Math.random() * 9999)}`;
     const plan = planBunker(origin, levels, seed, defences, id);
+    plan.ground = site.ground;
+    const earthworks = site.cut || site.fill ? `\n\nUneven ground is levelled: cut up to ${site.cut} and filled up to ${site.fill} blocks.` : "";
     const confirm = await new MessageFormData().title("CONFIRM DEPLOYMENT")
-        .body(`${levels} underground floors • seed ${seed}\n\nEntrance: ${origin.x + 13}, ${origin.y + 1}, ${origin.z}\nReserved: ${plan.bounds.max.x - plan.bounds.min.x + 1} × ${plan.bounds.max.z - plan.bounds.min.z + 1} blocks\nLowest floor: Y ${plan.bounds.min.y}\n\nConstruction replaces blocks inside the modules, entrance and escape route. Stay nearby while it builds.`)
+        .body(`${levels} underground floors • seed ${seed}\n\nEntrance: ${origin.x + 13}, ${origin.y + 1}, ${origin.z}\nReserved: ${plan.bounds.max.x - plan.bounds.min.x + 1} × ${plan.bounds.max.z - plan.bounds.min.z + 1} blocks\nLowest floor: Y ${plan.bounds.min.y}${earthworks}\n\nConstruction replaces blocks inside the modules, entrance and escape route. Stay nearby while it builds.`)
         .button1("Cancel").button2("Build bunker").show(player);
     if (confirm.canceled || confirm.selection !== 1)
         return;
     creative(player);
-    if (distance(player.location, { x: origin.x + 13, y: origin.y + 1, z: origin.z - 10 }) > 16)
+    if (distance(player.location, start) > 16)
         throw Error("You moved away from the confirmed site. Deploy again here.");
     build(plan, player);
 }

@@ -4,11 +4,16 @@
 
 ### From in-game testing
 
+- **You could see through walls.** Large parts of the bunker and the surrounding terrain stopped rendering, leaving an x-ray view of room interiors with sky showing through. Open doors and shutters used a block geometry with no cubes, which breaks the client's chunk meshing, and partially open door frames used the `opaque` render method, which tells the client the block fills its whole cube so neighbouring faces were hidden. Open doors are now a fully transparent cube, partial frames use `alpha_test`, and the validator rejects both mistakes.
 - **Floors surfaced through hillsides.** The generator anchored the whole footprint to the topmost block of a single column, so on sloping ground the "underground" levels broke out of the hillside and you looked straight into them, with fog and water where the terrain should have been. Deployment now surveys the whole footprint and refuses sites that are wet or vary by more than five blocks, and every underground slab is encased in solid rock before the modules are carved into it.
 - **Bases were far too large.** A floor was a 5×3 grid of 13×13 modules (65×39). It is now a 3×3 grid of 9×9 modules (27×27) — about 29% of the old area — with the entrance rescaled from 21×32 to 15×22 and the escape tunnel shortened to match.
 - **Doors were not animated.** The leaf popped away one whole block column at a time. Doors now slide upward in quarter-block steps through new `slide` block states and partial-cube geometry, giving 16 distinct frames for the entrance blast door over about 1.6 seconds, and the same in reverse when closing.
 - **The elevator had no animation.** It was a silent 1.5-second pause before a teleport. The ride now rumbles the camera, calls out each deck as it passes, and hides the transfer behind a camera fade.
 - Fixed the deployment confirmation showing the wrong entrance coordinate, which also made the "you moved away from the site" check reject valid deployments.
+
+- **The entrance blast door still stuttered.** The client chased a position the server re-sent every tick, so the leaf moved in stop-start bursts whenever updates arrived unevenly, and it started and stopped at full speed. The server now tells the leaf only where it starts, stops or reverses, and the client animates it every frame on its own clock with an ease-in-out. The collision blocks follow the same easing, so they stay in step with the leaf you see. Travel time is unchanged at 1.6 s.
+
+- **Finding a site was too hard.** Deployment refused any footprint whose ground varied by more than five blocks. Uneven ground is now levelled into a flat pad instead: hills are cut away and dips, caves, water and lava under the pad are backfilled with earth that matches the local surface. Sites are refused only if they rise and fall more than 24 blocks, or if water or lava stands above the pad where it would flood the entrance. The confirmation screen shows how much will be cut and filled.
 
 ### Found by review
 

@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { blocks, dimension, entities, finishBuild, playerAt, players, properties, reset, system, terrain } from "./mock-server.mjs";
+import { blockAt, blocks, dimension, entities, finishBuild, playerAt, players, properties, reset, system, terrain } from "./mock-server.mjs";
 import { planBunker } from "../behavior_pack/scripts/generation/planner.js";
 import { facilities, load, mark, save } from "../behavior_pack/scripts/runtime/store.js";
-import { build, originAt } from "../behavior_pack/scripts/runtime/generation.js";
-import { armDestruct, abortDestruct, LEAF, requestDoor, restoreDoors, setSecurity, SUBSTEPS, tickAlarms, tickDoors } from "../behavior_pack/scripts/runtime/security.js";
+import { build, MAX_CUT, MAX_FILL, originAt } from "../behavior_pack/scripts/runtime/generation.js";
+import { armDestruct, abortDestruct, ease, LEAF, requestDoor, restoreDoors, setSecurity, SUBSTEPS, tickAlarms, tickDoors } from "../behavior_pack/scripts/runtime/security.js";
 import { tickDefence } from "../behavior_pack/scripts/runtime/defence.js";
 const ns="secretfacilities:",at=(x,y,z)=>blocks.get(`${x},${y},${z}`);
 const passable=b=>b&&(b.typeId==="minecraft:air"||b.typeId==="minecraft:ladder"||b.states[ns+"open"]===true);
@@ -56,16 +56,55 @@ test("assembled voxel navigation for 3, 5 and 8 floor bunkers",()=>{
     assert.ok(flood(81,[13,-2],bounds).has("13,13"),"Open entrance does not connect to elevator");
   }
 });
-test("the site survey refuses slopes and water, and rock encases every slab",()=>{
-  // A site that is not level is what leaves floors exposed through a hillside.
+test("uneven sites are levelled instead of refused, within limits",()=>{
   reset();facilities.clear();
   const site=()=>{const p=playerAt({x:100,y:81,z:200});players.length=0;players.push(p);return p;};
-  assert.ok(originAt(site()),"flat ground must be accepted");
-  terrain.height=x=>80+Math.round((x-87)*0.7);
-  assert.throws(()=>originAt(site()),/rises and falls/,"a hillside must be refused");
-  // Level footprint, but a rise behind it would bury the escape hut's exit.
+  let s=originAt(site());
+  assert.deepEqual([s.origin.y,s.cut,s.fill,s.ground],[80,0,0,"minecraft:grass_block"],"flat ground needs no earthworks");
+  // A hillside the old five-block rule refused: about 18 blocks from one side to the other.
+  terrain.height=x=>80+Math.round((x-100)*0.7);
+  s=originAt(site());
+  assert.equal(s.origin.y,80,"The pad stays at the entrance ground when it can");
+  assert.ok(s.cut>5&&s.fill>5&&s.cut<=MAX_CUT&&s.fill<=MAX_FILL,`cut ${s.cut}, fill ${s.fill}`);
+  const f=planBunker(s.origin,3,10,true,"hill");f.ground=s.ground;build(f,site());finishBuild();
+  assert.equal(f.phase,"ready");
+  const o=f.origin,rel=(x,y,z)=>blockAt(o.x+x,o.y+y,o.z+z).typeId;
+  // Structures that stand above the pad: entrance, ladder shaft and escape hut.
+  const built=(x,z)=>(x>=6&&x<=20&&z>=-4&&z<=17)||(x>=15&&x<=16&&z===16)||(x>=11&&x<=15&&z>=32&&z<=36);
+  for(let x=-2;x<=28;x++)for(let z=-6;z<=39;z++){
+    if(built(x,z))continue;
+    assert.notEqual(rel(x,0,z),"minecraft:air",`No pad surface at ${x},${z}`);
+    for(let y=1;y<=MAX_CUT;y++)assert.equal(rel(x,y,z),"minecraft:air",`Hill left standing at ${x},${y},${z}`);
+    // Beside the rooms and escape tunnel, nothing under the pad may be left hollow.
+    if((x>=0&&x<=26&&z>=0&&z<=26)||(x>=11&&x<=15&&z>=26&&z<=36))continue;
+    for(let y=-MAX_FILL;y<0;y++)assert.notEqual(rel(x,y,z),"minecraft:air",`Hole left under the pad at ${x},${y},${z}`);
+  }
+  assert.equal(rel(0,-1,-6),"minecraft:dirt","The low side is backfilled with earth");
+  assert.equal(rel(28,0,-6),"minecraft:grass_block","The cut side gets a fresh surface");
+  // Too steep to level either way.
+  reset();facilities.clear();
+  terrain.height=x=>80+Math.round((x-100)*1.2);
+  assert.throws(()=>originAt(site()),/rises and falls/,"a cliff must be refused");
+  // A steep site whose entrance is on the low side is raised to a level the earthworks can reach.
+  terrain.height=x=>x<100?80:80+Math.round((x-100)*1.4);
+  s=originAt(site());assert.equal(s.cut,MAX_CUT);assert.ok(s.origin.y>80);
+  // Water level with the pad is filled; water standing above it would flood the entrance.
+  terrain.height=x=>x>=105?74:80;terrain.water=x=>x>=105?80:undefined;
+  s=originAt(site());assert.deepEqual([s.origin.y,s.fill],[80,6]);
+  const lake=planBunker(s.origin,3,10,true,"lake");lake.ground=s.ground;build(lake,site());finishBuild();
+  assert.ok(!["minecraft:air","minecraft:water"].includes(blockAt(lake.origin.x+27,77,lake.origin.z+26).typeId),"The bunker wall on the lake side is exposed");
+  assert.equal(blockAt(lake.origin.x+28,77,lake.origin.z+30).typeId,"minecraft:dirt","Lake water under the pad is filled");
+  reset();facilities.clear();
+  terrain.height=(x,z)=>z>=235?78:80;terrain.water=(x,z)=>z>=235?82:undefined;
+  assert.throws(()=>originAt(site()),/flood/,"water above the pad must be refused");
+  terrain.water=()=>undefined;
+  // A rise behind the footprint is cut back so the escape hut's exit stays open.
   terrain.height=(x,z)=>z>=240?90:80;
-  assert.throws(()=>originAt(site()),/rises and falls/,"a rise over the escape hut must be refused");
+  s=originAt(site());assert.equal(s.cut,10);
+  const hut=planBunker(s.origin,3,10,true,"hut");hut.ground=s.ground;build(hut,site());finishBuild();
+  for(const y of [1,2])assert.equal(blockAt(hut.origin.x+13,hut.origin.y+y,hut.origin.z+31).typeId,"minecraft:air","Hut exit buried");
+});
+test("rock encases every slab",()=>{
   terrain.height=()=>80;
   const {f}=make(5);
   // The outer skin of the underground footprint must be solid. The only permitted openings
@@ -123,18 +162,25 @@ test("the blast door slides as one smooth leaf and leaves nothing behind",()=>{
   assert.deepEqual([door.max.x-door.min.x+1,height,door.max.z-door.min.z+1],[5,4,1]);
   const leaves=()=>entities.filter(e=>e.typeId===LEAF);
   const rows=()=>[...Array(height).keys()].map(r=>at(door.min.x+2,door.min.y+r,door.min.z).states[ns+"open"]);
+  const anchor=()=>[leaves()[0].getProperty(ns+"phase"),leaves()[0].getProperty(ns+"motion")];
   requestDoor(f,door,true);tickDoors();
   // The leaf arrives one tick before any block is cleared, so the doorway never flashes open.
   assert.equal(leaves().length,1);assert.deepEqual(rows(),new Array(height).fill(false));
   assert.ok(leaves()[0].tags.includes(tag));assert.equal(leaves()[0].spawnEvent,undefined);
-  const progress=[];
-  for(let n=0;n<steps;n++){
-    tickDoors();const value=leaves()[0].getProperty(ns+"progress");progress.push(value);
-    // Courses the leaf has begun to leave are cleared; courses it still covers stay solid.
-    const lifted=Math.ceil(value*steps/SUBSTEPS);
-    assert.deepEqual(rows(),[...Array(height).keys()].map(r=>r<lifted),`Blocks disagree with the leaf at ${value}`);
+  assert.deepEqual(anchor(),[0,1],"The leaf is told once where it starts and which way it goes");
+  const cleared=[];
+  for(let n=1;n<=steps;n++){
+    tickDoors();
+    // The client animates on its own clock; per-tick updates would bring back the stutter.
+    assert.deepEqual(anchor(),[0,1],"The leaf must not be re-synced mid-slide");
+    // Courses the eased leaf has begun to leave are cleared; courses it still covers stay solid.
+    const lifted=ease(n/steps)*height;
+    assert.deepEqual(rows(),[...Array(height).keys()].map(r=>r<lifted),`Blocks disagree with the leaf at step ${n}`);
+    cleared.push(rows().filter(Boolean).length);
   }
-  assert.ok(progress.every((v,i)=>Math.abs(v-(i+1)/steps)<1e-9),"The leaf should rise one step per tick");
+  // Eased: the first and last courses take longer to clear than the middle ones.
+  const tick=row=>cleared.findIndex(c=>c>row);
+  assert.ok(tick(1)-tick(0)>tick(2)-tick(1),"The leaf should accelerate away from rest");
   tickDoors();assert.equal(leaves().length,0,"The leaf must be removed once the door is open");
   assert.deepEqual(rows(),new Array(height).fill(true));
   // Closing starts from the top, is paused by an entity in the doorway, then resumes.
@@ -142,14 +188,27 @@ test("the blast door slides as one smooth leaf and leaves nothing behind",()=>{
   assert.equal(leaves()[0].spawnEvent,ns+"from_open","A closing leaf must start fully raised");
   for(let n=0;n<8;n++)tickDoors();
   const cow={id:"cow",typeId:"minecraft:cow",location:{...door.min},tags:[],isValid:true};entities.push(cow);
-  const held=leaves()[0].getProperty(ns+"progress");for(let n=0;n<10;n++)tickDoors();
-  assert.equal(leaves()[0].getProperty(ns+"progress"),held,"The leaf must hold while the doorway is obstructed");
-  entities.splice(entities.indexOf(cow),1);
+  const held=rows();for(let n=0;n<10;n++)tickDoors();
+  assert.deepEqual(rows(),held,"The door must hold while the doorway is obstructed");
+  assert.deepEqual(anchor(),[1-8/steps,0],"The client leaf must stop where the door stopped");
+  entities.splice(entities.indexOf(cow),1);tickDoors();
+  assert.deepEqual(anchor(),[1-8/steps,-1],"The client leaf must resume from where it stopped");
   for(let n=0;n<steps;n++)tickDoors();
   assert.deepEqual(rows(),new Array(height).fill(false));assert.equal(leaves().length,0);
   // A leaf stranded by a reload mid-slide is cleared when the door is restored.
   dimension.spawnEntity(LEAF,{...door.min}).addTag(tag);
   restoreDoors(f);tickDoors();assert.equal(leaves().length,0,"Stale leaf survived a restore");
+});
+test("a blast door reversed mid-slide turns back from where its leaf is",()=>{
+  const {f}=make(3),door=f.doors[0],steps=(door.max.y-door.min.y+1)*SUBSTEPS;
+  const leaf=()=>entities.find(e=>e.typeId===LEAF);
+  requestDoor(f,door,true);for(let n=0;n<=12;n++)tickDoors();
+  const id=leaf().id;requestDoor(f,door,false);tickDoors();
+  assert.equal(leaf().id,id,"Reversing must keep the same leaf");
+  assert.deepEqual([leaf().getProperty(ns+"phase"),leaf().getProperty(ns+"motion")],[12/steps,-1]);
+  for(let n=0;n<=13;n++)tickDoors();
+  assert.equal(leaf(),undefined);assert.ok(!door.open);
+  assert.equal(at(door.min.x,door.min.y,door.min.z).states[ns+"open"],false);
 });
 test("self-destruct abort cutoff and permanent bounded damage",()=>{
   const {f}=make(3);armDestruct(f);assert.equal(f.countdown,90);assert.ok(f.doors.every(d=>d.open));

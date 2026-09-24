@@ -3,23 +3,6 @@
   "minecraft:geometry": [
     {
       "description": {
-        "identifier": "geometry.secretfacilities.empty",
-        "texture_width": 16,
-        "texture_height": 16
-      },
-      "bones": [
-        {
-          "name": "root",
-          "pivot": [
-            0,
-            0,
-            0
-          ]
-        }
-      ]
-    },
-    {
-      "description": {
         "identifier": "geometry.secretfacilities.door_slide_1",
         "texture_width": 16,
         "texture_height": 16,

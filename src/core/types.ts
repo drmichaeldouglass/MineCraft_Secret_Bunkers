@@ -18,6 +18,8 @@ export interface Facility {
   zones: Record<string, DefenceMode>; lasersEnabled: boolean;
   consoles: { pos: Vec; kind: "security" | "defence" | "destruct"; zone: string }[];
   countdown?: number; destructionStep?: number;
+  /** Natural surface block the site is levelled with. Absent for facilities built before levelling. */
+  ground?: string;
 }
 export const NS = "secretfacilities:";
 export const add = (a: Vec, b: Vec): Vec => ({ x: a.x + b.x, y: a.y + b.y, z: a.z + b.z });

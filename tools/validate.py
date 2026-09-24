@@ -56,6 +56,14 @@ def main():
             if not key.startswith("minecraft:"):assert key in components
         for part in [definition,*definition.get("permutations",[])]:
             for material in part.get("components",{}).get("minecraft:material_instances",{}).values():assert material["texture"] in terrain
+        if kind=="minecraft:block":
+            # A partial or empty shape drawn 'opaque' culls its neighbours' faces: an x-ray hole.
+            base=definition["components"]
+            for part in definition.get("permutations",[]):
+                c={**base,**part["components"]};geometry=c.get("minecraft:geometry")
+                if geometry!="minecraft:geometry.full_block":
+                    for material in c["minecraft:material_instances"].values():
+                        assert material.get("render_method","opaque")!="opaque",(identifier,part["condition"])
     for path in (BP/"scripts").rglob("*.js"):
         for imported in re.findall(r'from [\'"]([^\'"]+)[\'"]',path.read_text()):
             assert imported in ["@minecraft/server","@minecraft/server-ui"] or (path.parent/imported).is_file(),(path,imported)
@@ -72,6 +80,19 @@ def main():
         assert all(0<=i<len(palette) for i in indices[0])
         for block in palette:
             assert block["name"].startswith("minecraft:") or block["name"] in ids
+    # Block geometry with no cubes breaks the client's chunk meshing, so every model must draw something.
+    block_models={}
+    for path in (RP/"models/blocks").rglob("*.geo.json"):
+        for model in json.loads(path.read_text())["minecraft:geometry"]:
+            block_models[model["description"]["identifier"]]=model
+            assert any(bone.get("cubes") for bone in model["bones"]),model["description"]["identifier"]
+    for name,data in parsed.items():
+        if not (name.startswith("behavior_pack") and "/blocks/" in name):continue
+        definition=data["minecraft:block"]
+        for part in [definition,*definition.get("permutations",[])]:
+            geometry=part.get("components",{}).get("minecraft:geometry")
+            if isinstance(geometry,dict):geometry=geometry["identifier"]
+            assert geometry is None or geometry.startswith("minecraft:") or geometry in block_models,(name,geometry)
     for path in RP.rglob("*.png"):
         with Image.open(path) as image:image.verify()
     sound_defs=json.loads((RP/"sounds/sound_definitions.json").read_text())["sound_definitions"]

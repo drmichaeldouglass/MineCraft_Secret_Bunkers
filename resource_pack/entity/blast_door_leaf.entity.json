@@ -17,11 +17,10 @@
       },
       "scripts": {
         "initialize": [
-          "v.shown = -1;"
+          "v.phase = -1; v.motion = 0; v.elapsed = 0; v.s = 0; v.shown = 0;"
         ],
         "pre_animation": [
-          "t.target = q.property('secretfacilities:progress');",
-          "v.shown = (v.shown < 0 || math.abs(t.target - v.shown) > 0.25) ? t.target : v.shown + math.clamp(t.target - v.shown, -0.8 * q.delta_time, 0.8 * q.delta_time);"
+          "v.elapsed = (q.property('secretfacilities:phase') != v.phase || q.property('secretfacilities:motion') != v.motion) ? 0 : v.elapsed + q.delta_time;v.phase = q.property('secretfacilities:phase');v.motion = q.property('secretfacilities:motion');v.s = math.clamp(v.phase + v.motion * v.elapsed / 1.6, 0, 1);v.shown = v.s * v.s * (3 - 2 * v.s);"
         ],
         "animate": [
           "slide"

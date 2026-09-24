@@ -3,9 +3,14 @@ const catalog=JSON.parse(fs.readFileSync(new URL("../tools/generated/template_vo
 const templates=new Map(catalog.map(t=>["secretfacilities:bunker/"+t.name,t]));
 const xyz=p=>`${Math.floor(p.x)},${Math.floor(p.y)},${Math.floor(p.z)}`;
 export const blocks=new Map(),properties=new Map(),players=[],entities=[],tasks=new Map();
-// Terrain profile the site survey reads. Flat by default; tests override it to model slopes.
-export const terrain={height:()=>80};
+// Terrain profile the site survey reads. Flat by default; tests override it to model slopes
+// and standing water (the water surface y, or undefined for a dry column).
+export const terrain={height:()=>80,water:()=>undefined};
 const surface=(x,z)=>terrain.height(x,z);
+/** The untouched world: grass on stone up to the terrain height, then any water, then air. */
+const natural=(x,y,z)=>{const h=surface(x,z),w=terrain.water(x,z);
+  return {typeId:y<h?"minecraft:stone":y===h?"minecraft:grass_block":w!==undefined&&y<=w?"minecraft:water":"minecraft:air",states:{}};};
+export const blockAt=(x,y,z)=>blocks.get(xyz({x,y,z}))??natural(x,y,z);
 let serial=0;
 export const GameMode={Creative:"Creative",Survival:"Survival"};
 export const EntityDamageCause={entityAttack:"entityAttack"};
@@ -15,13 +20,18 @@ export class BlockPermutation{static resolve(typeId,states={}){return {typeId,st
 export const dimension={
   id:"minecraft:overworld",
   getBlock(p){
-    const loc={x:Math.floor(p.x),y:Math.floor(p.y),z:Math.floor(p.z)},entry=blocks.get(xyz(p))??{typeId:"minecraft:stone",states:{}};
-    return {location:loc,typeId:entry.typeId,isAir:entry.typeId==="minecraft:air",isLiquid:false,
+    const loc={x:Math.floor(p.x),y:Math.floor(p.y),z:Math.floor(p.z)},entry=blockAt(loc.x,loc.y,loc.z);
+    return {location:loc,typeId:entry.typeId,isAir:entry.typeId==="minecraft:air",isLiquid:entry.typeId==="minecraft:water",
       permutation:{getState(name){return entry.states?.[name];}},
       setPermutation(value){blocks.set(xyz(p),value);}};
   },
-  fillBlocks(volume,permutation){for(let x=volume.a.x;x<=volume.b.x;x++)for(let y=volume.a.y;y<=volume.b.y;y++)for(let z=volume.a.z;z<=volume.b.z;z++)blocks.set(xyz({x,y,z}),permutation);},
-  getTopmostBlock({x,z}){return {location:{x,y:surface(x,z),z},typeId:"minecraft:grass_block",isAir:false,isLiquid:false};},
+  fillBlocks(volume,block,options){
+    const permutation=typeof block==="string"?{typeId:block,states:{}}:block,only=options?.blockFilter?.includeTypes;
+    for(let x=volume.a.x;x<=volume.b.x;x++)for(let y=volume.a.y;y<=volume.b.y;y++)for(let z=volume.a.z;z<=volume.b.z;z++)
+      if(!only||only.includes(blockAt(x,y,z).typeId))blocks.set(xyz({x,y,z}),permutation);
+  },
+  getTopmostBlock({x,z}){const h=surface(x,z),w=terrain.water(x,z);
+    return w!==undefined&&w>h?{location:{x,y:w,z},typeId:"minecraft:water",isAir:false,isLiquid:true}:{location:{x,y:h,z},typeId:"minecraft:grass_block",isAir:false,isLiquid:false};},
   getEntities(options={}){return entities.filter(e=>(!options.type||e.typeId===options.type)&&(!options.tags||options.tags.every(t=>e.tags.includes(t)))&&(!options.maxDistance||Math.hypot(e.location.x-options.location.x,e.location.y-options.location.y,e.location.z-options.location.z)<=options.maxDistance));},
   spawnEntity(typeId,location,options){const e={id:`e${serial++}`,typeId,location,dimension:this,tags:[],isValid:true,props:new Map(),properties:new Map(),spawnEvent:options?.spawnEvent,
     addTag(tag){this.tags.push(tag);},getDynamicProperty(k){return this.props.get(k);},setDynamicProperty(k,v){this.props.set(k,v);},
@@ -49,4 +59,4 @@ export function playerAt(location){return {id:"player1",typeId:"minecraft:player
   camera:{fade(){}},
   getComponent(){return {container:{size:1,getItem(){return {typeId:"secretfacilities:keycard_master"};}}};}};}
 export function finishBuild(){for(let i=0;i<1500&&tasks.size;i++){for(const work of [...tasks.values()])work();system.currentTick+=2;}if(tasks.size)throw Error("Build did not finish");}
-export function reset(){blocks.clear();properties.clear();players.length=0;entities.length=0;tasks.clear();system.currentTick=0;terrain.height=()=>80;}
+export function reset(){blocks.clear();properties.clear();players.length=0;entities.length=0;tasks.clear();system.currentTick=0;terrain.height=()=>80;terrain.water=()=>undefined;}
