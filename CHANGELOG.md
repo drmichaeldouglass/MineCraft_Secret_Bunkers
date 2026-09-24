@@ -11,6 +11,8 @@
 - **The elevator had no animation.** It was a silent 1.5-second pause before a teleport. The ride now rumbles the camera, calls out each deck as it passes, and hides the transfer behind a camera fade.
 - Fixed the deployment confirmation showing the wrong entrance coordinate, which also made the "you moved away from the site" check reject valid deployments.
 
+- **The entrance blast door still stuttered.** The client chased a position the server re-sent every tick, so the leaf moved in stop-start bursts whenever updates arrived unevenly, and it started and stopped at full speed. The server now tells the leaf only where it starts, stops or reverses, and the client animates it every frame on its own clock with an ease-in-out. The collision blocks follow the same easing, so they stay in step with the leaf you see. Travel time is unchanged at 1.6 s.
+
 ### Found by review
 
 - Fixed the self-destruct console sharing a block with B3's security console, which made the entire self-destruct sequence unreachable: the console opened the security menu instead, and confirming "arm" silently raised an alert.

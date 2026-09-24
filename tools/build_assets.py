@@ -239,12 +239,14 @@ def turret():
 LEAF_WIDTH, LEAF_HEIGHT = 5, 4
 
 def door_leaf():
-    """A moving copy of the blast door leaf. The client eases it toward the scripted
-    progress every frame, so the slide is smooth instead of stepping with block updates."""
-    progress=NS+"progress"
+    """A moving copy of the blast door leaf. The server says where the leaf starts and which
+    way it moves; the client then animates it every frame on its own clock, eased in and out,
+    so the slide is smooth instead of stepping with block updates and network jitter."""
+    phase,motion=NS+"phase",NS+"motion"
     write(BP/"entities/blast_door_leaf.json",{"format_version":"1.21.90","minecraft:entity":{
         "description":{"identifier":NS+"blast_door_leaf","is_spawnable":False,"is_summonable":True,"is_experimental":False,
-            "properties":{progress:{"type":"float","range":[0.0,1.0],"default":0.0,"client_sync":True}}},
+            "properties":{phase:{"type":"float","range":[0.0,1.0],"default":0.0,"client_sync":True},
+                motion:{"type":"int","range":[-1,1],"default":0,"client_sync":True}}},
         "components":{"minecraft:type_family":{"family":["inanimate","secretfacilities_door"]},
             "minecraft:health":{"value":1,"max":1},"minecraft:collision_box":{"width":0.1,"height":0.1},
             "minecraft:damage_sensor":{"triggers":{"cause":"all","deals_damage":"no"}},
@@ -252,7 +254,7 @@ def door_leaf():
             "minecraft:pushable":{"is_pushable":False,"is_pushable_by_piston":False},
             "minecraft:knockback_resistance":{"value":1},"minecraft:body_rotation_blocked":{},"minecraft:fire_immune":{}},
         # Spawning mid-travel starts the client at the right end, so a closing leaf never flashes shut.
-        "events":{NS+"from_open":{"set_property":{progress:1.0}}}}})
+        "events":{NS+"from_open":{"set_property":{phase:1.0}}}}})
     # One cube per door block, so the blast door texture tiles exactly like the blocks it covers.
     # 15 px deep: just inside the wall above, which hides the leaf once it has slid up.
     face={"uv":[0,0],"uv_size":[32,32]};edge={"uv":[0,0],"uv_size":[30,32]};cap={"uv":[0,0],"uv_size":[32,30]}
@@ -262,16 +264,21 @@ def door_leaf():
         "description":{"identifier":"geometry.secretfacilities.blast_door_leaf","texture_width":32,"texture_height":32,
             "visible_bounds_width":LEAF_WIDTH+1,"visible_bounds_height":2*LEAF_HEIGHT+1,"visible_bounds_offset":[0,LEAF_HEIGHT+0.5,0]},
         "bones":[{"name":"leaf","pivot":[0,0,0],"cubes":cubes}]}]})
-    # Follow the server at slightly above door speed (one leaf height per 1.6 s); snap on large gaps.
-    follow=0.8
+    # Seconds for a full slide: one 2-pixel step per server tick. Must match travel() in security.ts.
+    duration=LEAF_HEIGHT*DOOR_SUBSTEPS/20
+    # Restart the clock whenever the server re-anchors the leaf (start, stop or reversal), advance
+    # the phase linearly from there, and draw it through the same ease-in-out the server uses
+    # for the collision blocks: 3s^2 - 2s^3.
+    script=(f"v.elapsed = (q.property('{phase}') != v.phase || q.property('{motion}') != v.motion) ? 0 : v.elapsed + q.delta_time;"
+        f"v.phase = q.property('{phase}');v.motion = q.property('{motion}');"
+        f"v.s = math.clamp(v.phase + v.motion * v.elapsed / {duration}, 0, 1);"
+        "v.shown = v.s * v.s * (3 - 2 * v.s);")
     write(RP/"entity/blast_door_leaf.entity.json",{"format_version":"1.10.0","minecraft:client_entity":{
         "description":{"identifier":NS+"blast_door_leaf","materials":{"default":"entity"},
             "textures":{"default":"textures/blocks/blast_door"},"geometry":{"default":"geometry.secretfacilities.blast_door_leaf"},
             "animations":{"slide":"animation.secretfacilities.door_leaf.slide"},
-            "scripts":{"initialize":["v.shown = -1;"],
-                "pre_animation":[f"t.target = q.property('{progress}');",
-                    f"v.shown = (v.shown < 0 || math.abs(t.target - v.shown) > 0.25) ? t.target : v.shown + math.clamp(t.target - v.shown, -{follow} * q.delta_time, {follow} * q.delta_time);"],
-                "animate":["slide"]},
+            "scripts":{"initialize":["v.phase = -1; v.motion = 0; v.elapsed = 0; v.s = 0; v.shown = 0;"],
+                "pre_animation":[script],"animate":["slide"]},
             "render_controllers":["controller.render.secretfacilities.door_leaf"]}}})
     write(RP/"render_controllers/door_leaf.json",{"format_version":"1.8.0","render_controllers":{
         "controller.render.secretfacilities.door_leaf":{"geometry":"Geometry.default","materials":[{"*":"Material.default"}],"textures":["Texture.default"]}}})

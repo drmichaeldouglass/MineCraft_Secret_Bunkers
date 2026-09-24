@@ -5,7 +5,7 @@ import { blocks, dimension, entities, finishBuild, playerAt, players, properties
 import { planBunker } from "../behavior_pack/scripts/generation/planner.js";
 import { facilities, load, mark, save } from "../behavior_pack/scripts/runtime/store.js";
 import { build, originAt } from "../behavior_pack/scripts/runtime/generation.js";
-import { armDestruct, abortDestruct, LEAF, requestDoor, restoreDoors, setSecurity, SUBSTEPS, tickAlarms, tickDoors } from "../behavior_pack/scripts/runtime/security.js";
+import { armDestruct, abortDestruct, ease, LEAF, requestDoor, restoreDoors, setSecurity, SUBSTEPS, tickAlarms, tickDoors } from "../behavior_pack/scripts/runtime/security.js";
 import { tickDefence } from "../behavior_pack/scripts/runtime/defence.js";
 const ns="secretfacilities:",at=(x,y,z)=>blocks.get(`${x},${y},${z}`);
 const passable=b=>b&&(b.typeId==="minecraft:air"||b.typeId==="minecraft:ladder"||b.states[ns+"open"]===true);
@@ -123,18 +123,25 @@ test("the blast door slides as one smooth leaf and leaves nothing behind",()=>{
   assert.deepEqual([door.max.x-door.min.x+1,height,door.max.z-door.min.z+1],[5,4,1]);
   const leaves=()=>entities.filter(e=>e.typeId===LEAF);
   const rows=()=>[...Array(height).keys()].map(r=>at(door.min.x+2,door.min.y+r,door.min.z).states[ns+"open"]);
+  const anchor=()=>[leaves()[0].getProperty(ns+"phase"),leaves()[0].getProperty(ns+"motion")];
   requestDoor(f,door,true);tickDoors();
   // The leaf arrives one tick before any block is cleared, so the doorway never flashes open.
   assert.equal(leaves().length,1);assert.deepEqual(rows(),new Array(height).fill(false));
   assert.ok(leaves()[0].tags.includes(tag));assert.equal(leaves()[0].spawnEvent,undefined);
-  const progress=[];
-  for(let n=0;n<steps;n++){
-    tickDoors();const value=leaves()[0].getProperty(ns+"progress");progress.push(value);
-    // Courses the leaf has begun to leave are cleared; courses it still covers stay solid.
-    const lifted=Math.ceil(value*steps/SUBSTEPS);
-    assert.deepEqual(rows(),[...Array(height).keys()].map(r=>r<lifted),`Blocks disagree with the leaf at ${value}`);
+  assert.deepEqual(anchor(),[0,1],"The leaf is told once where it starts and which way it goes");
+  const cleared=[];
+  for(let n=1;n<=steps;n++){
+    tickDoors();
+    // The client animates on its own clock; per-tick updates would bring back the stutter.
+    assert.deepEqual(anchor(),[0,1],"The leaf must not be re-synced mid-slide");
+    // Courses the eased leaf has begun to leave are cleared; courses it still covers stay solid.
+    const lifted=ease(n/steps)*height;
+    assert.deepEqual(rows(),[...Array(height).keys()].map(r=>r<lifted),`Blocks disagree with the leaf at step ${n}`);
+    cleared.push(rows().filter(Boolean).length);
   }
-  assert.ok(progress.every((v,i)=>Math.abs(v-(i+1)/steps)<1e-9),"The leaf should rise one step per tick");
+  // Eased: the first and last courses take longer to clear than the middle ones.
+  const tick=row=>cleared.findIndex(c=>c>row);
+  assert.ok(tick(1)-tick(0)>tick(2)-tick(1),"The leaf should accelerate away from rest");
   tickDoors();assert.equal(leaves().length,0,"The leaf must be removed once the door is open");
   assert.deepEqual(rows(),new Array(height).fill(true));
   // Closing starts from the top, is paused by an entity in the doorway, then resumes.
@@ -142,14 +149,27 @@ test("the blast door slides as one smooth leaf and leaves nothing behind",()=>{
   assert.equal(leaves()[0].spawnEvent,ns+"from_open","A closing leaf must start fully raised");
   for(let n=0;n<8;n++)tickDoors();
   const cow={id:"cow",typeId:"minecraft:cow",location:{...door.min},tags:[],isValid:true};entities.push(cow);
-  const held=leaves()[0].getProperty(ns+"progress");for(let n=0;n<10;n++)tickDoors();
-  assert.equal(leaves()[0].getProperty(ns+"progress"),held,"The leaf must hold while the doorway is obstructed");
-  entities.splice(entities.indexOf(cow),1);
+  const held=rows();for(let n=0;n<10;n++)tickDoors();
+  assert.deepEqual(rows(),held,"The door must hold while the doorway is obstructed");
+  assert.deepEqual(anchor(),[1-8/steps,0],"The client leaf must stop where the door stopped");
+  entities.splice(entities.indexOf(cow),1);tickDoors();
+  assert.deepEqual(anchor(),[1-8/steps,-1],"The client leaf must resume from where it stopped");
   for(let n=0;n<steps;n++)tickDoors();
   assert.deepEqual(rows(),new Array(height).fill(false));assert.equal(leaves().length,0);
   // A leaf stranded by a reload mid-slide is cleared when the door is restored.
   dimension.spawnEntity(LEAF,{...door.min}).addTag(tag);
   restoreDoors(f);tickDoors();assert.equal(leaves().length,0,"Stale leaf survived a restore");
+});
+test("a blast door reversed mid-slide turns back from where its leaf is",()=>{
+  const {f}=make(3),door=f.doors[0],steps=(door.max.y-door.min.y+1)*SUBSTEPS;
+  const leaf=()=>entities.find(e=>e.typeId===LEAF);
+  requestDoor(f,door,true);for(let n=0;n<=12;n++)tickDoors();
+  const id=leaf().id;requestDoor(f,door,false);tickDoors();
+  assert.equal(leaf().id,id,"Reversing must keep the same leaf");
+  assert.deepEqual([leaf().getProperty(ns+"phase"),leaf().getProperty(ns+"motion")],[12/steps,-1]);
+  for(let n=0;n<=13;n++)tickDoors();
+  assert.equal(leaf(),undefined);assert.ok(!door.open);
+  assert.equal(at(door.min.x,door.min.y,door.min.z).states[ns+"open"],false);
 });
 test("self-destruct abort cutoff and permanent bounded damage",()=>{
   const {f}=make(3);armDestruct(f);assert.equal(f.countdown,90);assert.ok(f.doors.every(d=>d.open));

@@ -4,7 +4,7 @@ import { add, distance, inside, NS, type Door, type Facility, type SecurityState
 import { facilities, mark, save } from "./store.js";
 import { beam, dim, fill, getClearance, lineClear, loaded, nearby, set, sound, tell } from "./world.js";
 
-interface DoorJob { f:Facility; door:Door; progress:number; target:number; repaint:boolean; started:boolean; leaf?:string }
+interface DoorJob { f:Facility; door:Door; progress:number; target:number; repaint:boolean; started:boolean; leaf?:string; motion?:number }
 const moving=new Map<string,DoorJob>();
 /** Two-pixel sub-steps the leaf travels; eight per block of door height, one per tick. */
 export const SUBSTEPS=8;
@@ -15,13 +15,18 @@ const travel=(door:Door):number => (door.max.y-door.min.y+1)*SUBSTEPS;
  *  its blocks only supply collision and the solid courses the leaf is hidden behind. */
 const usesLeaf=(door:Door):boolean => door.kind==="blast";
 const leafTag=(f:Facility,door:Door):string => `sf_door:${f.id}:${door.id}`;
+/** Ease in and out, so the heavy leaf starts and stops gently. Must match the client script. */
+export const ease=(phase:number):number => phase*phase*(3-2*phase);
+/** Courses of a leaf door the leaf has started to leave, at a given step of its travel. */
+const lifted=(door:Door,progress:number):number =>
+  Math.ceil(ease(progress/travel(door))*(door.max.y-door.min.y+1)-1e-9);
 /** Paint one horizontal course of the leaf. Stepped doors: courses below the moving edge
  *  are gone, the edge course shows its offset, and courses above are still solid.
  *  Leaf doors: any course the leaf has started to leave is cleared so the leaf shows there. */
 function paintRow(d:Dimension,door:Door,row:number,progress:number):void {
   const y=door.min.y+row;
   if(usesLeaf(door)){
-    fill(d,{...door.min,y},{...door.max,y},idFor(door),{[NS+"open"]:row<Math.ceil(progress/SUBSTEPS),[NS+"slide"]:0});
+    fill(d,{...door.min,y},{...door.max,y},idFor(door),{[NS+"open"]:row<lifted(door,progress),[NS+"slide"]:0});
     return;
   }
   const edge=Math.floor(progress/SUBSTEPS);
@@ -31,9 +36,9 @@ function paintRow(d:Dimension,door:Door,row:number,progress:number):void {
 /** Repaint only the courses a single step changes. Returns the number of fills. */
 function paintStep(d:Dimension,door:Door,from:number,to:number):number {
   if(usesLeaf(door)){
-    const a=Math.ceil(from/SUBSTEPS),b=Math.ceil(to/SUBSTEPS);
-    if(a===b)return 0;
-    paintRow(d,door,Math.min(a,b),to);return 1;
+    const a=lifted(door,from),b=lifted(door,to);
+    for(let row=Math.min(a,b);row<Math.max(a,b);row++)paintRow(d,door,row,to);
+    return Math.abs(a-b);
   }
   const edge=Math.min(door.max.y-door.min.y,Math.floor(to/SUBSTEPS));
   paintRow(d,door,edge,to);
@@ -44,12 +49,19 @@ function clearLeaves(d:Dimension,f:Facility,door:Door):void {
   for(const e of d.getEntities({type:LEAF,tags:[leafTag(f,door)]}))try{e.remove();}catch{/* Already gone. */}
 }
 const liveLeaf=(job:DoorJob):Entity|undefined => {const e=job.leaf?world.getEntity(job.leaf):undefined;return e?.isValid?e:undefined;};
+/** Which way the leaf travels this tick: 1 up, -1 down, 0 held. */
+const heading=(job:DoorJob):number => Math.sign(job.target-job.progress);
+/** The client animates the leaf on its own clock from where it was last told it started,
+ *  so the slide stays smooth whatever the tick rate or network jitter. The server only
+ *  speaks when the leaf starts, stops or reverses. */
+function steer(leaf:Entity,door:Door,job:DoorJob,motion:number):void {
+  leaf.setProperty(NS+"phase",job.progress/travel(door));leaf.setProperty(NS+"motion",motion);job.motion=motion;
+}
 function spawnLeaf(d:Dimension,f:Facility,door:Door,job:DoorJob):void {
-  const fraction=job.progress/travel(door);
   clearLeaves(d,f,door);
   const leaf=d.spawnEntity(LEAF,{x:(door.min.x+door.max.x+1)/2,y:door.min.y,z:door.min.z+0.5},
-    fraction>0.5?{spawnEvent:NS+"from_open"}:undefined);
-  leaf.setRotation({x:0,y:0});leaf.addTag(leafTag(f,door));leaf.setProperty(NS+"progress",fraction);
+    job.progress/travel(door)>0.5?{spawnEvent:NS+"from_open"}:undefined);
+  leaf.setRotation({x:0,y:0});leaf.addTag(leafTag(f,door));steer(leaf,door,job,heading(job));
   job.leaf=leaf.id;
 }
 /** Leaves outlive their slide only when a chunk or world unloads mid-travel. */
@@ -63,7 +75,7 @@ export function requestDoor(f:Facility,door:Door,open:boolean):void {
   // Reversing mid-travel resumes from where the leaf actually is.
   const progress=running?running.progress:(door.open?travel(door):0);
   door.open=open;mark(f);
-  moving.set(key,{f,door,progress,target:open?travel(door):0,repaint:false,started:false,leaf:running?.leaf});
+  moving.set(key,{f,door,progress,target:open?travel(door):0,repaint:false,started:false,leaf:running?.leaf,motion:running?.motion});
   if(door.kind==="blast")sound(f,"blast_door_warning",door.min);
 }
 export function restoreDoors(f:Facility):void {
@@ -99,14 +111,15 @@ export function tickDoors():void {
       if(job.leaf){clearLeaves(d,f,door);job.leaf=undefined;}
       moving.delete(key);continue;
     }
-    const next=job.progress+(job.target>job.progress?1:-1);
+    const next=job.progress+heading(job),leaf=usesLeaf(door)?liveLeaf(job):undefined;
     // Never materialize a steel door around an entity. Retry while obstructed.
-    if(next<job.progress&&occupied(d,door))continue;
+    if(next<job.progress&&occupied(d,door)){if(leaf&&job.motion!==0)steer(leaf,door,job,0);continue;}
     if(!job.started){job.started=true;if(door.kind==="blast")sound(f,"blast_door_movement",door.min);}
-    // A new leaf gets one tick to reach clients before the blocks it covers are cleared.
-    if(usesLeaf(door)&&!liveLeaf(job)){spawnLeaf(d,f,door,job);continue;}
+    // A new, resumed or reversed leaf gets one tick to reach clients before the blocks move,
+    // so the blocks never run ahead of the leaf the player sees.
+    if(usesLeaf(door)&&!leaf){spawnLeaf(d,f,door,job);continue;}
+    if(leaf&&job.motion!==heading(job)){steer(leaf,door,job,heading(job));continue;}
     const from=job.progress;job.progress=next;
-    if(usesLeaf(door))liveLeaf(job)?.setProperty(NS+"progress",next/travel(door));
     writes+=paintStep(d,door,from,next);
     // Round-robin prevents a blocked door or a distant facility starving others.
     moving.delete(key);moving.set(key,job);
