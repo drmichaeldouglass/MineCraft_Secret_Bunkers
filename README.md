@@ -38,7 +38,8 @@ If the kit command is unavailable, use `/give @s secretfacilities:facility_deplo
 - Two exterior laser turrets and one command-level turret when defences are enabled; range, line-of-sight, reload, zone controls, and a conservative hostile-only target filter.
 - A two-confirmation, 90-second self-destruct sequence with evacuation and an abort window, then TNT charges built into the rock around every floor blow and the bunker is demolished floor by floor.
 - Turret shots drawn as a solid, glowing laser beam.
-- 47 custom construction/control blocks, seven custom items, original 32×32 pixel textures, a turret model, aiming animation, three particles, eleven synthesized sounds, and pack icons.
+- Laser and missile turret spawn eggs, so you can place working defences anywhere. The missile turret has a 10-block minimum range, fires scripted missiles with a smoke trail, and its blasts hurt only hostile mobs and break no blocks.
+- 47 custom construction/control blocks, seven custom items, two turret spawn eggs, original 32×32 pixel textures, laser turret, missile turret and missile models, aiming animation, five particles, twelve synthesized sounds, and pack icons.
 
 ## Build from source
 
@@ -69,4 +70,4 @@ Alternatively, `python3 tools/bootstrap.py` downloads the pinned TypeScript comp
 | `docs/` | Controls, architecture, assets, status, and manual acceptance checks |
 | `dist/` | Combined `.mcaddon`, separate `.mcpack` files, and SHA-256 checksums |
 
-The later facility types, missile turrets, natural generation, jigsaw pools, and advanced animation/art stages remain on the [roadmap](docs/STATUS.md). Guards, loot, quests, stories, and handheld weapons have not been added.
+The later facility types, missile turrets inside generated facilities, natural generation, jigsaw pools, and advanced animation/art stages remain on the [roadmap](docs/STATUS.md). Guards, loot, quests, stories, and handheld weapons have not been added.

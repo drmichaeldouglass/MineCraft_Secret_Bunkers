@@ -22,6 +22,12 @@
     },
     "facility_debug_scanner": {
       "textures": "textures/items/facility_debug_scanner"
+    },
+    "laser_turret_spawn_egg": {
+      "textures": "textures/items/laser_turret_spawn_egg"
+    },
+    "missile_turret_spawn_egg": {
+      "textures": "textures/items/missile_turret_spawn_egg"
     }
   }
 }

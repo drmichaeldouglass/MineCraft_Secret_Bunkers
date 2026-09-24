@@ -22,8 +22,9 @@ The suite covers:
 - The mountain: solid cover over the lobby, an open overhung forecourt reachable from outside the mountain, the hut's exit onto clear ground, and every charge sealed in on all sides.
 - Countdown abort cutoff; demolition that fires every charge (but not a defused one), breaches the walls, removes every fitting, opens every room, seals the portal and removes the turrets, using explosions that do not break blocks.
 - Turret target selection, offline behavior, blocked line of sight, and one solid beam emitter per shot ending on the target.
+- Turrets placed from spawn eggs: a laser turret with no facility still fires at hostiles only; a missile turret holds fire inside its minimum range, launches a missile that flies to its target and detonates, damages only hostile mobs, breaks no blocks, respects its reload, stops at a wall without the blast reaching through, and stray missiles are cleared.
 
-Independent asset validation checks 76 JSON files, pack UUIDs/dependencies, script imports, 54 block/item identifiers, PNG integrity, all sound files, and all 43 NBT templates including palette/index consistency and bed block entity data.
+Independent asset validation checks 85 JSON files, pack UUIDs/dependencies, script imports, 54 block/item identifiers, every entity's client definition, geometry, textures and spawn egg icon, PNG integrity, all sound files, and all 43 NBT templates including palette/index consistency and bed block entity data.
 
 Regression fixes found during development: a south-facing canteen counter blocked its connector; absolute game-tick modulo could prevent countdown/siren updates when interval start times were offset. Both were corrected before packaging.
 
@@ -33,7 +34,7 @@ Enable the content log and perform these checks in a disposable Creative world w
 
 - [ ] Import on the minimum supported Bedrock version; confirm no content errors.
 - [ ] Repeat on the installed current stable game version.
-- [ ] Find all seven items and representative construction blocks; inspect texture, transparency, light and names.
+- [ ] Find all seven items, both turret spawn eggs and representative construction blocks; inspect texture, transparency, light and names.
 - [ ] Deploy a five-floor defended bunker; remain nearby; inspect its entrance and all required floor roles.
 - [ ] Walk every room type. Sleep in a bunk and a bedroom bed and check the bed colours; confirm farm crops grow under the grow lights and the farmland stays wet; mine the ore face; open chests, barrels, furnaces and brewing stands; check no vanilla furniture shows as an unknown block or faces the wrong way in north- and south-facing rooms.
 - [ ] Climb between all levels, use the B1 escape route out through the surface hut, and test the 3-/8-floor extremes.
@@ -51,6 +52,7 @@ Enable the content log and perform these checks in a disposable Creative world w
 - [ ] Confirm neutral mobs and every friendly category are ignored by turrets; test zombie, skeleton, creeper, witch and pillager targets.
 - [ ] Verify turret model orientation, pitch, sound and wall occlusion; the shot must read as one continuous glowing beam from muzzle to target, day and night, with an impact flash. Kill/remove a turret and reload.
 - [ ] Toggle local/all defence modes; verify red versus black clearance.
+- [ ] Place a laser and a missile turret from their spawn eggs on open ground away from any bunker. Check both models face and pitch toward targets; the missile turret must ignore a zombie closer than 10 blocks and fire at one 15–40 blocks away. Watch the missile's model, orientation, flame and smoke trail and the explosion; confirm no blocks break and a nearby player, villager and pet are unhurt. Fire one into a wall. Reload the world with a missile in flight and confirm no missile is left hanging in the air.
 - [ ] Test arming cancellation, second confirmation, abort, final-ten-second shutdown and permanent destroyed state. Watch the full demolition from the surface and from the escape tunnel: floors going deepest first, charge explosions, gutted rooms, a sealed portal, no mass of item drops, and the frame rate during the blasts. Dig out a charge first and confirm the console count drops. Reload a destroyed bunker and confirm no doors reappear.
 - [ ] Reload NORMAL, LOCKDOWN and countdown states; verify saved doors, zones and floors.
 - [ ] Test two players with different cards and concurrent/stale menus.

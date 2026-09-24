@@ -66,6 +66,12 @@
       "sounds": [
         "sounds/secretfacilities/destruction"
       ]
+    },
+    "secretfacilities:missile_launch": {
+      "category": "block",
+      "sounds": [
+        "sounds/secretfacilities/missile_launch"
+      ]
     }
   }
 }

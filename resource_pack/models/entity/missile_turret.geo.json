@@ -1,0 +1,283 @@
+{
+  "format_version": "1.12.0",
+  "minecraft:geometry": [
+    {
+      "description": {
+        "identifier": "geometry.secretfacilities.missile_turret",
+        "texture_width": 64,
+        "texture_height": 64,
+        "visible_bounds_width": 3,
+        "visible_bounds_height": 3,
+        "visible_bounds_offset": [
+          0,
+          1,
+          0
+        ]
+      },
+      "bones": [
+        {
+          "name": "base",
+          "pivot": [
+            0,
+            0,
+            0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -8,
+                0,
+                -8
+              ],
+              "size": [
+                16,
+                3,
+                16
+              ],
+              "uv": [
+                0,
+                0
+              ]
+            }
+          ]
+        },
+        {
+          "name": "yaw_mount",
+          "parent": "base",
+          "pivot": [
+            0,
+            6,
+            0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -4,
+                3,
+                -4
+              ],
+              "size": [
+                8,
+                5,
+                8
+              ],
+              "uv": [
+                0,
+                19
+              ]
+            }
+          ]
+        },
+        {
+          "name": "pitch_mount",
+          "parent": "yaw_mount",
+          "pivot": [
+            0,
+            12,
+            0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -6,
+                8,
+                -6
+              ],
+              "size": [
+                12,
+                8,
+                12
+              ],
+              "uv": [
+                0,
+                32
+              ]
+            }
+          ]
+        },
+        {
+          "name": "launcher",
+          "parent": "pitch_mount",
+          "pivot": [
+            0,
+            12,
+            -6
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -5,
+                9,
+                -8
+              ],
+              "size": [
+                3,
+                3,
+                2
+              ],
+              "uv": [
+                48,
+                32
+              ]
+            },
+            {
+              "origin": [
+                -5,
+                13,
+                -8
+              ],
+              "size": [
+                3,
+                3,
+                2
+              ],
+              "uv": [
+                48,
+                32
+              ]
+            },
+            {
+              "origin": [
+                2,
+                9,
+                -8
+              ],
+              "size": [
+                3,
+                3,
+                2
+              ],
+              "uv": [
+                48,
+                32
+              ]
+            },
+            {
+              "origin": [
+                2,
+                13,
+                -8
+              ],
+              "size": [
+                3,
+                3,
+                2
+              ],
+              "uv": [
+                48,
+                32
+              ]
+            },
+            {
+              "origin": [
+                -4.5,
+                9.5,
+                -9
+              ],
+              "size": [
+                2,
+                2,
+                1
+              ],
+              "uv": [
+                48,
+                40
+              ]
+            },
+            {
+              "origin": [
+                -4.5,
+                13.5,
+                -9
+              ],
+              "size": [
+                2,
+                2,
+                1
+              ],
+              "uv": [
+                48,
+                40
+              ]
+            },
+            {
+              "origin": [
+                2.5,
+                9.5,
+                -9
+              ],
+              "size": [
+                2,
+                2,
+                1
+              ],
+              "uv": [
+                48,
+                40
+              ]
+            },
+            {
+              "origin": [
+                2.5,
+                13.5,
+                -9
+              ],
+              "size": [
+                2,
+                2,
+                1
+              ],
+              "uv": [
+                48,
+                40
+              ]
+            }
+          ]
+        },
+        {
+          "name": "radar",
+          "parent": "yaw_mount",
+          "pivot": [
+            7,
+            15,
+            2
+          ],
+          "cubes": [
+            {
+              "origin": [
+                6,
+                15,
+                0
+              ],
+              "size": [
+                1,
+                4,
+                4
+              ],
+              "uv": [
+                48,
+                48
+              ]
+            },
+            {
+              "origin": [
+                6.5,
+                12,
+                1.5
+              ],
+              "size": [
+                0.5,
+                3,
+                1
+              ],
+              "uv": [
+                48,
+                48
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

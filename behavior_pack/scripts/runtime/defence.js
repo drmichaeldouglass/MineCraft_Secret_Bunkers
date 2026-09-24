@@ -4,7 +4,17 @@ import { add, distance, NS } from "../core/types.js";
 import { facilities, mark } from "./store.js";
 import { dim, lineClear, nearby, sound, turretBeam } from "./world.js";
 const cache = new Map();
-const allowed = (e) => e.isValid && isHostile(e.typeId, e.getComponent("minecraft:tameable")?.isTamed ?? false);
+export const allowed = (e) => e.isValid && isHostile(e.typeId, e.getComponent("minecraft:tameable")?.isTamed ?? false);
+/** Where turrets aim: the middle of a mob, not its feet. */
+export const aim = (e) => add(e.location, { x: 0, y: 1, z: 0 });
+/** Pitch and yaw that point an entity's front along a direction. */
+export const rotation = (v) => ({ x: -Math.atan2(v.y, Math.hypot(v.x, v.z)) * 180 / Math.PI, y: -Math.atan2(v.x, v.z) * 180 / Math.PI });
+/** The nearest valid target between the minimum and maximum range that the turret can see. */
+export function acquire(d, source, range, minRange = 0) {
+    return d.getEntities({ location: source, maxDistance: range }).filter(e => allowed(e) && distance(e.location, source) >= minRange)
+        .sort((a, b) => distance(a.location, source) - distance(b.location, source))
+        .find(e => lineClear(d, source, aim(e)));
+}
 function update(f, t) {
     const key = `${f.id}:${t.id}`, d = dim(f);
     let tracking = cache.get(key);
@@ -32,23 +42,21 @@ function update(f, t) {
         target = undefined;
     if (!target && system.currentTick >= tracking.nextScan) {
         tracking.nextScan = system.currentTick + 40;
-        target = d.getEntities({ location: source, maxDistance: range }).filter(allowed)
-            .sort((a, b) => distance(a.location, source) - distance(b.location, source))
-            .find(e => lineClear(d, source, add(e.location, { x: 0, y: 1, z: 0 })));
+        target = acquire(d, source, range);
     }
     tracking.target = target?.id;
     if (!target)
         return;
-    const aim = add(target.location, { x: 0, y: 1, z: 0 }), delta = { x: aim.x - source.x, y: aim.y - source.y, z: aim.z - source.z };
-    entity.setRotation({ x: -Math.atan2(delta.y, Math.hypot(delta.x, delta.z)) * 180 / Math.PI, y: -Math.atan2(delta.x, delta.z) * 180 / Math.PI });
+    const to = aim(target);
+    entity.setRotation(rotation({ x: to.x - source.x, y: to.y - source.y, z: to.z - source.z }));
     if (system.currentTick < tracking.nextShot)
         return;
-    if (!lineClear(d, source, aim)) {
+    if (!lineClear(d, source, to)) {
         tracking.target = undefined;
         return;
     }
     tracking.nextShot = system.currentTick + 20;
-    turretBeam(d, source, aim);
+    turretBeam(d, source, to);
     target.applyDamage(5, { cause: EntityDamageCause.entityAttack, damagingEntity: entity });
     sound(f, "laser_turret_fire", source, 0.3);
 }

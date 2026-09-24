@@ -62,6 +62,8 @@ ITEMS = {
     "keycard_master": (236, 192, 85), "facility_deployment_device": (52, 198, 186),
     "facility_debug_scanner": (215, 161, 61),
 }
+# Defences a player can place from the Creative inventory (Spawn Eggs) or the development kit.
+SPAWNABLE = {"laser_turret": "Laser Turret", "missile_turret": "Missile Turret"}
 
 def textures():
     terrain, blocks, lang, item_atlas = {}, {"format_version": [1, 1, 0]}, [], {}
@@ -181,6 +183,24 @@ def textures():
         write(BP/"items"/f"{name}.json",{"format_version":"1.21.90","minecraft:item":{
             "description":{"identifier":NS+name,"menu_category":{"category":"items"}},"components":c}})
         lang.append(f"item.{NS}{name}.name={name.replace('_',' ').title()}")
+    for name,title in SPAWNABLE.items():
+        # A turret silhouette instead of an egg: a mount plate, pedestal and the weapon head.
+        im=Image.new("RGBA",(32,32));d=ImageDraw.Draw(im)
+        d.rectangle((4,25,27,28),fill=(56,70,76),outline=(146,161,156))
+        d.rectangle((12,18,19,24),fill=(72,91,99),outline=(38,50,55))
+        if name=="laser_turret":
+            d.rectangle((9,10,24,17),fill=(84,104,112),outline=(146,161,156))
+            d.rectangle((1,12,9,15),fill=(58,74,80),outline=(38,50,55));d.rectangle((1,12,2,15),fill=(252,56,53))
+            d.rectangle((19,7,22,9),fill=(55,218,158))
+        else:
+            d.rectangle((7,6,27,18),fill=(82,96,84),outline=(160,170,150))
+            for x in [9,18]:
+                for y in [8,13]:d.rectangle((x,y,x+6,y+3),fill=(26,31,33));d.rectangle((x+2,y+1,x+4,y+2),fill=(226,72,62))
+            for x in range(7,28,4):d.line((x,18,x+2,18),fill=(218,171,51))
+        save(im,RP / "textures/items" / f"{name}_spawn_egg.png")
+        item_atlas[f"{name}_spawn_egg"]={"textures":f"textures/items/{name}_spawn_egg"}
+        lang+=[f"entity.{NS}{name}.name={title}",f"item.spawn_egg.entity.{NS}{name}.name={title}"]
+    lang.append(f"entity.{NS}missile.name=Missile")
     write(RP/"textures/terrain_texture.json",{"resource_pack_name":"secret_facilities","texture_name":"atlas.terrain","padding":8,"num_mip_levels":4,"texture_data":terrain})
     write(RP/"textures/item_texture.json",{"resource_pack_name":"secret_facilities","texture_name":"atlas.items","texture_data":item_atlas})
     write(RP/"blocks.json",blocks)
@@ -198,16 +218,30 @@ def textures():
             "bones":[{"name":"leaf","pivot":[0,0,0],"cubes":[{"origin":[-8,DOOR_PX*step,-8],"size":[16,16-DOOR_PX*step,16],"uv":uv}]}]})
     write(RP/"models/blocks/door_slide.geo.json",{"format_version":"1.12.0","minecraft:geometry":models})
 
-def turret():
-    write(BP/"entities/laser_turret.json",{"format_version":"1.21.90","minecraft:entity":{
-        "description":{"identifier":NS+"laser_turret","is_spawnable":False,"is_summonable":True,"is_experimental":False},
+def cube(origin,size,uv=[0,0]): return {"origin":origin,"size":size,"uv":uv}
+
+def defence_entity(name,health,width,height):
+    """A turret's server definition. 'is_spawnable' gives it a spawn egg in the Creative inventory;
+    nothing spawns it naturally, as there are no spawn rules."""
+    write(BP/f"entities/{name}.json",{"format_version":"1.21.90","minecraft:entity":{
+        "description":{"identifier":NS+name,"is_spawnable":True,"is_summonable":True,"is_experimental":False},
         "components":{"minecraft:type_family":{"family":["secretfacilities_defence"]},
-            "minecraft:health":{"value":80,"max":80},"minecraft:collision_box":{"width":0.85,"height":1.5},
+            "minecraft:health":{"value":health,"max":health},"minecraft:collision_box":{"width":width,"height":height},
             "minecraft:physics":{"has_gravity":False,"has_collision":True},
             "minecraft:pushable":{"is_pushable":False,"is_pushable_by_piston":False},
             "minecraft:knockback_resistance":{"value":1},"minecraft:persistent":{},"minecraft:fire_immune":{}},
     }})
-    def cube(origin,size,uv=[0,0]): return {"origin":origin,"size":size,"uv":uv}
+
+def defence_client(name):
+    write(RP/f"entity/{name}.entity.json",{"format_version":"1.10.0","minecraft:client_entity":{
+        "description":{"identifier":NS+name,"materials":{"default":"entity_alphatest"},
+            "textures":{"default":f"textures/entities/{name}"},"geometry":{"default":f"geometry.secretfacilities.{name}"},
+            "animations":{"aim":"animation.secretfacilities.turret.aim"},"scripts":{"animate":["aim"]},
+            "spawn_egg":{"texture":f"{name}_spawn_egg","texture_index":0},
+            "render_controllers":["controller.render.secretfacilities.turret"]}}})
+
+def turret():
+    defence_entity("laser_turret",80,0.85,1.5)
     write(RP/"models/entity/laser_turret.geo.json",{"format_version":"1.12.0","minecraft:geometry":[{
         "description":{"identifier":"geometry.secretfacilities.laser_turret","texture_width":64,"texture_height":64,
             "visible_bounds_width":3,"visible_bounds_height":3,"visible_bounds_offset":[0,1,0]},
@@ -223,11 +257,7 @@ def turret():
         for y in range(3,64,8):d.rectangle((x,y,x+1,y+1),fill=(155,170,166))
     d.rectangle((48,40,63,47),fill=(243,74,49));d.rectangle((48,48,63,57),fill=(55,218,158))
     save(tex,RP/"textures/entities/laser_turret.png")
-    write(RP/"entity/laser_turret.entity.json",{"format_version":"1.10.0","minecraft:client_entity":{
-        "description":{"identifier":NS+"laser_turret","materials":{"default":"entity_alphatest"},
-            "textures":{"default":"textures/entities/laser_turret"},"geometry":{"default":"geometry.secretfacilities.laser_turret"},
-            "animations":{"aim":"animation.secretfacilities.turret.aim"},"scripts":{"animate":["aim"]},
-            "render_controllers":["controller.render.secretfacilities.turret"]}}})
+    defence_client("laser_turret")
     write(RP/"render_controllers/turret.json",{"format_version":"1.8.0","render_controllers":{
         "controller.render.secretfacilities.turret":{"geometry":"Geometry.default","materials":[{"*":"Material.default"}],"textures":["Texture.default"]}}})
     write(RP/"animations/turret.animation.json",{"format_version":"1.8.0","animations":{
@@ -272,6 +302,77 @@ def turret():
             "minecraft:particle_appearance_billboard":{"size":[f"(v.particle_random_3 < 0.15 ? 0.45 : 0.06) * {fade}"]*2,"facing_camera_mode":"lookat_xyz",
                 "uv":{"texture_width":16,"texture_height":16,"uv":[0,0],"uv_size":[16,16]}},
             "minecraft:particle_appearance_tinting":{"color":["1","0.55 + 0.35 * v.particle_random_4","0.2",fade]}}}})
+
+def missile_turret():
+    """Heavy exterior defence: a launcher pod of four tubes on a pedestal, and the missile it fires.
+    The missile's flight is scripted (src/runtime/placed.ts); the entity is only its body."""
+    defence_entity("missile_turret",120,1.0,1.4)
+    tubes=[cube([x,y,-8],[3,3,2],[48,32]) for x in (-5,2) for y in (9,13)]
+    noses=[cube([x+0.5,y+0.5,-9],[2,2,1],[48,40]) for x in (-5,2) for y in (9,13)]
+    write(RP/"models/entity/missile_turret.geo.json",{"format_version":"1.12.0","minecraft:geometry":[{
+        "description":{"identifier":"geometry.secretfacilities.missile_turret","texture_width":64,"texture_height":64,
+            "visible_bounds_width":3,"visible_bounds_height":3,"visible_bounds_offset":[0,1,0]},
+        "bones":[{"name":"base","pivot":[0,0,0],"cubes":[cube([-8,0,-8],[16,3,16])]},
+            {"name":"yaw_mount","parent":"base","pivot":[0,6,0],"cubes":[cube([-4,3,-4],[8,5,8],[0,19])]},
+            {"name":"pitch_mount","parent":"yaw_mount","pivot":[0,12,0],"cubes":[cube([-6,8,-6],[12,8,12],[0,32])]},
+            {"name":"launcher","parent":"pitch_mount","pivot":[0,12,-6],"cubes":tubes+noses},
+            {"name":"radar","parent":"yaw_mount","pivot":[7,15,2],"cubes":[cube([6,15,0],[1,4,4],[48,48]),cube([6.5,12,1.5],[0.5,3,1],[48,48])]}]}]})
+    tex=Image.new("RGB",(64,64),(80,94,82));d=ImageDraw.Draw(tex)
+    for y in range(0,64,4):d.line((0,y,63,y),fill=(64,76,67))
+    for x in range(3,64,8):
+        for y in range(3,64,8):d.rectangle((x,y,x+1,y+1),fill=(158,168,150))
+    # Hazard band round the pod's sides and a dark vent grille on its back.
+    for x in range(0,48):
+        for y in range(48,52):d.point((x,y),fill=(218,171,51) if (x+y)//3%2 else (28,34,33))
+    d.rectangle((36,44,47,51),fill=(34,40,38))
+    d.rectangle((48,32,57,36),fill=(26,31,33));d.rectangle((48,40,53,42),fill=(226,72,62))
+    d.rectangle((48,48,57,55),fill=(118,132,124));d.point((50,50),fill=(55,218,158))
+    save(tex,RP/"textures/entities/missile_turret.png")
+    defence_client("missile_turret")
+    write(BP/"entities/missile.json",{"format_version":"1.21.90","minecraft:entity":{
+        "description":{"identifier":NS+"missile","is_spawnable":False,"is_summonable":True,"is_experimental":False},
+        "components":{"minecraft:type_family":{"family":["inanimate","secretfacilities_missile"]},
+            "minecraft:health":{"value":1,"max":1},"minecraft:collision_box":{"width":0.25,"height":0.25},
+            "minecraft:damage_sensor":{"triggers":{"cause":"all","deals_damage":"no"}},
+            "minecraft:physics":{"has_gravity":False,"has_collision":False},
+            "minecraft:pushable":{"is_pushable":False,"is_pushable_by_piston":False},
+            "minecraft:knockback_resistance":{"value":1},"minecraft:fire_immune":{}}}})
+    write(RP/"models/entity/missile.geo.json",{"format_version":"1.12.0","minecraft:geometry":[{
+        "description":{"identifier":"geometry.secretfacilities.missile","texture_width":32,"texture_height":32,
+            "visible_bounds_width":2,"visible_bounds_height":2,"visible_bounds_offset":[0,0,0]},
+        "bones":[{"name":"body","pivot":[0,1.5,0],"cubes":[cube([-1.5,0,-5],[3,3,10]),cube([-1,0.5,-7],[2,2,2],[0,13]),
+            cube([-3,1,4],[6,1,1],[0,17]),cube([-0.5,-1.5,4],[1,6,1],[0,20]),cube([-1,0.5,5],[2,2,1],[16,20])]}]}]})
+    tex=Image.new("RGBA",(32,32),(0,0,0,0));d=ImageDraw.Draw(tex)
+    d.rectangle((0,0,25,12),fill=(206,212,204));d.line((0,6,25,6),fill=(40,48,50))
+    d.rectangle((0,13,7,16),fill=(226,72,62));d.rectangle((0,17,13,18),fill=(64,76,67));d.rectangle((0,20,3,26),fill=(64,76,67))
+    d.rectangle((16,20,21,22),fill=(255,170,60))
+    save(tex,RP/"textures/entities/missile.png")
+    write(RP/"entity/missile.entity.json",{"format_version":"1.10.0","minecraft:client_entity":{
+        "description":{"identifier":NS+"missile","materials":{"default":"entity_alphatest"},
+            "textures":{"default":"textures/entities/missile"},"geometry":{"default":"geometry.secretfacilities.missile"},
+            "animations":{"pitch":"animation.secretfacilities.missile.pitch"},"scripts":{"animate":["pitch"]},
+            "render_controllers":["controller.render.secretfacilities.turret"]}}})
+    write(RP/"animations/missile.animation.json",{"format_version":"1.8.0","animations":{
+        "animation.secretfacilities.missile.pitch":{"loop":True,"bones":{"body":{"rotation":["query.target_x_rotation",0,0]}}}}})
+    fade="(1 - v.particle_age / v.particle_lifetime)"
+    # Emitted at the missile's tail every tick: a hot exhaust flame and a lingering smoke trail.
+    write(RP/"particles/missile_exhaust.json",{"format_version":"1.10.0","particle_effect":{
+        "description":{"identifier":NS+"missile_exhaust","basic_render_parameters":{"material":"particles_add","texture":"textures/particle/laser_glow"}},
+        "components":{"minecraft:emitter_rate_instant":{"num_particles":3},"minecraft:emitter_lifetime_once":{"active_time":0.05},
+            "minecraft:emitter_shape_sphere":{"radius":0.08,"direction":"outwards"},"minecraft:particle_initial_speed":0.4,
+            "minecraft:particle_lifetime_expression":{"max_lifetime":0.15},
+            "minecraft:particle_appearance_billboard":{"size":[f"0.28 * {fade}"]*2,"facing_camera_mode":"lookat_xyz",
+                "uv":{"texture_width":16,"texture_height":16,"uv":[0,0],"uv_size":[16,16]}},
+            "minecraft:particle_appearance_tinting":{"color":["1","0.6 + 0.3 * v.particle_random_1","0.2",fade]}}}})
+    write(RP/"particles/missile_smoke.json",{"format_version":"1.10.0","particle_effect":{
+        "description":{"identifier":NS+"missile_smoke","basic_render_parameters":{"material":"particles_blend","texture":"textures/particle/laser_glow"}},
+        "components":{"minecraft:emitter_rate_instant":{"num_particles":2},"minecraft:emitter_lifetime_once":{"active_time":0.05},
+            "minecraft:emitter_shape_sphere":{"radius":0.1,"direction":"outwards"},"minecraft:particle_initial_speed":0.25,
+            "minecraft:particle_motion_dynamic":{"linear_acceleration":[0,0.4,0],"linear_drag_coefficient":1.5},
+            "minecraft:particle_lifetime_expression":{"max_lifetime":"math.random(0.9, 1.4)"},
+            "minecraft:particle_appearance_billboard":{"size":["0.2 + 0.5 * v.particle_age / v.particle_lifetime"]*2,"facing_camera_mode":"lookat_xyz",
+                "uv":{"texture_width":16,"texture_height":16,"uv":[0,0],"uv_size":[16,16]}},
+            "minecraft:particle_appearance_tinting":{"color":["0.62","0.63","0.62",f"0.55 * {fade}"]}}}})
 
 # The entrance blast door is 5 wide and 4 tall; the planner test pins that size.
 LEAF_WIDTH, LEAF_HEIGHT = 5, 4
@@ -344,12 +445,13 @@ def sounds():
     definitions={}
     for name,duration in [("access_granted",0.22),("access_denied",0.3),("alarm_alert",1.8),("alarm_lockdown",1.8),
                           ("blast_door_movement",1.1),("blast_door_warning",0.7),("elevator_move",1.0),("elevator_arrive",0.5),
-                          ("laser_turret_fire",0.17),("warning_beep",0.18),("destruction",1.5)]:
+                          ("laser_turret_fire",0.17),("warning_beep",0.18),("destruction",1.5),("missile_launch",0.9)]:
         rate=22050; samples=[];rng=random.Random(name)
         for n in range(int(rate*duration)):
             t=n/rate; env=min(1,t*45)*min(1,(duration-t)*18)
             if "alarm" in name: v=0.25*math.sin(2*math.pi*(550*t+60/(2*math.pi*1.8)*math.sin(2*math.pi*1.8*t)))
             elif "movement" in name or "move" in name or name=="destruction":v=0.14*math.sin(2*math.pi*65*t)+rng.uniform(-0.13,0.13)
+            elif "launch" in name:v=(0.2*rng.uniform(-1,1)+0.12*math.sin(2*math.pi*(140-60*t)*t))*(1-t/duration)**1.5
             elif "fire" in name:v=0.3*math.sin(2*math.pi*(1800*t-3600*t*t))*(1-t/duration)
             else:v=0.2*math.sin(2*math.pi*(850 if "granted" in name or "arrive" in name else 340)*t)
             samples.append(struct.pack("<h",int(v*env*32767)))
@@ -679,21 +781,24 @@ def asset_inventory():
         if name in INTERACTIVE:note="Shared interaction component; functional at registered positions"
         if name in ["blast_door","security_door","security_shutter"]:note="Generated doors / shutters";animation="Scripted 2-pixel block retraction" if name!="blast_door" else "Split leaves slide apart as an entity; blocks provide collision"
         if name=="emergency_light":note="Registered facility alarm lamps";animation="Flashing state permutation"
-        if name=="missile_turret_base":note="Construction block only; missile system deferred"
+        if name=="missile_turret_base":note="Construction block; the missile turret itself is an entity placed from its spawn egg"
         lines.append(f"| `{NS}{name}` | Block | {note} | Original 32×32 | Full cube; invisible open-door geometry where needed | {animation} | Vanilla placement; shared interaction sounds |")
     for name in ITEMS:
         lines.append(f"| `{NS}{name}` | Item | {'Creative development tool' if 'device' in name or 'scanner' in name or 'master' in name else 'Clearance card'} | Original 32×32 icon | Item sprite | None | Shared system feedback |")
     lines.extend(["", "## Defence assets", "",
         "| Identifier | Type | Implementation | Texture | Model | Animation | Sound |",
         "|---|---|---|---|---|---|---|",
-        "| `secretfacilities:laser_turret` | Entity | Hostile-only laser defence; entrance and command zones | Original 64×64 atlas | Six named bones | Scripted entity rotation and pitch bone; game verification pending | Synthesized firing pulse |",
+        "| `secretfacilities:laser_turret` | Entity | Hostile-only laser defence; entrance and command zones, or placed anywhere from its spawn egg | Original 64×64 atlas; 32×32 spawn egg icon | Six named bones | Scripted entity rotation and pitch bone; game verification pending | Synthesized firing pulse |",
+        "| `secretfacilities:missile_turret` | Entity | Hostile-only heavy defence placed from its spawn egg; 10-block minimum and 40-block maximum range, 3-second reload | Original 64×64 atlas; 32×32 spawn egg icon | Five named bones: base, pedestal, pod, four tubes, radar | Shared scripted rotation and pitch bone; game verification pending | Synthesized launch roar |",
+        "| `secretfacilities:missile` | Entity | Scripted missile: steers toward its target, detonates on contact, near the target or at a wall, and damages hostile mobs only without breaking blocks | Original 32×32 atlas | Body, nose, fins and exhaust | Pitch bone follows the flight path | Vanilla explosion on impact |",
         "| `secretfacilities:blast_door_leaf` | Entity | Two blast door leaves that part at a central seam and slide sideways into the wall, present only while the entrance door travels | Shared blast door texture | Two bones of block-column cubes | Client-eased slide driven by a synced property | Blast door sounds |",
         "| `secretfacilities:turret_beam` | Particle | Turret shot: one emitter draws a solid glowing beam from muzzle to target | Original 16×16 soft glow, additive, unlit | Dense billboards placed along the shot | 0.32-second fade | Shared firing pulse |",
         "| `secretfacilities:laser_beam` | Particle | Tripwire grids | Original 8×8 white mask, tinted red | Billboard | 0.22-second particle lifetime | None |",
         "| `secretfacilities:laser_impact` | Particle | Hit flash and sparks | Shared soft glow, additive | Billboards with gravity | Up to 0.45 seconds | Shared firing pulse |",
-        "| Missile turret / projectile | Planned | Not shipped | Deferred | Deferred | Deferred | Deferred |", "",
-        "## Audio", "", "Eleven original mono WAV assets are mapped through `resource_pack/sounds/sound_definitions.json`.", "",
-        "`access_granted`, `access_denied`, `alarm_alert`, `alarm_lockdown`, `blast_door_movement`, `blast_door_warning`, `elevator_move`, `elevator_arrive`, `laser_turret_fire`, `warning_beep`, `destruction`.", "",
+        "| `secretfacilities:missile_exhaust` | Particle | Missile flame at the tail, emitted every tick of flight | Shared soft glow, additive | Billboards | 0.15 seconds | None |",
+        "| `secretfacilities:missile_smoke` | Particle | Missile smoke trail that lingers and rises | Shared soft glow, blended grey | Growing billboards | Up to 1.4 seconds | None |", "",
+        "## Audio", "", "Twelve original mono WAV assets are mapped through `resource_pack/sounds/sound_definitions.json`.", "",
+        "`access_granted`, `access_denied`, `alarm_alert`, `alarm_lockdown`, `blast_door_movement`, `blast_door_warning`, `elevator_move`, `elevator_arrive`, `laser_turret_fire`, `warning_beep`, `destruction`, `missile_launch`.", "",
         "`warning_beep` is available for future countdown polish; the other sound events are wired to the shared systems. No third-party audio is included.", "",
         "## Structures", "", "43 authored/generated binary templates: 19 furnished room roles (bedrooms, bunk rooms, lounges, mess halls, hydroponic farms, mining faces, workshops, labs and more) in north/south connector orientations, four hall/core modules and the surface entrance. Rooms use vanilla furniture with block entity data for bed colours. See `module_catalog.json`. Programmed overlays add doors, readers, controls, grids, shafts, escape route, turrets, the covering mountain and TNT demolition charges.", "",
         "## Other", "", "Both packs include an original 128×128 bunker icon and en_US names. Advanced control models, damaged turret models, directional animated doors, facility-specific palettes and cinematic particles are deferred."])
@@ -707,7 +812,7 @@ def main():
         "dependencies":[{"uuid":RP_UUID,"version":VERSION},{"module_name":"@minecraft/server","version":"2.0.0"},{"module_name":"@minecraft/server-ui","version":"2.0.0"}]})
     write(RP/"manifest.json",{"format_version":2,"header":{"name":"Secret Facilities RP","description":"Original industrial pixel art, turret model, effects and sounds","uuid":RP_UUID,"version":VERSION,"min_engine_version":[1,21,90]},
         "modules":[{"type":"resources","uuid":"071c689c-24f6-45d4-8aaa-4843be1664cf","version":VERSION}]})
-    textures();turret();door_leaf();sounds();structures();icon();asset_inventory()
-    print(f"Built {len(BLOCKS)} blocks, {len(ITEMS)} items, {2*len(ROOM_ROLES)+5} structure templates, turret, particles and 11 sounds.")
+    textures();turret();missile_turret();door_leaf();sounds();structures();icon();asset_inventory()
+    print(f"Built {len(BLOCKS)} blocks, {len(ITEMS)} items, {len(SPAWNABLE)} turret spawn eggs, {2*len(ROOM_ROLES)+5} structure templates, turrets, missile, particles and 12 sounds.")
 
 if __name__=="__main__":main()

@@ -20,7 +20,7 @@ test("lockdown access and evacuation overrides",()=>{
 test("target filter refuses players, passive, neutral, pets, and facilities",()=>{
   for(const type of ["player","cow","sheep","villager","villager_v2","wolf","cat","horse","iron_golem","enderman","spider","piglin","zombified_piglin"])
     assert.equal(isHostile("minecraft:"+type),false,type);
-  assert.equal(isHostile(ns+"laser_turret"),false);
+  for(const type of ["laser_turret","missile_turret","missile"])assert.equal(isHostile(ns+type),false,type);
   for(const type of ["zombie","skeleton","creeper","witch","pillager","phantom"])assert.equal(isHostile("minecraft:"+type),true,type);
   assert.equal(isHostile("minecraft:zombie",true),false);
 });

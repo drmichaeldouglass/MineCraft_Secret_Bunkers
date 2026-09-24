@@ -1,0 +1,32 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "secretfacilities:missile_turret",
+      "materials": {
+        "default": "entity_alphatest"
+      },
+      "textures": {
+        "default": "textures/entities/missile_turret"
+      },
+      "geometry": {
+        "default": "geometry.secretfacilities.missile_turret"
+      },
+      "animations": {
+        "aim": "animation.secretfacilities.turret.aim"
+      },
+      "scripts": {
+        "animate": [
+          "aim"
+        ]
+      },
+      "spawn_egg": {
+        "texture": "missile_turret_spawn_egg",
+        "texture_index": 0
+      },
+      "render_controllers": [
+        "controller.render.secretfacilities.turret"
+      ]
+    }
+  }
+}

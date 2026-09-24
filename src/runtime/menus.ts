@@ -22,11 +22,12 @@ function check(player:Player,f:Facility,pos:Vec,clearance:number):void {
 export function giveKit(player:Player):void {
   creative(player);const container=player.getComponent("minecraft:inventory")?.container;
   if(!container)throw Error("Inventory unavailable.");
-  for(const id of ["facility_deployment_device","facility_debug_scanner","keycard_green","keycard_blue","keycard_red","keycard_black","keycard_master"]){
+  for(const id of ["facility_deployment_device","facility_debug_scanner","keycard_green","keycard_blue","keycard_red","keycard_black","keycard_master",
+    "laser_turret_spawn_egg","missile_turret_spawn_egg"]){
     let found=false;for(let i=0;i<container.size;i++)if(container.getItem(i)?.typeId===NS+id)found=true;
     if(!found){const leftover=container.addItem(new ItemStack(NS+id));if(leftover)player.dimension.spawnItem(leftover,player.location);}
   }
-  tell(player,"Deployment device, scanner, and keycards supplied. Keep only the card you want to test in your inventory.");
+  tell(player,"Deployment device, scanner, keycards and turret spawn eggs supplied. Keep only the card you want to test in your inventory.");
 }
 export async function deployment(player:Player):Promise<void> {
   creative(player);

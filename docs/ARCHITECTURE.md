@@ -30,7 +30,7 @@ Dynamic-property ownership depends on the BP header UUID. Keep that UUID stable 
 
 ## Performance and interaction
 
-There are no world-wide block scans. Systems use registered positions and only process facilities near players. Door writes have a global budget; laser visuals are staggered and only rendered near a player. Turrets search locally, stagger scans, cache targets and use a one-second firing cooldown. In-game profiling is still required.
+There are no world-wide block scans. Systems use registered positions and only process facilities near players. Door writes have a global budget; laser visuals are staggered and only rendered near a player. Turrets search locally, stagger scans, cache targets and use a one-second firing cooldown. Turrets placed from spawn eggs (`src/runtime/placed.ts`) are found by a type-filtered search within 64 blocks of each player every two seconds; missile flight runs every tick, but only for missiles in the air. In-game profiling is still required.
 
 Menu actions recheck player position, dimension, current clearance and relevant live security state after responses or travel delays. A stale menu does not preserve authorization. Creative restrictions are checked when using development tools and again before deployment or debug mutations.
 
