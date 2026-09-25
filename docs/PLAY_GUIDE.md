@@ -6,7 +6,7 @@ Open `dist/Secret_Facilities_0.1.0.mcaddon` using Minecraft Bedrock 1.21.90+. Bo
 
 Use a Creative test world with cheats enabled. The device and scanner deliberately refuse Survival use. Normal keycards, readers, consoles, elevators and alarms are available in Survival after deployment.
 
-Get the starter kit with `/scriptevent secretfacilities:kit`, or use `/give @s secretfacilities:facility_deployment_device` and choose **Get development kit**. The kit includes the deployment device, debug scanner and all five keycards. Existing kit items are not duplicated; overflow is dropped nearby if the inventory is full.
+Get the starter kit with `/scriptevent secretfacilities:kit`, or use `/give @s secretfacilities:facility_deployment_device` and choose **Get development kit**. The kit includes the deployment device, debug scanner, all five keycards and spawn eggs for the laser and missile turrets. Existing kit items are not duplicated; overflow is dropped nearby if the inventory is full.
 
 ## Place a bunker
 
@@ -80,9 +80,20 @@ Red clearance changes the console's local command zone. Black clearance can chan
 
 Each shot is a solid, glowing red beam from the turret's muzzle to its target, with a flash and sparks where it hits.
 
-Turrets use a central conservative allowlist of hostile mob types. They ignore players, villagers, animals, pets, and facility entities. Neutral creatures, including spiders, are excluded because the current adapter cannot reliably establish their aggression. Walls block firing. There are no missile turrets or destructive turret explosions in this release.
+Turrets use a central conservative allowlist of hostile mob types. They ignore players, villagers, animals, pets, and facility entities. Neutral creatures, including spiders, are excluded because the current adapter cannot reliably establish their aggression. Walls block firing. No turret explosion breaks blocks.
 
 Turrets are real persistent entities with 80 health. A destroyed turret is not automatically respawned. Placing a turret mount or control block manually does not create a connected defence; functional systems are registered by the deployment process.
+
+## Placing your own turrets
+
+**Laser Turret** and **Missile Turret** spawn eggs are in the Creative inventory under Spawn Eggs, and in the development kit. You can also use `/give @s secretfacilities:laser_turret_spawn_egg` or `/give @s secretfacilities:missile_turret_spawn_egg`. Use the egg on a block to place the turret on top of it. Placed turrets work anywhere, with or without a bunker, and are always active; they use the same hostile-only target filter and need a player within 64 blocks to operate. They are not connected to any facility, so the consoles, zone modes and self-destruct do not control them. To remove one, destroy it (80 health for the laser, 120 for the missile turret).
+
+| Turret | Range | Reload | Damage |
+|---|---|---|---|
+| Laser | Up to 24 blocks | 1 second | 5 per shot |
+| Missile | 10 to 40 blocks | 3 seconds | Up to 14 in a 3.5-block blast, falling off with distance |
+
+The missile turret will not fire at anything closer than 10 blocks, so a mob that reaches it is safe from its own launcher; pair it with a laser turret for close defence. Each missile flies at 24 blocks a second with a smoke trail, steers gently after its target, and detonates on contact, within 1.5 blocks of the target, against a wall, or after three seconds. The blast is scripted: it breaks no blocks, starts no fires, and hurts only hostile mobs with a clear line to it, never players, pets, villagers or animals.
 
 ## Self-destruct
 
@@ -114,6 +125,6 @@ The Creative-only scanner displays facility ID, seed, bounds, floors and system 
 | Access seems unrestricted | Remove black/master cards from all inventory slots before testing lower cards |
 | Repeated alarms after reset | Disable grids or clear their beams before returning to NORMAL |
 | Elevator fails | Stand on the cyan pad; clear the destination pad; use the ladder if a floor is unloaded |
-| Turret does not fire | Check difficulty, hostile type, zone mode, range, line of sight, and whether the turret was destroyed |
+| Turret does not fire | Check difficulty, hostile type, zone mode, range, line of sight, and whether the turret was destroyed. A missile turret holds fire inside 10 blocks |
 
 Report the exact Minecraft version, content-log error, facility seed, and failing action. This package has not yet undergone in-game acceptance testing.

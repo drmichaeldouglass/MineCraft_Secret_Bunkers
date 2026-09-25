@@ -1,0 +1,28 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "secretfacilities:missile",
+      "materials": {
+        "default": "entity_alphatest"
+      },
+      "textures": {
+        "default": "textures/entities/missile"
+      },
+      "geometry": {
+        "default": "geometry.secretfacilities.missile"
+      },
+      "animations": {
+        "pitch": "animation.secretfacilities.missile.pitch"
+      },
+      "scripts": {
+        "animate": [
+          "pitch"
+        ]
+      },
+      "render_controllers": [
+        "controller.render.secretfacilities.turret"
+      ]
+    }
+  }
+}

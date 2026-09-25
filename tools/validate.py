@@ -93,12 +93,24 @@ def main():
             geometry=part.get("components",{}).get("minecraft:geometry")
             if isinstance(geometry,dict):geometry=geometry["identifier"]
             assert geometry is None or geometry.startswith("minecraft:") or geometry in block_models,(name,geometry)
+    # Every server entity needs a client entity, and a spawnable one needs its spawn egg icon.
+    clients={d["minecraft:client_entity"]["description"]["identifier"]:d["minecraft:client_entity"]["description"]
+             for n,d in parsed.items() if n.startswith("resource_pack/entity/")}
+    geometries={m["description"]["identifier"] for n,d in parsed.items() if n.startswith("resource_pack") and "/models/entity/" in n for m in d["minecraft:geometry"]}
+    eggs=0
+    for name,data in parsed.items():
+        if not (name.startswith("behavior_pack") and "/entities/" in name):continue
+        description=data["minecraft:entity"]["description"];identifier=description["identifier"]
+        client=clients[identifier];assert all(g in geometries for g in client["geometry"].values()),identifier
+        for texture in client["textures"].values():assert (RP/(texture+".png")).is_file(),(identifier,texture)
+        if description["is_spawnable"]:
+            assert client["spawn_egg"]["texture"] in items,identifier;eggs+=1
     for path in RP.rglob("*.png"):
         with Image.open(path) as image:image.verify()
     sound_defs=json.loads((RP/"sounds/sound_definitions.json").read_text())["sound_definitions"]
     for definition in sound_defs.values():
         for sound in definition["sounds"]:
             with wave.open(str(RP/(sound+".wav"))) as audio:assert audio.getnchannels()==1 and audio.getnframes()>0
-    print(f"Validated {len(files)} JSON files, {len(ids)} block/item IDs, {len(templates)} NBT structures, PNGs, sound files, imports and pack dependencies.")
+    print(f"Validated {len(files)} JSON files, {len(ids)} block/item IDs, {len(clients)} entities ({eggs} with spawn eggs), {len(templates)} NBT structures, PNGs, sound files, imports and pack dependencies.")
 
 if __name__=="__main__":main()

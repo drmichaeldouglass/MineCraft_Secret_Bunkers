@@ -1,13 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { blockAt, blocks, dimension, entities, explosions, finishBuild, particles, playerAt, players, properties, reset, system, terrain } from "./mock-server.mjs";
+import { blockAt, blocks, dimension, entities, explosions, finishBuild, particles, playerAt, players, properties, reset, sounds, system, terrain } from "./mock-server.mjs";
 import { planBunker } from "../behavior_pack/scripts/generation/planner.js";
 import { facilities, load, mark, save } from "../behavior_pack/scripts/runtime/store.js";
 import { build, MAX_CUT, MAX_FILL, originAt } from "../behavior_pack/scripts/runtime/generation.js";
 import { armDestruct, abortDestruct, ease, LEAF, requestDoor, restoreDoors, setSecurity, slid, SUBSTEPS, tickAlarms, tickDoors, travel } from "../behavior_pack/scripts/runtime/security.js";
 import { column, MOUNTAIN } from "../behavior_pack/scripts/generation/mountain.js";
 import { tickDefence } from "../behavior_pack/scripts/runtime/defence.js";
+import { MISSILE, tickMissiles, tickPlaced } from "../behavior_pack/scripts/runtime/placed.js";
 const ns="secretfacilities:",at=(x,y,z)=>blocks.get(`${x},${y},${z}`);
 // Rails and carpets are walked over, not into.
 const passable=b=>b&&(["minecraft:air","minecraft:ladder","minecraft:rail"].includes(b.typeId)||b.typeId.endsWith("_carpet")||b.states[ns+"open"]===true);
@@ -292,6 +293,48 @@ test("turret target selection, cooldown, line-of-sight and disabled state",()=>{
   f.zones.entrance="ACTIVE";const ray=dimension.getBlockFromRay;dimension.getBlockFromRay=()=>({block:{}});
   for(let i=0;i<30;i++){system.currentTick+=5;tickDefence();}assert.equal(zombie.damage,before);
   dimension.getBlockFromRay=ray;
+});
+test("turrets placed from spawn eggs defend on their own, missiles keep their minimum range and break nothing",()=>{
+  reset();facilities.clear();players.push(playerAt({x:0,y:81,z:-6}));
+  const tick=n=>{for(let i=0;i<n;i++){system.currentTick++;tickMissiles();if(system.currentTick%5===0)tickPlaced();}};
+  const spawn=(type,z,x=0.5)=>dimension.spawnEntity(type,{x,y:81,z});
+  const laser=spawn(ns+"laser_turret",0.5);
+  const cow=spawn("minecraft:cow",4),person=spawn("minecraft:player",5),zombie=spawn("minecraft:zombie",8);
+  tick(150);
+  assert.ok(zombie.damage>0,"A placed laser turret belongs to no facility but must still fire");
+  assert.equal(cow.damage,undefined);assert.equal(person.damage,undefined);
+  assert.ok(particles.some(p=>p.id===ns+"turret_beam"));
+  for(const e of [laser,cow,person,zombie])e.remove();
+  // Missile turret: a hostile inside the minimum range is left alone; nothing is launched at it.
+  const launcher=spawn(ns+"missile_turret",0.5),close=spawn("minecraft:zombie",0.5+MISSILE.minRange-2);
+  tick(100);
+  assert.equal(close.damage,undefined);assert.ok(!sounds.some(s=>s.id===ns+"missile_launch"),"Launched inside the minimum range");
+  close.remove();
+  const far=spawn("minecraft:zombie",20),villager=spawn("minecraft:villager_v2",21),bystander=spawn("minecraft:player",22);
+  let flew=false;
+  for(let i=0;i<200&&!far.damage;i++){tick(1);flew||=entities.some(e=>e.typeId===ns+"missile");}
+  assert.ok(flew,"No missile entity was launched");
+  assert.ok(far.damage>0,"The missile never reached its target");
+  assert.equal(far.hits[0].cause,"entityExplosion");assert.equal(far.hits[0].damagingEntity,launcher);
+  assert.equal(villager.damage,undefined);assert.equal(bystander.damage,undefined);
+  assert.equal(explosions.length,0,"Missile blasts must not break blocks");
+  assert.ok(sounds.some(s=>s.id==="random.explode"));
+  assert.ok(particles.some(p=>p.id===ns+"missile_exhaust")&&particles.some(p=>p.id===ns+"missile_smoke"));
+  tick(1);assert.equal(entities.filter(e=>e.typeId===ns+"missile").length,0,"The missile must be gone after it detonates");
+  // Reload: at most one launch every three seconds.
+  const launches=()=>sounds.filter(s=>s.id===ns+"missile_launch").length,before=launches();
+  tick(MISSILE.reload*3);assert.ok(launches()-before<=3,`${launches()-before} launches in ${MISSILE.reload*3} ticks`);
+  // A wall in the flight path stops the missile short, and the blast does not reach through to the target.
+  const ray=dimension.getBlockFromRay;
+  for(let i=0;i<200&&!entities.some(e=>e.typeId===ns+"missile");i++)tick(1);
+  assert.ok(entities.some(e=>e.typeId===ns+"missile"),"The turret stopped firing");
+  const damage=far.damage;
+  dimension.getBlockFromRay=(from)=>({block:{location:{x:0,y:81,z:Math.floor(from.z)+1}},faceLocation:{x:0.5,y:0.5,z:0}});
+  tick(2);dimension.getBlockFromRay=ray;
+  assert.equal(entities.filter(e=>e.typeId===ns+"missile").length,0,"The missile flew through a wall");
+  assert.equal(far.damage,damage,"The blast reached a target far beyond the wall");
+  // A missile left behind by a reload has no flight to finish and is cleared when a player comes near.
+  launcher.remove();const stray=spawn(ns+"missile",3);tick(45);assert.equal(stray.isValid,false);
 });
 test("the bunker is buried in a mountain with its portal and escape exit left open",()=>{
   const {f}=make(3),o=f.origin,rel=(x,y,z)=>blockAt(o.x+x,o.y+y,o.z+z).typeId;

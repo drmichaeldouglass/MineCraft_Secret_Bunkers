@@ -1,11 +1,21 @@
-import { EntityDamageCause, system, world, type Entity } from "@minecraft/server";
+import { EntityDamageCause, system, world, type Dimension, type Entity, type Vector2 } from "@minecraft/server";
 import { isHostile, defenceActive } from "../core/rules.js";
-import { add, distance, NS, type Facility, type Turret } from "../core/types.js";
+import { add, distance, NS, type Facility, type Turret, type Vec } from "../core/types.js";
 import { facilities, mark } from "./store.js";
 import { dim, lineClear, nearby, sound, turretBeam } from "./world.js";
 interface Tracking { target?:string; nextScan:number; nextShot:number; entity?:string }
 const cache=new Map<string,Tracking>();
-const allowed=(e:Entity):boolean=>e.isValid&&isHostile(e.typeId,e.getComponent("minecraft:tameable")?.isTamed??false);
+export const allowed=(e:Entity):boolean=>e.isValid&&isHostile(e.typeId,e.getComponent("minecraft:tameable")?.isTamed??false);
+/** Where turrets aim: the middle of a mob, not its feet. */
+export const aim=(e:Entity):Vec=>add(e.location,{x:0,y:1,z:0});
+/** Pitch and yaw that point an entity's front along a direction. */
+export const rotation=(v:Vec):Vector2=>({x:-Math.atan2(v.y,Math.hypot(v.x,v.z))*180/Math.PI,y:-Math.atan2(v.x,v.z)*180/Math.PI});
+/** The nearest valid target between the minimum and maximum range that the turret can see. */
+export function acquire(d:Dimension,source:Vec,range:number,minRange=0):Entity|undefined {
+  return d.getEntities({location:source,maxDistance:range}).filter(e=>allowed(e)&&distance(e.location,source)>=minRange)
+    .sort((a,b)=>distance(a.location,source)-distance(b.location,source))
+    .find(e=>lineClear(d,source,aim(e)));
+}
 function update(f:Facility,t:Turret):void {
   const key=`${f.id}:${t.id}`,d=dim(f);
   let tracking=cache.get(key);
@@ -23,18 +33,16 @@ function update(f:Facility,t:Turret):void {
   if(target&&(!allowed(target)||target.dimension.id!==f.dimension||distance(target.location,source)>range))target=undefined;
   if(!target&&system.currentTick>=tracking.nextScan){
     tracking.nextScan=system.currentTick+40;
-    target=d.getEntities({location:source,maxDistance:range}).filter(allowed)
-      .sort((a,b)=>distance(a.location,source)-distance(b.location,source))
-      .find(e=>lineClear(d,source,add(e.location,{x:0,y:1,z:0})));
+    target=acquire(d,source,range);
   }
   tracking.target=target?.id;
   if(!target)return;
-  const aim=add(target.location,{x:0,y:1,z:0}),delta={x:aim.x-source.x,y:aim.y-source.y,z:aim.z-source.z};
-  entity.setRotation({x:-Math.atan2(delta.y,Math.hypot(delta.x,delta.z))*180/Math.PI,y:-Math.atan2(delta.x,delta.z)*180/Math.PI});
+  const to=aim(target);
+  entity.setRotation(rotation({x:to.x-source.x,y:to.y-source.y,z:to.z-source.z}));
   if(system.currentTick<tracking.nextShot)return;
-  if(!lineClear(d,source,aim)){tracking.target=undefined;return;}
+  if(!lineClear(d,source,to)){tracking.target=undefined;return;}
   tracking.nextShot=system.currentTick+20;
-  turretBeam(d,source,aim);
+  turretBeam(d,source,to);
   target.applyDamage(5,{cause:EntityDamageCause.entityAttack,damagingEntity:entity});
   sound(f,"laser_turret_fire",source,0.3);
 }

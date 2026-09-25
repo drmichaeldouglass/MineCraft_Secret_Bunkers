@@ -44,7 +44,7 @@ Original generated assets shipped in 0.1.0. All visual/audio entries still requi
 | `secretfacilities:turret_control_console` | Block | Shared interaction component; functional at registered positions | Original 32×32 | Full cube; invisible open-door geometry where needed | None | Vanilla placement; shared interaction sounds |
 | `secretfacilities:turret_power_unit` | Block | Construction palette; available in Creative | Original 32×32 | Full cube; invisible open-door geometry where needed | None | Vanilla placement; shared interaction sounds |
 | `secretfacilities:laser_turret_mount` | Block | Construction palette; available in Creative | Original 32×32 | Full cube; invisible open-door geometry where needed | None | Vanilla placement; shared interaction sounds |
-| `secretfacilities:missile_turret_base` | Block | Construction block only; missile system deferred | Original 32×32 | Full cube; invisible open-door geometry where needed | None | Vanilla placement; shared interaction sounds |
+| `secretfacilities:missile_turret_base` | Block | Construction block; the missile turret itself is an entity placed from its spawn egg | Original 32×32 | Full cube; invisible open-door geometry where needed | None | Vanilla placement; shared interaction sounds |
 | `secretfacilities:defence_status_panel` | Block | Construction palette; available in Creative | Original 32×32 | Full cube; invisible open-door geometry where needed | None | Vanilla placement; shared interaction sounds |
 | `secretfacilities:blast_door` | Block | Generated doors / shutters | Original 32×32 | Full cube; invisible open-door geometry where needed | Split leaves slide apart as an entity; blocks provide collision | Vanilla placement; shared interaction sounds |
 | `secretfacilities:security_door` | Block | Generated doors / shutters | Original 32×32 | Full cube; invisible open-door geometry where needed | Scripted 2-pixel block retraction | Vanilla placement; shared interaction sounds |
@@ -63,18 +63,21 @@ Original generated assets shipped in 0.1.0. All visual/audio entries still requi
 
 | Identifier | Type | Implementation | Texture | Model | Animation | Sound |
 |---|---|---|---|---|---|---|
-| `secretfacilities:laser_turret` | Entity | Hostile-only laser defence; entrance and command zones | Original 64×64 atlas | Six named bones | Scripted entity rotation and pitch bone; game verification pending | Synthesized firing pulse |
+| `secretfacilities:laser_turret` | Entity | Hostile-only laser defence; entrance and command zones, or placed anywhere from its spawn egg | Original 64×64 atlas; 32×32 spawn egg icon | Six named bones | Scripted entity rotation and pitch bone; game verification pending | Synthesized firing pulse |
+| `secretfacilities:missile_turret` | Entity | Hostile-only heavy defence placed from its spawn egg; 10-block minimum and 40-block maximum range, 3-second reload | Original 64×64 atlas; 32×32 spawn egg icon | Five named bones: base, pedestal, pod, four tubes, radar | Shared scripted rotation and pitch bone; game verification pending | Synthesized launch roar |
+| `secretfacilities:missile` | Entity | Scripted missile: steers toward its target, detonates on contact, near the target or at a wall, and damages hostile mobs only without breaking blocks | Original 32×32 atlas | Body, nose, fins and exhaust | Pitch bone follows the flight path | Vanilla explosion on impact |
 | `secretfacilities:blast_door_leaf` | Entity | Two blast door leaves that part at a central seam and slide sideways into the wall, present only while the entrance door travels | Shared blast door texture | Two bones of block-column cubes | Client-eased slide driven by a synced property | Blast door sounds |
 | `secretfacilities:turret_beam` | Particle | Turret shot: one emitter draws a solid glowing beam from muzzle to target | Original 16×16 soft glow, additive, unlit | Dense billboards placed along the shot | 0.32-second fade | Shared firing pulse |
 | `secretfacilities:laser_beam` | Particle | Tripwire grids | Original 8×8 white mask, tinted red | Billboard | 0.22-second particle lifetime | None |
 | `secretfacilities:laser_impact` | Particle | Hit flash and sparks | Shared soft glow, additive | Billboards with gravity | Up to 0.45 seconds | Shared firing pulse |
-| Missile turret / projectile | Planned | Not shipped | Deferred | Deferred | Deferred | Deferred |
+| `secretfacilities:missile_exhaust` | Particle | Missile flame at the tail, emitted every tick of flight | Shared soft glow, additive | Billboards | 0.15 seconds | None |
+| `secretfacilities:missile_smoke` | Particle | Missile smoke trail that lingers and rises | Shared soft glow, blended grey | Growing billboards | Up to 1.4 seconds | None |
 
 ## Audio
 
-Eleven original mono WAV assets are mapped through `resource_pack/sounds/sound_definitions.json`.
+Twelve original mono WAV assets are mapped through `resource_pack/sounds/sound_definitions.json`.
 
-`access_granted`, `access_denied`, `alarm_alert`, `alarm_lockdown`, `blast_door_movement`, `blast_door_warning`, `elevator_move`, `elevator_arrive`, `laser_turret_fire`, `warning_beep`, `destruction`.
+`access_granted`, `access_denied`, `alarm_alert`, `alarm_lockdown`, `blast_door_movement`, `blast_door_warning`, `elevator_move`, `elevator_arrive`, `laser_turret_fire`, `warning_beep`, `destruction`, `missile_launch`.
 
 `warning_beep` is available for future countdown polish; the other sound events are wired to the shared systems. No third-party audio is included.
 

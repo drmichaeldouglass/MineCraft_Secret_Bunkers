@@ -20,6 +20,10 @@
           "aim"
         ]
       },
+      "spawn_egg": {
+        "texture": "laser_turret_spawn_egg",
+        "texture_index": 0
+      },
       "render_controllers": [
         "controller.render.secretfacilities.turret"
       ]

@@ -14,8 +14,8 @@ The source plan explicitly prioritizes a smaller reliable bunker and staged shar
 | Doors | Stateful multi-block doors; entrance blast door whose two leaves part at a seam and slide sideways; 2-pixel, per-tick slide for room doors and shutters; reader clearance, obstruction handling | Articulated locking assemblies, distinct open/close sound layers |
 | Elevators | Clearance-controlled transfer pads with a rumbling ride, per-deck callouts, fade transfer, safe destination checks, emergency ladder | Cabin doors, physical shaft travel, freight variants |
 | Security | Horizontal/vertical grids, alert/lockdown, sirens, flashing lights, shutters | Local-response configuration UI; alarm/status console texture permutations |
-| Defence | Laser entity/model, aiming, solid glowing beam, local searches, cached targets, LOS, cooldown, modes, two zones | Native aggression adapter for neutral mobs, field performance measurements, richer animation/damage visuals |
-| Missiles | Construction base block only | Missile entity/projectile, minimum range, launch/reload, safe impact, tests |
+| Defence | Laser entity/model, aiming, solid glowing beam, local searches, cached targets, LOS, cooldown, modes, two zones; laser and missile turrets placeable anywhere from spawn eggs | Native aggression adapter for neutral mobs, field performance measurements, richer animation/damage visuals |
+| Missiles | Missile turret entity and model, placed from its spawn egg; scripted missile with gentle homing, 10-block minimum range, 3-second reload, contact/proximity/wall detonation, hostile-only blast with no block damage; smoke and flame trail; tests | Missile turrets in generated facilities and their zone controls; in-game verification of flight and models |
 | Escape | B1 tunnel, climbable exit shaft, surface utility hut | Terrain-aware remote exits and alternative escape modules |
 | Self-destruct | Two confirmations, countdown/abort, final turret cutoff, TNT charges around every floor, floor-by-floor demolition with real explosions, sealed portal, destroyed state | Mountain collapse; demolition of the escape route after evacuation |
 | Persistence | Per-facility two-bank snapshots; saved build step, doors, floors, zones, countdown, turret state | Migration beyond schema 1, transactional rollback of terrain |
@@ -33,7 +33,7 @@ Rooms are furnished with working vanilla beds, containers, workstations, crops a
 
 1. Complete the in-game acceptance checklist and repair any content-log errors.
 2. Improve terrain integration, door/elevator presentation and module variety.
-3. Implement and validate the minimum-range missile turret independently.
+3. Validate the missile turret in game, then add it to generated facilities with zone controls.
 4. Reuse the shared systems in the Fortified Estate.
 5. Add natural generation after templates and site selection are stable.
 6. Expand through the other facility stages in the supplied plan.
