@@ -23,14 +23,16 @@ export const MIN_COVER = -3, MAX_RISE = 30;
 export const JUNCTION = { x: 13, z: 38 };
 /** Legs longer than this are carved as separate pieces, so no single build step is too heavy. */
 const PIECE = 12;
-/** Remote sites the survey considers: three distances in each direction away from the entrance.
- *  Every site is clear of the mountain, so the two never touch. */
-export function exitCandidates() {
-    return [0, 1, 2].flatMap(rank => [
+/** Remote sites the survey considers: several distances in each direction away from the entrance.
+ *  With the defaults every site is already clear of the bunker's mountain; a facility with a wider
+ *  footprint looks farther out and drops the sites whose levelled square would touch it. */
+export function exitCandidates(search = { ranks: 3 }) {
+    const c = search.clear;
+    return [...Array(search.ranks).keys()].flatMap(rank => [
         { heading: "south", x: 13, z: 50 + rank * 8, rank },
         { heading: "east", x: 46 + rank * 8, z: JUNCTION.z, rank },
         { heading: "west", x: -20 - rank * 8, z: JUNCTION.z, rank },
-    ]);
+    ]).filter(s => !c || s.x + SITE < c.x0 || s.x - SITE > c.x1 || s.z + SITE < c.z0 || s.z - SITE > c.z1);
 }
 /** Columns sampled over an exit site, every two blocks across the levelled square. */
 export function siteColumns(c) {

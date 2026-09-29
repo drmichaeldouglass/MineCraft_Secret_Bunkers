@@ -3,6 +3,8 @@ import { isHostile, defenceActive } from "../core/rules.js";
 import { add, distance, NS, type Facility, type Turret, type Vec } from "../core/types.js";
 import { facilities, mark } from "./store.js";
 import { dim, lineClear, nearby, sound, turretBeam } from "./world.js";
+/** Zones defending the outside of a facility get the long exterior range; the rest are interior. */
+const EXTERIOR=new Set(["entrance","gate","perimeter"]);
 interface Tracking { target?:string; nextScan:number; nextShot:number; entity?:string }
 const cache=new Map<string,Tracking>();
 export const allowed=(e:Entity):boolean=>e.isValid&&isHostile(e.typeId,e.getComponent("minecraft:tameable")?.isTamed??false);
@@ -28,7 +30,7 @@ function update(f:Facility,t:Turret):void {
     if(!entity)return;tracking.entity=entity.id;
   }
   if(t.damaged||!t.enabled||!defenceActive(f.zones[t.zone],f.state,f.countdown)){tracking.target=undefined;return;}
-  const source=add(entity.location,{x:0,y:0.95,z:0}),range=t.zone==="entrance"?28:16;
+  const source=add(entity.location,{x:0,y:0.95,z:0}),range=EXTERIOR.has(t.zone)?28:16;
   let target=tracking.target?world.getEntity(tracking.target):undefined;
   if(target&&(!allowed(target)||target.dimension.id!==f.dimension||distance(target.location,source)>range))target=undefined;
   if(!target&&system.currentTick>=tracking.nextScan){

@@ -14,6 +14,8 @@ Floor topology is currently a fixed connected three-by-three module grid, with a
 
 `.mcstructure` files are uncompressed little-endian NBT with primary and secondary block-index layers, palettes, state values and origin. A primary index of −1 is a structure void, which places nothing; tunnel exits use it to keep the levelled ground around them. Assets are authored by `tools/build_assets.py`, decoded independently by `tools/validate.py`, and assembled in the simulated-world tests. No binary placeholder files are shipped.
 
+The fortified estate (`src/generation/estate.ts`) is a second facility type built from the same parts: `planner.ts` exports the underground floors and the secret tunnel, and the estate adds its compound, mansion and outbuildings as sized modules under `secretfacilities:estate/`. Its mansion stands on the bunker's surface coordinates so the shared lift and ladder need no special case. The runtime chooses the pad, survey footprint, grounds (walls, fence, paths, hedges, beds), surface demolition and exit search by facility type. The bunker's build steps, and so the resume step of saved bunkers, are unchanged.
+
 ## Placement and recovery
 
 The generator uses [StructureManager placement](https://learn.microsoft.com/en-us/minecraft/creator/scriptapi/minecraft/server/structuremanager?view=minecraft-bedrock-stable), followed by explicit door/control/light/shaft/turret installation operations. It checks loaded chunks, world-height bounds and registered-facility overlap. Operations are paced at two-tick intervals. The saved build step makes interrupted builds resumable; there is no terrain undo transaction.

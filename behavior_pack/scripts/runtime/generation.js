@@ -3,9 +3,14 @@ import { add, intersects, NS } from "../core/types.js";
 import { FLOOR_STEP, MODULE } from "../generation/planner.js";
 import { column, MOUNTAIN, PAD, PEAK, rearExit } from "../generation/mountain.js";
 import { chooseExit, EXIT_FILL, exitCandidates, EXITS, routeColumns, SITE, siteColumns } from "../generation/tunnel.js";
+import { COMPOUND, DRIVE, ESTATE_PAD, ESTATE_SEARCH, WALL_HEIGHT } from "../generation/estate.js";
 import { facilities, mark, save } from "./store.js";
 import { dim, fill, loaded, report, set, tell } from "./world.js";
 const active = new Set();
+const PAUSED = "Build paused because its chunks unloaded. Return here and use Resume in the deployment device.";
+/** The ground a facility levels: the bunker's pad, or the estate's compound and its margin. */
+const padOf = (f) => f.type === "estate" ? ESTATE_PAD : PAD;
+const within = (b, x, z) => x >= b.x0 && x <= b.x1 && z >= b.z0 && z <= b.z1;
 /** Ground may rise or fall this far from the chosen surface level; earthworks cut and fill it
  *  to a level pad, so no floor surfaces through a hillside. Columns are sampled every few blocks. */
 export const MAX_CUT = 12, MAX_FILL = 12;
@@ -69,7 +74,6 @@ function installations(f) {
     });
     return [...ops, ...fittings(f)];
 }
-const PAUSED = "Build paused because its chunks unloaded. Return here and use Resume in the deployment device.";
 /** The secret tunnel to a remote exit: the exit site levelled, then sealed and lined pieces and their
  *  open interiors, then the exit's shaft, its structure and the ladder up through it all. */
 function tunnel(f) {
@@ -155,11 +159,11 @@ function earthworks(f) {
     // Facilities deployed before levelling existed resume their build without it.
     if (!f.ground)
         return [];
-    const d = dim(f), o = f.origin, y = o.y, [top, under] = padMaterial(f.ground), ops = [];
-    const x0 = o.x + PAD.x0, x1 = o.x + PAD.x1, z1 = o.z + PAD.z1;
+    const d = dim(f), o = f.origin, y = o.y, [top, under] = padMaterial(f.ground), ops = [], pad = padOf(f);
+    const x0 = o.x + pad.x0, x1 = o.x + pad.x1, z1 = o.z + pad.z1;
     // The pad's margin may reach unloaded chunks; those edges are simply left as they are.
     const edge = { ignoreChunkBoundErrors: true };
-    for (let z = o.z + PAD.z0; z <= z1; z += PAD_BAND) {
+    for (let z = o.z + pad.z0; z <= z1; z += PAD_BAND) {
         const zb = Math.min(z + PAD_BAND - 1, z1);
         ops.push(() => {
             d.fillBlocks(new BlockVolume({ x: x0, y: y + 1, z }, { x: x1, y: y + CLEAR_HEIGHT, z: zb }), "minecraft:air", edge);
@@ -167,6 +171,14 @@ function earthworks(f) {
             d.fillBlocks(new BlockVolume({ x: x0, y, z }, { x: x1, y, z: zb }), top, edge);
         });
     }
+    // The estate is deployed from where its forecourt will be; a builder standing below the new
+    // ground would be buried by the fill, so anyone there is lifted onto it.
+    if (f.type === "estate")
+        ops.push(() => {
+            for (const player of world.getAllPlayers())
+                if (player.dimension.id === f.dimension && within(pad, Math.floor(player.location.x) - o.x, Math.floor(player.location.z) - o.z) && player.location.y < y + 1)
+                    player.tryTeleport({ ...player.location, y: y + 1 });
+        });
     return ops;
 }
 /** Solid rock around every underground slab, so no floor can surface through a hillside.
@@ -179,7 +191,8 @@ function encasement(f) {
             ops.push(() => fill(d, { x: o.x - 2, y: floor.y, z: z0 }, { x: o.x + span + 2, y: top, z: z1 }, "minecraft:stone"));
         }
     // Ground the entrance forecourt so it never juts out over a slope.
-    ops.push(() => fill(d, { x: o.x + 6, y: o.y - 4, z: o.z - 4 }, { x: o.x + 20, y: o.y - 1, z: o.z - 1 }, "minecraft:stone"));
+    if (f.type === "bunker")
+        ops.push(() => fill(d, { x: o.x + 6, y: o.y - 4, z: o.z - 4 }, { x: o.x + 20, y: o.y - 1, z: o.z - 1 }, "minecraft:stone"));
     return ops;
 }
 /** Ground cover the mountain's skirts may bury, besides air and liquids. */
@@ -189,7 +202,7 @@ const COVERABLE = [...LOOSE, "minecraft:short_grass", "minecraft:tall_grass", "m
  *  column is built from just above the ground or a structure's roof; beyond it the skirts are only
  *  laid into air and water, so they drape over the surrounding terrain instead of cutting it. */
 function mountain(f) {
-    if (!f.charges)
+    if (!f.charges || f.type !== "bunker")
         return [];
     const d = dim(f), o = f.origin, [top, under] = padMaterial(f.ground ?? "minecraft:grass_block"), ops = [];
     const core = under === "minecraft:dirt" ? "minecraft:stone" : under, edge = { ignoreChunkBoundErrors: true };
@@ -239,9 +252,63 @@ function charges(f) {
     return [() => {
             for (const c of f.charges)
                 set(d, c, "minecraft:tnt");
-            for (const x of [5, 21])
-                set(d, add(o, { x, y: 6, z: -3 }), "floodlight");
+            if (f.type === "bunker")
+                for (const x of [5, 21])
+                    set(d, add(o, { x, y: 6, z: -3 }), "floodlight");
         }];
+}
+/** Surface vegetation that tolerates each levelled ground: flowers on soil, dead bushes on sand. */
+const PLANTS = { "minecraft:grass_block": ["minecraft:poppy", "minecraft:dandelion", "minecraft:cornflower"],
+    "minecraft:dirt": ["minecraft:poppy", "minecraft:dandelion"], "minecraft:podzol": ["minecraft:fern"], "minecraft:sand": ["minecraft:deadbush"], "minecraft:red_sand": ["minecraft:deadbush"] };
+/** The estate's grounds on the levelled pad: perimeter wall with a security fence and floodlights,
+ *  the driveway, hedges, flower beds and garden paths. Laid before the buildings, so the gate pillars
+ *  stand over the wall, and before the fittings, which set the gate's blast door into it. */
+function grounds(f) {
+    if (f.type !== "estate")
+        return [];
+    const d = dim(f), o = f.origin, p = (x, y, z) => add(o, { x, y, z }), C = COMPOUND, ops = [];
+    const [top] = padMaterial(f.ground ?? "minecraft:grass_block"), plants = PLANTS[top] ?? [];
+    const sides = [[p(C.x0, 0, C.z0), p(C.x1, 0, C.z0)], [p(C.x0, 0, C.z1), p(C.x1, 0, C.z1)], [p(C.x0, 0, C.z0), p(C.x0, 0, C.z1)], [p(C.x1, 0, C.z0), p(C.x1, 0, C.z1)]];
+    for (const [a, b] of sides)
+        ops.push(() => {
+            fill(d, add(a, { x: 0, y: 1, z: 0 }), add(b, { x: 0, y: 1, z: 0 }), "dark_reinforced_concrete");
+            fill(d, add(a, { x: 0, y: 2, z: 0 }), add(b, { x: 0, y: WALL_HEIGHT, z: 0 }), "light_reinforced_concrete");
+            fill(d, add(a, { x: 0, y: WALL_HEIGHT + 1, z: 0 }), add(b, { x: 0, y: WALL_HEIGHT + 1, z: 0 }), "minecraft:iron_bars");
+        });
+    ops.push(() => {
+        for (let x = C.x0 + 4; x < C.x1; x += 12)
+            for (const z of [C.z0, C.z1])
+                set(d, p(x, WALL_HEIGHT + 1, z), "floodlight");
+        for (let z = C.z0 + 10; z < C.z1; z += 12)
+            for (const x of [C.x0, C.x1])
+                set(d, p(x, WALL_HEIGHT + 1, z), "floodlight");
+    });
+    ops.push(() => {
+        // The driveway runs from outside the gate to the mansion's front door, between hedges.
+        fill(d, p(DRIVE.x0, 0, C.z0 - 2), p(DRIVE.x1, 0, 1), "minecraft:smooth_stone");
+        const leaves = { persistent_bit: true, update_bit: false };
+        for (let z = C.z0 + 2; z <= -17; z++)
+            for (const x of [DRIVE.x0 - 1, DRIVE.x1 + 1])
+                if (x < DRIVE.x1 || z < -26 || z > -24)
+                    set(d, p(x, 1, z), "minecraft:oak_leaves", leaves);
+        // A paved yard before the garage bays, a path to the gatehouse door, and paths through the back garden.
+        fill(d, p(-7, 0, -24), p(DRIVE.x0 - 2, 0, -10), "minecraft:smooth_stone");
+        fill(d, p(DRIVE.x1 + 1, 0, -25), p(18, 0, -25), "minecraft:smooth_stone");
+        fill(d, p(12, 0, 24), p(14, 0, 39), "minecraft:smooth_stone");
+        fill(d, p(15, 0, 32), p(26, 0, 33), "minecraft:smooth_stone");
+    });
+    if (plants.length)
+        ops.push(() => {
+            for (let x = -20; x <= 6; x++)
+                for (let z = -8; z <= -2; z++)
+                    if ((x + z) % 2 === 0)
+                        set(d, p(x, 1, z), plants[Math.abs(x * 3 + z) % plants.length]);
+            for (let x = 32; x <= 46; x++)
+                for (let z = -8; z <= -2; z++)
+                    if ((x + z) % 2 === 0)
+                        set(d, p(x, 1, z), plants[Math.abs(x + z * 5) % plants.length]);
+        });
+    return ops;
 }
 export function build(f, player) {
     if (player.getGameMode() !== GameMode.Creative)
@@ -255,7 +322,7 @@ export function build(f, player) {
             throw Error("Another facility overlaps this site. Move farther away.");
     const d = dim(f);
     // The mountain's skirts may run into unloaded chunks; the pad itself must be loaded.
-    const corners = [PAD.x0, PAD.x1].flatMap(x => [PAD.z0, PAD.z1].map(z => add(f.origin, { x, y: 0, z })));
+    const pad = padOf(f), corners = [pad.x0, pad.x1].flatMap(x => [pad.z0, pad.z1].map(z => add(f.origin, { x, y: 0, z })));
     if (!rearExit(f)) {
         const l = f.exit.ladder;
         for (const dx of [-SITE, SITE])
@@ -269,11 +336,12 @@ export function build(f, player) {
     save(f);
     active.add(f.id);
     // Level ground, then rock, then modules carved into it, then fittings, then the mountain over it all.
-    const ops = [...earthworks(f), ...encasement(f)];
+    const ops = [...earthworks(f), ...encasement(f), ...grounds(f)];
     ops.push(...f.modules.map(m => () => {
-        if (!loaded(d, m.pos) || !loaded(d, add(m.pos, { x: m.template === "entrance" ? 14 : MODULE - 1, y: m.template === "entrance" ? 8 : 6, z: m.template === "entrance" ? 21 : MODULE - 1 })))
-            throw Error("Build paused because its chunks unloaded. Return here and use Resume in the deployment device.");
-        world.structureManager.place(NS + "bunker/" + m.template, d, m.pos, { includeEntities: false });
+        const size = m.size ?? (m.template === "entrance" ? { x: 15, y: 9, z: 22 } : { x: MODULE, y: 7, z: MODULE });
+        if (!loaded(d, m.pos) || !loaded(d, add(m.pos, { x: size.x - 1, y: size.y - 1, z: size.z - 1 })))
+            throw Error(PAUSED);
+        world.structureManager.place(NS + (m.template.includes("/") ? m.template : "bunker/" + m.template), d, m.pos, { includeEntities: false });
     }));
     ops.push(...installations(f), ...mountain(f), ...charges(f));
     const task = system.runInterval(() => {
@@ -285,7 +353,8 @@ export function build(f, player) {
                 system.clearRun(task);
                 // Messaging a departed player throws; a finished build must not fall into the failure path.
                 if (player.isValid)
-                    tell(player, `§aBunker ready: ${f.id}. Entrance faces north (−Z). Use the outside reader with a keycard.`);
+                    tell(player, f.type === "estate" ? `§aEstate ready: ${f.id}. The gate faces north (−Z); use its reader with a keycard, then the reader at the mansion's front door.`
+                        : `§aBunker ready: ${f.id}. Entrance faces north (−Z). Use the outside reader with a keycard.`);
                 return;
             }
             ops[f.buildStep]();
@@ -354,16 +423,8 @@ function floorAt(d, x, z) {
 /** Measure the footprint and choose the surface level closest to the entrance ground that the
  *  earthworks can reach everywhere. Only ground too steep to level, or water standing above
  *  the pad where it would flood the entrance, is refused. */
-function survey(d, origin) {
+function survey(d, origin, columns, what = "bunker") {
     let low = Infinity, high = -Infinity, unknown = 0, liquid = -Infinity;
-    const columns = [];
-    for (let x = 0; x <= 3 * MODULE - 1; x += SURVEY_STEP)
-        for (let z = -4; z <= 3 * MODULE - 1; z += SURVEY_STEP)
-            columns.push([x, z]);
-    // The escape hut stands behind the footprint; a rise there would bury its exit.
-    for (const x of [11, 15])
-        for (const z of [31, 36])
-            columns.push([x, z]);
     for (const [x, z] of columns) {
         const column = floorAt(d, origin.x + x, origin.z + z);
         if (!column) {
@@ -378,7 +439,7 @@ function survey(d, origin) {
     if (unknown > 2)
         throw Error("The site is not fully loaded yet. Stand in the middle of it, wait a moment, then try again.");
     if (high - low > MAX_CUT + MAX_FILL)
-        throw Error(`This site rises and falls ${high - low} blocks across the footprint. The bunker can level up to ${MAX_CUT + MAX_FILL}; try gentler ground.`);
+        throw Error(`This site rises and falls ${high - low} blocks across the footprint. The ${what} can level up to ${MAX_CUT + MAX_FILL}; try gentler ground.`);
     const level = Math.min(Math.max(origin.y, high - MAX_CUT), low + MAX_FILL);
     if (liquid > level)
         throw Error("Water or lava on this site sits above ground level and would flood the entrance. Move away from it.");
@@ -392,23 +453,50 @@ export function originAt(player) {
     const ground = groundAt(player.dimension, x, z);
     if (!ground || ground.isLiquid)
         throw Error("Choose dry land for the main entrance.");
-    const { level, cut, fill } = survey(player.dimension, { x: x - 13, y: ground.location.y, z });
+    const columns = [];
+    for (let x = 0; x <= 3 * MODULE - 1; x += SURVEY_STEP)
+        for (let z = -4; z <= 3 * MODULE - 1; z += SURVEY_STEP)
+            columns.push([x, z]);
+    // The rock-face exit's hut stands behind the footprint; a rise there would bury its exit.
+    for (const x of [11, 15])
+        for (const z of [31, 36])
+            columns.push([x, z]);
+    const { level, cut, fill } = survey(player.dimension, { x: x - 13, y: ground.location.y, z }, columns);
     return { origin: { x: x - 13, y: level, z }, ground: ground.typeId, cut, fill };
 }
-/** Survey the remote exit sites around a planned bunker and choose where its escape tunnel comes up. */
-export function exitSite(d, origin, seed, preference) {
+/** Where the estate's forecourt sits relative to its origin: the player deploys from here, just
+ *  inside where the gate will be, with the mansion ahead to the south. */
+export const FORECOURT = { x: 13, z: -15 };
+/** The estate is centred on its forecourt at the player's feet. Its whole walled compound is
+ *  surveyed and levelled like the bunker's pad. */
+export function estateOriginAt(player) {
+    if (player.dimension.id !== "minecraft:overworld")
+        throw Error("Choose an Overworld surface site.");
+    const x = Math.floor(player.location.x), z = Math.floor(player.location.z), ground = groundAt(player.dimension, x, z);
+    if (!ground || ground.isLiquid)
+        throw Error("Choose dry land for the estate.");
+    const o = { x: x - FORECOURT.x, y: ground.location.y, z: z - FORECOURT.z }, columns = [];
+    for (let cx = COMPOUND.x0; cx <= COMPOUND.x1; cx += 6)
+        for (let cz = COMPOUND.z0; cz <= COMPOUND.z1; cz += 6)
+            columns.push([cx, cz]);
+    const { level, cut, fill } = survey(player.dimension, o, columns, "estate");
+    return { origin: { ...o, y: level }, ground: ground.typeId, cut, fill };
+}
+/** Survey the remote exit sites around a planned facility and choose where its escape tunnel comes up. */
+export function exitSite(d, origin, seed, preference, type = "bunker") {
     if (preference === "rock_face")
         return { kind: "rock_face" };
-    const inPad = (x, z) => x >= PAD.x0 && x <= PAD.x1 && z >= PAD.z0 && z <= PAD.z1;
-    const surveys = exitCandidates().map(c => {
+    // The levelled pad, and a bunker's mountain skirts, bury the tunnel wherever they reach.
+    const covered = type === "estate" ? (x, z) => within(ESTATE_PAD, x, z) : (x, z) => within(PAD, x, z) || column(seed, x, z, false).top > 0;
+    const surveys = exitCandidates(type === "estate" ? ESTATE_SEARCH : undefined).map(c => {
         const samples = siteColumns(c).map(([x, z]) => {
             const at = floorAt(d, origin.x + x, origin.z + z);
             return at && { floor: at.floor, liquid: at.liquid !== undefined, ground: at.ground, canopy: at.canopy };
         });
-        // The pad and the mountain's skirts bury the tunnel wherever they reach; elsewhere the ground must.
+        // Elsewhere the ground over the tunnel must keep it buried.
         let routeLow = Infinity;
         for (const [x, z] of routeColumns(c)) {
-            if (inPad(x, z) || column(seed, x, z, false).top > 0)
+            if (covered(x, z))
                 continue;
             routeLow = Math.min(routeLow, floorAt(d, origin.x + x, origin.z + z)?.floor ?? -Infinity);
         }

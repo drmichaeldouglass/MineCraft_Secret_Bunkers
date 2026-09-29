@@ -1,5 +1,6 @@
 import { add, type Bounds, type Door, type Exit, type ExitKind, type Heading, type Laser, type Passage, type Turret, type Vec } from "../core/types.js";
 import { random } from "../core/rules.js";
+import type { Box } from "./mountain.js";
 /** Secret escape tunnels: a lined service tunnel from a facility's lowest-security deck to a
  *  remote surface exit. Pure and seeded; the runtime surveys the candidate sites and builds the
  *  chosen one. All coordinates are relative to the facility origin, y relative to its surface pad. */
@@ -32,14 +33,18 @@ export const JUNCTION = { x: 13, z: 38 };
 const PIECE = 12;
 
 export interface Candidate { heading: Heading; x: number; z: number; rank: number }
-/** Remote sites the survey considers: three distances in each direction away from the entrance.
- *  Every site is clear of the mountain, so the two never touch. */
-export function exitCandidates(): Candidate[] {
-  return [0, 1, 2].flatMap(rank => [
+/** How far out a facility looks for exit sites, and the ground a site must stay clear of. */
+export interface ExitSearch { ranks: number; clear?: Box }
+/** Remote sites the survey considers: several distances in each direction away from the entrance.
+ *  With the defaults every site is already clear of the bunker's mountain; a facility with a wider
+ *  footprint looks farther out and drops the sites whose levelled square would touch it. */
+export function exitCandidates(search: ExitSearch = { ranks: 3 }): Candidate[] {
+  const c = search.clear;
+  return [...Array(search.ranks).keys()].flatMap(rank => [
     { heading: "south" as const, x: 13, z: 50+rank*8, rank },
     { heading: "east" as const, x: 46+rank*8, z: JUNCTION.z, rank },
     { heading: "west" as const, x: -20-rank*8, z: JUNCTION.z, rank },
-  ]);
+  ]).filter(s => !c || s.x+SITE < c.x0 || s.x-SITE > c.x1 || s.z+SITE < c.z0 || s.z-SITE > c.z1);
 }
 /** Columns sampled over an exit site, every two blocks across the levelled square. */
 export function siteColumns(c: { x: number; z: number }): [number, number][] {

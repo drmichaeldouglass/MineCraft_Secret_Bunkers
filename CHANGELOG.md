@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased — Stage 15: fortified estate
+
+- **A second facility: the fortified estate.** The deployment device now offers **Deploy fortified estate** next to the command bunker. It builds a secure mansion inside a walled compound, with a bunker underneath, a secret escape tunnel and automated defences.
+- **The compound.** A 75 × 81 block site levelled like the bunker's pad and enclosed by a five-block reinforced concrete wall topped with an iron security fence and floodlights. Inside are a watchtower in each corner, a gatehouse beside the gate, a three-bay garage, a helipad, a fountain, flower beds, hedges along the driveway, and a generator house and garden behind the mansion.
+- **The main gate** is a five-wide blast door in the north wall, between two turret-topped pillars. Its two leaves slide into the wall like the bunker's entrance door. It needs a keycard reader on either side and a laser grid across the driveway just inside it raises ALERT.
+- **The mansion.** Two storeys in white concrete and deepslate. On the ground floor, a chequered grand hall with the lift and emergency ladder down to the bunker, a staircase, a dining room, a kitchen, a library, and a study that is the estate's defence control room. Upstairs are four bedrooms with real beds and a gallery lounge. Keycard doors front and back, and steel shutters over every window on both long facades. The shutters, like the garage doors, close in a lockdown and open again afterwards.
+- **The bunker beneath** is 3–5 floors of the command bunker's own floors, with the same rooms, lifts, ladder, grids, shutters, self-destruct deck and B1 secret tunnel. The tunnel comes up at a terrain-matched exit outside the wall, or at a well in the back garden when no remote site will do.
+- **Defences.** Nine laser turrets: one on each gate pillar (zone `gate`), one on each watchtower and one on the mansion roof (zone `perimeter`, both 28-block exterior range), plus the command deck and tunnel junction turrets. Consoles in the gatehouse and in the study.
+- **Self-destruct** brings down the floors below, then guts the mansion: fittings, glass and lamps are blown out, the stone is scorched grey, holes are torn through the roof and upper floor, fires are started and the lift is sealed with rubble. The wall, outbuildings and secret tunnel survive.
+- The estate is deployed from where its forecourt will be. Anyone standing below the new ground when it is levelled is lifted onto it rather than buried.
+- Shared systems generalised for more than one facility type: the underground floors, the secret tunnel and the survey are shared code. Exit sites can be kept clear of a facility's footprint, and exterior turret zones share the long range.
+- `tools/preview.py` also renders `docs/estate-preview.png`, a site plan of an assembled estate with the mansion template beside it.
+
 ## Unreleased — Stage 14: secret tunnels
 
 - **The escape tunnel now leads somewhere secret.** The B1 tunnel no longer stops at a hut dug into the back of the bunker's mountain. It runs on under the mountain to a junction chamber, then south, east or west to a remote exit 37 to 55 blocks from the core, well clear of the mountain, and a ladder shaft climbs from the tunnel to the surface.

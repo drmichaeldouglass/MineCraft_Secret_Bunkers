@@ -20,6 +20,22 @@ The portal stays open: a cave mouth with an overhanging rock brow and two floodl
 
 Stay near the entrance while construction runs. It places one template or installation operation every two ticks. If the site unloads or the game is closed during construction, return to the same area and use **Resume interrupted construction**. Resuming retries the saved build step; it does not undo already placed blocks. Keep other players out until construction is complete.
 
+## Deploy a fortified estate
+
+Choose **Deploy fortified estate** in the deployment device. Pick 3–5 floors for the bunker beneath the mansion, whether to include defences, and where the secret tunnel should come out (every choice except the rock face; there is no mountain). Stand where you want the forecourt: the gate is built about 15 blocks north of you, and the compound reaches about 40 blocks either side and 65 blocks south. The whole 79 × 85 block site is surveyed and levelled like the bunker's pad, with up to 12 blocks of cut and 12 of fill, and it must be loaded. Anyone standing below the new ground is lifted onto it.
+
+What you get:
+
+- **A walled compound.** The wall is five blocks of reinforced concrete with an iron security fence and floodlights along the top. A watchtower stands in each corner. Climb its ladder to a railed platform with a laser turret.
+- **The main gate** is a blast door in the middle of the north wall, between two pillars with a turret on each. Use the reader on either side (green card or better). Just inside, a two-beam laser grid across the driveway raises ALERT when anyone without a black card walks through, and the alert shuts the gate.
+- **The gatehouse** beside the gate holds a security console and a defence console for the `gate` zone.
+- **The forecourt** has a three-bay garage with shutter doors, a helipad, a fountain and flower beds.
+- **The mansion.** The front and back doors need a green card. The grand hall has the lift pad and panel for the bunker below, the emergency ladder, and a staircase up the west side. The west wing is the dining room and kitchen. The east wing is the library and the study, which is the defence control room, with a security console and a defence console for the `perimeter` zone. Upstairs are four bedrooms with real beds and a gallery lounge. Every window on the north and south facades has a steel shutter that drops in a lockdown.
+- **Behind the mansion** are a garden path and the generator house.
+- **Beneath it all** is the bunker, 3–5 floors of the same floors as the command bunker, including the B3 self-destruct deck and the B1 secret tunnel. The tunnel comes up at a remote exit outside the wall, or at a well in the back garden if no remote site suits.
+
+With defences, the gate turrets start ACTIVE and the watchtower and roof turrets (zone `perimeter`) start ACTIVE, all with the 28-block exterior range. The command deck and tunnel turrets start in ALERT ONLY. Self-destruct demolishes the floors below. Then the mansion is gutted and set alight, its windows and fittings are blown out, holes open through its roof, and the lift in the hall is sealed with rubble. The wall, towers, outbuildings and tunnel are left standing.
+
 ## Keycards
 
 The **highest-clearance card anywhere in your inventory** applies. You do not need to hold it. Remove the other cards to test a lower clearance. Master cards work only in Creative.

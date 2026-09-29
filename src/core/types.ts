@@ -9,7 +9,9 @@ export interface Door {
 export interface Floor { name: string; y: number; clearance: number; destination: Vec; panel: Vec }
 export interface Laser { a: Vec; b: Vec; response: "ALERT" | "LOCKDOWN" }
 export interface Turret { id: string; pos: Vec; zone: string; enabled: boolean; damaged: boolean }
-export interface Module { template: string; pos: Vec; floor: number; role: string }
+/** A placed template. Bunker modules name a template in bunker/; others give their folder and their size. */
+export interface Module { template: string; pos: Vec; floor: number; role: string; size?: Vec }
+export type FacilityType = "bunker" | "estate";
 /** Surface structures a secret tunnel can come up in. rock_face is the door dug into the back of
  *  the bunker's own mountain; the others stand on their own at a remote site. */
 export type ExitKind = "rock_face" | "utility_shed" | "forest_cabin" | "well" | "hidden_hatch" | "mine_headframe";
@@ -29,7 +31,7 @@ export interface Exit {
   lamps: Vec[];
 }
 export interface Facility {
-  schema: 1; id: string; type: "bunker"; dimension: string; seed: number;
+  schema: 1; id: string; type: FacilityType; dimension: string; seed: number;
   origin: Vec; bounds: Bounds; state: SecurityState; phase: "building" | "ready" | "failed";
   buildStep: number; doors: Door[]; floors: Floor[]; lasers: Laser[];
   lights: Vec[]; turrets: Turret[]; modules: Module[];

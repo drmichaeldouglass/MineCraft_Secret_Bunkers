@@ -26,16 +26,21 @@ export const MODULE = 9;
 export const FLOOR_STEP = 9;
 /** Grid column and row of the vertical core, and the command deck that carries self-destruct. */
 const CORE = 1, COMMAND_LEVEL = 2;
-/** The escape site comes from the deployment survey; without one the tunnel runs to flat ground behind the mountain. */
-export function planBunker(origin, levels, seed, defences, id = `sf_${seed >>> 0}`, site = DEFAULT_SITE(origin.y)) {
-    if (!Number.isInteger(levels) || levels < 3 || levels > 8)
-        throw Error("Choose 3–8 underground floors.");
+/** Height of the command deck below the surface. */
+export const COMMAND_Y = -(COMMAND_LEVEL + 1) * FLOOR_STEP;
+/** Reject impossible requests before any planning: floor count, coordinates and world height. */
+export function checkRequest(origin, levels, seed, most = 8) {
+    if (!Number.isInteger(levels) || levels < 3 || levels > most)
+        throw Error(`Choose 3–${most} underground floors.`);
     if (![origin.x, origin.y, origin.z, seed].every(Number.isFinite))
         throw Error("Invalid coordinates or seed.");
     if (origin.y - levels * FLOOR_STEP < -60 || origin.y > 290)
         throw Error("Not enough vertical space. Choose a higher, ordinary surface site.");
+}
+/** The escape site comes from the deployment survey; without one the tunnel runs to flat ground behind the mountain. */
+export function planBunker(origin, levels, seed, defences, id = `sf_${seed >>> 0}`, site = DEFAULT_SITE(origin.y)) {
+    checkRequest(origin, levels, seed);
     const rng = random(seed), p = (x, y, z) => add(origin, { x, y, z });
-    const commandY = -(COMMAND_LEVEL + 1) * FLOOR_STEP;
     const f = {
         schema: 1, id, type: "bunker", dimension: "minecraft:overworld", seed, origin,
         // Reserved space includes the mountain over the site and the demolition charges around it.
@@ -49,9 +54,25 @@ export function planBunker(origin, levels, seed, defences, id = `sf_${seed >>> 0
     f.floors.push({ name: "Surface • Main entrance", y: origin.y, clearance: 1, destination: p(13.5, 1, 13.5), panel: p(15, 2, 14) });
     f.doors.push({ id: "main", min: p(11, 1, 0), max: p(15, 4, 0), clearance: 1, open: false, kind: "blast", readers: [p(17, 2, -2), p(17, 2, 2)] });
     f.lights.push(p(9, 4, 0), p(17, 4, 0));
+    underground(f, levels, rng);
+    // Charges packed against the surface lobby's side walls bring the portal down.
+    for (const z of [4, 12])
+        f.charges.push(p(5, 3, z), p(21, 3, z));
+    if (defences) {
+        f.turrets.push({ id: "entrance_left", pos: p(8.5, 2, -2.5), zone: "entrance", enabled: true, damaged: false }, { id: "entrance_right", pos: p(18.5, 2, -2.5), zone: "entrance", enabled: true, damaged: false }, { id: "command", pos: p(23.5, COMMAND_Y + 2, 13.5), zone: "command", enabled: true, damaged: false });
+    }
+    secretTunnel(f, site, defences);
+    return f;
+}
+/** The underground floors every facility with a bunker shares: B1 to Bn under the surface at the
+ *  facility origin, each with its rooms, doors, grids, shutter, consoles and demolition charges,
+ *  and the self-destruct console on the command deck. Whatever stands on the surface must put the
+ *  lift pad at (12–14, 0, 12–14) and leave the emergency ladder's column at (15–16, 16) clear. */
+export function underground(f, levels, rng) {
+    const p = (x, y, z) => add(f.origin, { x, y, z });
     for (let level = 0; level < levels; level++) {
         const dy = -(level + 1) * FLOOR_STEP, levelClearance = Math.min(4, level + 1);
-        f.floors.push({ name: `B${level + 1} • ${FLOOR_NAMES[level]}`, y: origin.y + dy, clearance: levelClearance,
+        f.floors.push({ name: `B${level + 1} • ${FLOOR_NAMES[level]}`, y: f.origin.y + dy, clearance: levelClearance,
             destination: p(13.5, dy + 1, 13.5), panel: p(15, dy + 2, 14) });
         const program = FLOOR_PROGRAMS[level], pool = [...program.pool], roles = new Map();
         const drawn = [...program.fixed];
@@ -102,16 +123,12 @@ export function planBunker(origin, levels, seed, defences, id = `sf_${seed >>> 0
     }
     // Command deck. x=11/12 already hold that floor's defence and security consoles;
     // a shared position would hide one console behind the other in the registry lookup.
-    f.consoles.push({ pos: p(13, commandY + 2, 15), kind: "destruct", zone: "command" });
-    // Charges packed against the surface lobby's side walls bring the portal down.
-    for (const z of [4, 12])
-        f.charges.push(p(5, 3, z), p(21, 3, z));
-    if (defences) {
-        f.turrets.push({ id: "entrance_left", pos: p(8.5, 2, -2.5), zone: "entrance", enabled: true, damaged: false }, { id: "entrance_right", pos: p(18.5, 2, -2.5), zone: "entrance", enabled: true, damaged: false }, { id: "command", pos: p(23.5, commandY + 2, 13.5), zone: "command", enabled: true, damaged: false });
-    }
-    // The secret escape tunnel from B1 to its exit, guarded by a keycard door, a laser grid and,
-    // with defences, a laser turret at its junction.
-    const tunnel = planTunnel(origin, site, defences);
+    f.consoles.push({ pos: p(13, COMMAND_Y + 2, 15), kind: "destruct", zone: "command" });
+}
+/** The secret escape tunnel from B1 to its exit, guarded by a keycard door, a laser grid and,
+ *  with defences, a laser turret at its junction. The reserved bounds grow to take in the exit. */
+export function secretTunnel(f, site, defences) {
+    const tunnel = planTunnel(f.origin, site, defences);
     f.exit = tunnel.exit;
     f.doors.push(...tunnel.doors);
     f.lasers.push(...tunnel.lasers);
@@ -123,5 +140,4 @@ export function planBunker(origin, levels, seed, defences, id = `sf_${seed >>> 0
         b.min = { ...b.min, x: Math.min(b.min.x, l.x - SITE), z: Math.min(b.min.z, l.z - SITE) };
         b.max = { x: Math.max(b.max.x, l.x + SITE), y: Math.max(b.max.y, l.y + EXITS[site.kind].height + 2), z: Math.max(b.max.z, l.z + SITE) };
     }
-    return f;
 }

@@ -4,7 +4,8 @@ import fs from "node:fs";
 import { blockAt, blocks, dimension, entities, explosions, finishBuild, particles, playerAt, players, properties, reset, sounds, system, terrain } from "./mock-server.mjs";
 import { planBunker } from "../behavior_pack/scripts/generation/planner.js";
 import { facilities, load, mark, save } from "../behavior_pack/scripts/runtime/store.js";
-import { build, exitSite, MAX_CUT, MAX_FILL, originAt } from "../behavior_pack/scripts/runtime/generation.js";
+import { build, estateOriginAt, exitSite, FORECOURT, MAX_CUT, MAX_FILL, originAt } from "../behavior_pack/scripts/runtime/generation.js";
+import { COMPOUND, ESTATE_PAD, planEstate, TOWERS, WALL_HEIGHT } from "../behavior_pack/scripts/generation/estate.js";
 import { armDestruct, abortDestruct, ease, LEAF, requestDoor, restoreDoors, setSecurity, slid, SUBSTEPS, tickAlarms, tickDoors, tickLasers, travel } from "../behavior_pack/scripts/runtime/security.js";
 import { column, MOUNTAIN, rearExit } from "../behavior_pack/scripts/generation/mountain.js";
 import { EXITS, REMOTE, SITE } from "../behavior_pack/scripts/generation/tunnel.js";
@@ -526,6 +527,113 @@ test("the rock-face fallback, and bunkers saved before remote exits, keep the hu
   }
   // Remote exits need no apron: the mountain closes over the back of the bunker.
   assert.equal(column(1,13,40,false).open,false);
+});
+function makeEstate(levels=3,seed=7,site){
+  reset();facilities.clear();const f=planEstate({x:0,y:80,z:0},levels,seed,true,"estate",site);f.ground="minecraft:grass_block";
+  const p=playerAt({x:13.5,y:81,z:-15.5});players.push(p);
+  for(let n=0;n<400;n++)tickDoors();
+  build(f,p);finishBuild();assert.equal(f.phase,"ready");
+  return {f,p};
+}
+const COMPOUND_BOX={x0:COMPOUND.x0-2,x1:COMPOUND.x1+2,z0:COMPOUND.z0-2,z1:COMPOUND.z1+2};
+test("the fortified estate: walled and gated, a mansion over its bunker, and a secret way out",()=>{
+  const {f}=makeEstate(3);
+  const gate=f.doors.find(d=>d.id==="gate"),front=f.doors.find(d=>d.id==="front"),back=f.doors.find(d=>d.id==="back");
+  // The wall runs unbroken all the way round, fence on top, and only the gate opens it.
+  for(let x=COMPOUND.x0;x<=COMPOUND.x1;x++)for(const z of [COMPOUND.z0,COMPOUND.z1])for(let y=81;y<=80+WALL_HEIGHT;y++)
+    assert.notEqual(blockAt(x,y,z).typeId,"minecraft:air",`Hole in the wall at ${x},${y},${z}`);
+  for(let z=COMPOUND.z0;z<=COMPOUND.z1;z++)for(const x of [COMPOUND.x0,COMPOUND.x1])for(let y=81;y<=80+WALL_HEIGHT;y++)
+    assert.notEqual(blockAt(x,y,z).typeId,"minecraft:air",`Hole in the wall at ${x},${y},${z}`);
+  assert.equal(at(0,86,COMPOUND.z1).typeId,"minecraft:iron_bars");
+  const outside=()=>flood(81,[13,COMPOUND.z0-2],COMPOUND_BOX);
+  assert.equal(outside().has("13,-20"),false,"The closed gate can be bypassed");
+  requestDoor(f,gate,true);for(let n=0;n<60;n++)tickDoors();
+  const court=outside();
+  for(const cell of ["13,-20","13,1","22,-25","-7,-20","36,-20"])assert.ok(court.has(cell),`The forecourt does not reach ${cell}`);
+  assert.equal(court.has("13,10"),false,"The closed front door can be bypassed");
+  // Through the front door to the lift, the ladder and the back door.
+  requestDoor(f,front,true);for(let n=0;n<40;n++)tickDoors();
+  const hall=outside();for(const cell of ["13,13","14,16","13,21"])assert.ok(hall.has(cell),`The hall does not reach ${cell}`);
+  requestDoor(f,back,true);for(let n=0;n<40;n++)tickDoors();assert.ok(outside().has("13,30"),"The back door does not open onto the garden");
+  // The mansion's lift lands on a pad, and the emergency ladder climbs into its hall.
+  const lift=f.floors[0].destination;
+  assert.equal(blockAt(13,80,13).typeId,ns+"elevator_pad");assert.equal(blockAt(13,81,13).typeId,"minecraft:air");assert.equal(blockAt(13,82,13).typeId,"minecraft:air");
+  assert.equal(at(Math.floor(lift.x)+2,82,Math.floor(lift.z)+1).typeId,ns+"elevator_panel");
+  for(let y=f.floors.at(-1).y+1;y<=85;y++)assert.equal(at(15,y,16).typeId,"minecraft:ladder",`Emergency ladder broken at Y ${y}`);
+  // The bunker below is the same as the command bunker's: every room reachable from its core.
+  for(const floor of f.floors.slice(1)){
+    const seen=flood(floor.y+1,[13,13]);
+    for(const m of f.modules.filter(m=>m.pos.y===floor.y))assert.ok(seen.has(`${m.pos.x+4},${m.pos.z+4}`),`Cannot reach ${m.template} under the estate`);
+  }
+  escapes(f);
+  assert.ok(f.exit.ladder.z>COMPOUND.z1||f.exit.ladder.x>COMPOUND.x1||f.exit.ladder.x<COMPOUND.x0,"The secret exit must lie outside the wall");
+  // Lockdown shuts the gate, the doors, the garage and every window; normal opens the shutters again.
+  setSecurity(f,"LOCKDOWN");for(let n=0;n<300;n++)tickDoors();
+  for(const door of f.doors.filter(d=>d.id==="gate"||d.id.startsWith("window")||d.id.startsWith("garage")))
+    for(let x=door.min.x;x<=door.max.x;x++)assert.equal(at(x,door.min.y,door.min.z).states[ns+"open"],false,`${door.id} did not close`);
+  setSecurity(f,"NORMAL");for(let n=0;n<300;n++)tickDoors();
+  for(const door of f.doors.filter(d=>d.kind==="shutter"))assert.equal(at(door.min.x,door.min.y,door.min.z).states[ns+"open"],true,`${door.id} did not reopen`);
+  // Nine turrets: two on the gate pillars, one on each watchtower, one on the roof, the command deck and the tunnel.
+  assert.equal(entities.filter(e=>e.typeId===ns+"laser_turret").length,9);
+  for(const t of f.turrets)assert.equal(at(Math.floor(t.pos.x),t.pos.y-1,Math.floor(t.pos.z)).typeId,ns+"laser_turret_mount",`${t.id} has no mount`);
+});
+test("estate watchtowers and gate turrets fire at hostiles outside the wall, and the gate grid raises the alarm",()=>{
+  const {f}=makeEstate(3,9);
+  const [x,z]=TOWERS[0],zombie=dimension.spawnEntity("minecraft:zombie",{x:x-8,y:81,z:z-6}),cow=dimension.spawnEntity("minecraft:cow",{x:x-6,y:81,z:z-8});
+  const raider=dimension.spawnEntity("minecraft:pillager",{x:13.5,y:81,z:COMPOUND.z0-12});
+  for(let i=0;i<40;i++){system.currentTick+=5;tickDefence();}
+  assert.ok(zombie.damage>0,"The north-west watchtower did not fire");assert.equal(cow.damage,undefined);
+  assert.ok(raider.damage>0,"The gate turrets did not fire");
+  const intruder=playerAt({x:13.5,y:81,z:-28});intruder.id="intruder";intruder.getComponent=()=>({container:{size:0,getItem(){}}});
+  players.length=0;players.push(intruder);tickLasers();intruder.location={x:13.5,y:81,z:-25};tickLasers();
+  assert.equal(f.state,"ALERT");assert.equal(f.doors.find(d=>d.id==="gate").open,false);
+});
+test("estate self-destruct guts and burns the mansion, seals its lift, and leaves the walls and tunnel",()=>{
+  const {f}=makeEstate(3,5);armDestruct(f);for(let n=0;n<80;n++)tickDoors();f.countdown=0;
+  for(let i=0;i<40&&f.state!=="DESTROYED";i++){system.currentTick+=10;tickAlarms();}
+  assert.equal(f.state,"DESTROYED");
+  const house=id=>[...blocks].filter(([k,b])=>{const [x,y,z]=k.split(",").map(Number);return b.typeId===id&&x>=-4&&x<=30&&y>=80&&y<=92&&z>=1&&z<=23;}).length;
+  for(const id of [ns+"keycard_reader",ns+"security_door",ns+"security_shutter","minecraft:glass",ns+"elevator_pad","minecraft:white_concrete"])
+    assert.equal(house(id),0,`${id} survived in the mansion`);
+  assert.ok(house("minecraft:gray_concrete")>500,"The mansion should be scorched");
+  assert.equal(at(13,81,13).typeId,"minecraft:cobblestone","The lift in the hall must be sealed");
+  assert.equal(blockAt(0,83,COMPOUND.z1).typeId,ns+"light_reinforced_concrete","The perimeter wall should stand");
+  assert.equal(entities.filter(e=>e.typeId===ns+"laser_turret").length,1,"Only the tunnel's shut-down turret remains");
+  escapes(f,[13,27]);
+});
+test("estates are surveyed across the whole compound, and without a remote site the tunnel comes up in the garden",()=>{
+  reset();facilities.clear();
+  const at=()=>{const p=playerAt({x:200.5,y:81,z:300.5});players.length=0;players.push(p);return p;};
+  let s=estateOriginAt(at());
+  assert.deepEqual([s.origin.x+FORECOURT.x,s.origin.z+FORECOURT.z,s.origin.y,s.cut,s.fill],[200,300,80,0,0],"The player stands in the forecourt");
+  terrain.height=x=>80+Math.round((x-200)*0.25);
+  s=estateOriginAt(at());assert.ok(s.cut>0&&s.fill>0&&s.cut<=MAX_CUT&&s.fill<=MAX_FILL,`cut ${s.cut} fill ${s.fill}`);
+  terrain.height=x=>80+Math.round((x-200)*0.6);assert.throws(()=>estateOriginAt(at()),/rises and falls/);
+  // Water everywhere beyond the wall: no remote site, so the tunnel comes up at a well in the back garden.
+  reset();const pad=ESTATE_PAD,outside=(x,z)=>x<200-13+pad.x0||x>200-13+pad.x1||z<300+15+pad.z0||z>300+15+pad.z1;
+  terrain.height=(x,z)=>outside(x,z)?74:80;terrain.water=(x,z)=>outside(x,z)?80:undefined;
+  s=estateOriginAt(at());const exit=exitSite(dimension,s.origin,3,undefined,"estate");assert.equal(exit.kind,"rock_face");
+  const f=planEstate(s.origin,3,3,true,"garden",exit);f.ground=s.ground;build(f,players[0]);finishBuild();
+  assert.equal(f.phase,"ready");assert.equal(f.exit.kind,"well");escapes(f);
+  // A builder standing below the new ground when it is levelled is lifted onto it, not buried.
+  reset();facilities.clear();s=estateOriginAt(at());
+  const lifted=planEstate(s.origin,3,4,false,"lift");lifted.ground=s.ground;
+  const builder=players[0];build(lifted,builder);builder.location={...builder.location,y:76};finishBuild();
+  assert.equal(builder.location.y,81,"The builder was left inside the ground");
+});
+test("write an inspectable top-down estate site plan",()=>{
+  const {f}=makeEstate(3,104729),top=[];
+  const pad=ESTATE_PAD;
+  for(let z=pad.z0;z<=pad.z1;z++){const row=[];
+    for(let x=pad.x0;x<=pad.x1;x++){
+      let found="minecraft:air",height=0;
+      for(let y=100;y>=80;y--){const b=blockAt(x,y,z);if(b.typeId!=="minecraft:air"&&b.states?.[ns+"open"]!==true){found=b.typeId;height=y-80;break;}}
+      row.push([found,height]);
+    }
+    top.push(row);
+  }
+  fs.mkdirSync(new URL("../docs/generated/",import.meta.url),{recursive:true});
+  fs.writeFileSync(new URL("../docs/generated/estate-preview.json",import.meta.url),JSON.stringify({pad,exit:f.exit.ladder,modules:f.modules.filter(m=>m.size).map(m=>({role:m.role,x:m.pos.x,z:m.pos.z,size:m.size})),top}));
 });
 test("write inspectable first-floor voxel preview",()=>{
   const {f}=make(5,104729);
