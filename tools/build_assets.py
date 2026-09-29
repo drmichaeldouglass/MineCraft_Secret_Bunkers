@@ -262,14 +262,6 @@ def turret():
         "controller.render.secretfacilities.turret":{"geometry":"Geometry.default","materials":[{"*":"Material.default"}],"textures":["Texture.default"]}}})
     write(RP/"animations/turret.animation.json",{"format_version":"1.8.0","animations":{
         "animation.secretfacilities.turret.aim":{"loop":True,"bones":{"pitch_mount":{"rotation":["query.target_x_rotation",0,0]}}}}})
-    # Tripwire grids keep their faint dotted beam.
-    write(RP/"particles/laser_beam.json",{"format_version":"1.10.0","particle_effect":{
-        "description":{"identifier":NS+"laser_beam","basic_render_parameters":{"material":"particles_alpha","texture":"textures/particle/laser"}},
-        "components":{"minecraft:emitter_rate_instant":{"num_particles":1},"minecraft:emitter_lifetime_once":{"active_time":0.1},
-            "minecraft:emitter_shape_point":{},"minecraft:particle_lifetime_expression":{"max_lifetime":0.22},
-            "minecraft:particle_appearance_billboard":{"size":[0.055,0.055],"facing_camera_mode":"lookat_xyz","uv":{"texture_width":8,"texture_height":8,"uv":[0,0],"uv_size":[8,8]}},
-            "minecraft:particle_appearance_tinting":{"color":[1,0.13,0.09,1]}}}})
-    save(Image.new("RGBA",(8,8),(255,255,255,255)),RP/"textures/particle/laser.png")
     # A soft round glow; drawn additively and unlit, overlapping sprites fuse into a solid light.
     glow=Image.new("RGBA",(16,16))
     for x in range(16):
@@ -277,6 +269,19 @@ def turret():
             r=math.hypot(x-7.5,y-7.5)/8;glow.putpixel((x,y),(255,255,255,int(255*max(0,1-r)**1.6)))
     save(glow,RP/"textures/particle/laser_glow.png")
     fade="(1 - v.particle_age / v.particle_lifetime)"
+    # A tripwire beam is one emitter per sensor tick spanning emitter to receiver ('span'), thinner
+    # and steadier than a turret shot: a pale core inside a red body and a faint halo. Each drawing
+    # lives a little longer than the quarter-second between sensor ticks, so the beam holds steady.
+    wire=lambda core,body,halo:f"(v.particle_random_2 < 0.4 ? {core} : (v.particle_random_2 < 0.85 ? {body} : {halo}))"
+    write(RP/"particles/laser_beam.json",{"format_version":"1.10.0","particle_effect":{
+        "description":{"identifier":NS+"laser_beam","basic_render_parameters":{"material":"particles_add","texture":"textures/particle/laser_glow"}},
+        "components":{"minecraft:emitter_rate_instant":{"num_particles":"math.clamp(v.length * 18, 8, 240)"},
+            "minecraft:emitter_lifetime_once":{"active_time":0.05},"minecraft:emitter_shape_point":{},
+            "minecraft:particle_lifetime_expression":{"max_lifetime":0.34},
+            "minecraft:particle_motion_parametric":{"relative_position":[f"v.span.{a} * v.particle_random_1" for a in "xyz"]},
+            "minecraft:particle_appearance_billboard":{"size":[wire(0.03,0.06,0.13),wire(0.03,0.06,0.13)],"facing_camera_mode":"lookat_xyz",
+                "uv":{"texture_width":16,"texture_height":16,"uv":[0,0],"uv_size":[16,16]}},
+            "minecraft:particle_appearance_tinting":{"color":["1",wire(0.6,0.12,0.06),wire(0.55,0.08,0.04),wire(0.95,0.8,0.3)]}}}})
     # The turret beam is one emitter per shot. Every sprite sits at a random point along the shot
     # (script variable 'span' is the muzzle-to-target vector), densely enough to read as one solid
     # beam: a white-hot core, a red body and a wide faint halo, all fading together.
@@ -355,6 +360,19 @@ def missile_turret():
     write(RP/"animations/missile.animation.json",{"format_version":"1.8.0","animations":{
         "animation.secretfacilities.missile.pitch":{"loop":True,"bones":{"body":{"rotation":["query.target_x_rotation",0,0]}}}}})
     fade="(1 - v.particle_age / v.particle_lifetime)"
+    # A tripwire beam is one emitter per sensor tick spanning emitter to receiver ('span'), thinner
+    # and steadier than a turret shot: a pale core inside a red body and a faint halo. Each drawing
+    # lives a little longer than the quarter-second between sensor ticks, so the beam holds steady.
+    wire=lambda core,body,halo:f"(v.particle_random_2 < 0.4 ? {core} : (v.particle_random_2 < 0.85 ? {body} : {halo}))"
+    write(RP/"particles/laser_beam.json",{"format_version":"1.10.0","particle_effect":{
+        "description":{"identifier":NS+"laser_beam","basic_render_parameters":{"material":"particles_add","texture":"textures/particle/laser_glow"}},
+        "components":{"minecraft:emitter_rate_instant":{"num_particles":"math.clamp(v.length * 18, 8, 240)"},
+            "minecraft:emitter_lifetime_once":{"active_time":0.05},"minecraft:emitter_shape_point":{},
+            "minecraft:particle_lifetime_expression":{"max_lifetime":0.34},
+            "minecraft:particle_motion_parametric":{"relative_position":[f"v.span.{a} * v.particle_random_1" for a in "xyz"]},
+            "minecraft:particle_appearance_billboard":{"size":[wire(0.03,0.06,0.13),wire(0.03,0.06,0.13)],"facing_camera_mode":"lookat_xyz",
+                "uv":{"texture_width":16,"texture_height":16,"uv":[0,0],"uv_size":[16,16]}},
+            "minecraft:particle_appearance_tinting":{"color":["1",wire(0.6,0.12,0.06),wire(0.55,0.08,0.04),wire(0.95,0.8,0.3)]}}}})
     # Emitted at the missile's tail every tick: a hot exhaust flame and a lingering smoke trail.
     write(RP/"particles/missile_exhaust.json",{"format_version":"1.10.0","particle_effect":{
         "description":{"identifier":NS+"missile_exhaust","basic_render_parameters":{"material":"particles_add","texture":"textures/particle/laser_glow"}},
@@ -857,6 +875,8 @@ def mansion():
     for x in range(13,22):
         for z in range(2,21):t.set(x,0,z,"minecraft:white_concrete" if (x+z)%2 else "minecraft:black_concrete")
     t.fill((16,0,11),(18,0,13),"elevator_pad")
+    # The lift panel's column; the runtime sets the panel into it.
+    t.fill((19,1,13),(19,5,13),TRIM)
     for x,z in [(13,4),(21,4),(13,9),(21,9)]:t.fill((x,1,z),(x,5,z),TRIM)
     t.fill((17,1,3),(17,1,9),"minecraft:red_carpet")
     # Walls between the hall and the wings, and across each wing, with doorways.
@@ -904,8 +924,9 @@ def mansion():
         t.fill((x,1,2),(x,3,2),"minecraft:bookshelf")
     t.set(28,1,6,"minecraft:enchanting_table");t.set(25,1,6,"minecraft:lectern",{"minecraft:cardinal_direction":"east","powered_bit":False})
     t.fill((26,1,4),(30,1,8),"minecraft:red_carpet");t.set(28,1,6,"minecraft:enchanting_table")
-    # Study: the estate's defence control room. Consoles sit on these cabinets.
-    for z in [15,17]:t.set(33,1,z,"control_cabinet")
+    # Study: the estate's defence control room. A bank of cabinets along the east wall, floor to
+    # ceiling, that the runtime sets the consoles into.
+    t.fill((33,1,14),(33,5,18),"control_cabinet")
     t.fill((23,1,20),(25,2,20),"server_rack");t.set(33,3,16,"facility_status_display");t.set(30,1,20,"electrical_cabinet")
     t.fill((27,1,15),(28,1,17),"minecraft:mangrove_slab",{"minecraft:vertical_half":"top"})
     chair_at(t,29,1,16,"west")
@@ -934,7 +955,8 @@ def check_mansion(t):
         return seen
     down=reach((17,2),1)
     for cell in [(17,12),(17,20),(6,8),(6,14),(28,8),(28,14),(13,20),(19,14),(18,15)]:assert cell in down,("mansion ground floor",cell)
-    for y in (1,2):assert t.blocks[19,y,13][0]=="minecraft:air" and t.blocks[19,y,15][0]=="minecraft:air",("mansion panel or ladder spot",y)
+    for y in (1,2):assert t.blocks[19,y,15][0]=="minecraft:air",("mansion ladder spot",y)
+    for y in range(1,6):assert t.blocks[19,y,13][0]=="minecraft:polished_deepslate",("mansion lift column",y)
     for z in range(14,20):assert t.blocks[13,20-z,z][0]=="minecraft:mangrove_stairs"
     up=reach((13,13),7)
     for cell in [(6,5),(6,17),(28,5),(28,17),(17,5)]:assert cell in up,("mansion upper floor",cell)
@@ -946,7 +968,8 @@ def estate_buildings():
     t=Template("gatehouse",(7,6,7),"estate");t.fill((0,0,0),(6,5,6),"light_reinforced_concrete")
     t.fill((1,1,1),(5,4,5),"minecraft:air");t.fill((1,0,1),(5,0,5),"industrial_floor");t.fill((0,5,0),(6,5,6),"steel_plate")
     t.fill((0,1,3),(0,2,3),"minecraft:air");t.fill((2,2,0),(4,3,0),"security_glass");t.fill((0,2,1),(0,3,1),"security_glass")
-    for z in [2,4]:t.set(5,1,z,"control_cabinet")
+    # A floor-to-ceiling bank of cabinets along the east wall; the runtime sets the consoles into it.
+    t.fill((5,1,1),(5,4,5),"control_cabinet")
     t.set(3,4,3,"industrial_light");t.set(1,1,5,"minecraft:barrel",{"facing_direction":1,"open_bit":False});out.append(t)
     # Garage: three vehicle bays opening east onto the forecourt; the runtime fits shutter doors.
     t=Template("garage",(9,6,15),"estate");t.fill((0,0,0),(8,5,14),"light_reinforced_concrete")
@@ -1006,7 +1029,8 @@ def structures():
         if name=="core":
             t.fill((1,1,1),(7,5,7),"minecraft:air")
             t.fill((3,0,3),(5,0,5),"elevator_pad")
-            t.set(6,2,5,"elevator_panel")
+            # The lift panel is set into a floor-to-ceiling control column beside the pad.
+            t.fill((6,1,5),(6,5,5),"steel_plate");t.set(6,2,5,"elevator_panel")
         templates.append(t)
     # Authored entrance, 15 wide x 9 high x 22 deep; its rear core aligns with all floors.
     t=Template("entrance",(15,9,22));t.shell()
@@ -1018,7 +1042,7 @@ def structures():
     t.fill((5,1,5),(9,5,12),"minecraft:air")
     t.fill((3,1,13),(11,6,20),"minecraft:air")
     t.fill((6,0,16),(8,0,18),"elevator_pad")
-    t.set(9,2,18,"elevator_panel")
+    t.fill((9,1,18),(9,7,18),"steel_plate");t.set(9,2,18,"elevator_panel")
     for x in [2,12]:t.set(x,1,1,"laser_turret_mount")
     for z in [8,12,16,20]:t.fill((6,7,z),(8,7,z),"industrial_light")
     templates.append(t)
@@ -1060,7 +1084,7 @@ def asset_inventory():
         "| `secretfacilities:missile` | Entity | Scripted missile: steers toward its target, detonates on contact, near the target or at a wall, and damages hostile mobs only without breaking blocks | Original 32×32 atlas | Body, nose, fins and exhaust | Pitch bone follows the flight path | Vanilla explosion on impact |",
         "| `secretfacilities:blast_door_leaf` | Entity | Two blast door leaves that part at a central seam and slide sideways into the wall, present only while the entrance door travels | Shared blast door texture | Two bones of block-column cubes | Client-eased slide driven by a synced property | Blast door sounds |",
         "| `secretfacilities:turret_beam` | Particle | Turret shot: one emitter draws a solid glowing beam from muzzle to target | Original 16×16 soft glow, additive, unlit | Dense billboards placed along the shot | 0.32-second fade | Shared firing pulse |",
-        "| `secretfacilities:laser_beam` | Particle | Tripwire grids | Original 8×8 white mask, tinted red | Billboard | 0.22-second particle lifetime | None |",
+        "| `secretfacilities:laser_beam` | Particle | Tripwire grids: one emitter per sensor tick draws a steady, thin glowing red line from emitter to receiver | Shared soft glow, additive, unlit | Dense billboards placed along the beam | 0.34-second life, redrawn every 0.25 seconds | None |",
         "| `secretfacilities:laser_impact` | Particle | Hit flash and sparks | Shared soft glow, additive | Billboards with gravity | Up to 0.45 seconds | Shared firing pulse |",
         "| `secretfacilities:missile_exhaust` | Particle | Missile flame at the tail, emitted every tick of flight | Shared soft glow, additive | Billboards | 0.15 seconds | None |",
         "| `secretfacilities:missile_smoke` | Particle | Missile smoke trail that lingers and rises | Shared soft glow, blended grey | Growing billboards | Up to 1.4 seconds | None |", "",

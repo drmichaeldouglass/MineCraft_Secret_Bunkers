@@ -6,7 +6,7 @@ import { planBunker } from "../behavior_pack/scripts/generation/planner.js";
 import { facilities, load, mark, save } from "../behavior_pack/scripts/runtime/store.js";
 import { build, estateOriginAt, exitSite, FORECOURT, MAX_CUT, MAX_FILL, originAt } from "../behavior_pack/scripts/runtime/generation.js";
 import { COMPOUND, ESTATE_PAD, planEstate, TOWERS, WALL_HEIGHT } from "../behavior_pack/scripts/generation/estate.js";
-import { armDestruct, abortDestruct, ease, LEAF, requestDoor, restoreDoors, setSecurity, slid, SUBSTEPS, tickAlarms, tickDoors, tickLasers, travel } from "../behavior_pack/scripts/runtime/security.js";
+import { armDestruct, abortDestruct, BEAM_DAMAGE, ease, LEAF, requestDoor, restoreDoors, setSecurity, slid, SUBSTEPS, tickAlarms, tickDoors, tickLasers, travel } from "../behavior_pack/scripts/runtime/security.js";
 import { column, MOUNTAIN, rearExit } from "../behavior_pack/scripts/generation/mountain.js";
 import { EXITS, REMOTE, SITE } from "../behavior_pack/scripts/generation/tunnel.js";
 import { tickDefence } from "../behavior_pack/scripts/runtime/defence.js";
@@ -425,7 +425,7 @@ test("the bunker is buried in a mountain with its portal and escape exit left op
   let peak=0;for(let x=MOUNTAIN.x0;x<=MOUNTAIN.x1;x++)for(let z=MOUNTAIN.z0;z<=MOUNTAIN.z1;z++)peak=Math.max(peak,column(f.seed,x,z).top);
   assert.ok(peak>=20,`A ${peak}-block mound is not a mountain`);
   // The forecourt is a cave mouth under an overhanging brow, open to the approach.
-  for(let x=8;x<=18;x++)for(let z=-4;z<=-1;z++)for(let y=2;y<=(z===-1?6:8);y++)if(!(x===17&&y===2&&z===-2))assert.equal(rel(x,y,z),"minecraft:air",`Forecourt blocked at ${x},${y},${z}`);
+  for(let x=8;x<=18;x++)for(let z=-4;z<=-1;z++)for(let y=2;y<=(z===-1?6:8);y++)assert.equal(rel(x,y,z),"minecraft:air",`Forecourt blocked at ${x},${y},${z}`);
   for(let x=6;x<=20;x++)assert.notEqual(rel(x,9,-2),"minecraft:air","The portal has no overhanging brow");
   const approach=flood(o.y+1,[13,MOUNTAIN.z0],{x0:MOUNTAIN.x0,x1:MOUNTAIN.x1,z0:MOUNTAIN.z0,z1:-1});
   assert.ok(approach.has("13,-1"),"The portal cannot be reached from outside the mountain");
@@ -620,6 +620,70 @@ test("estates are surveyed across the whole compound, and without a remote site 
   const lifted=planEstate(s.origin,3,4,false,"lift");lifted.ground=s.ground;
   const builder=players[0];build(lifted,builder);builder.location={...builder.location,y:76};finishBuild();
   assert.equal(builder.location.y,81,"The builder was left inside the ground");
+});
+/** Where a grid's emitter and receiver sit: one block beyond each end of the beam, in the wall. */
+function fittings(laser){
+  const alongX=laser.a.z===laser.b.z,cell=v=>({x:Math.floor(v.x),y:Math.floor(v.y),z:Math.floor(v.z)});
+  return [cell({...laser.a,[alongX?"x":"z"]:laser.a[alongX?"x":"z"]-1}),cell({...laser.b,[alongX?"x":"z"]:laser.b[alongX?"x":"z"]+1})];
+}
+const solid=b=>b&&b.typeId!=="minecraft:air"&&b.states?.[ns+"open"]!==true;
+test("tripwires are horizontal beams from wall to wall, drawn as a steady line",()=>{
+  const {f}=make(3),y=f.floors[1].y;
+  assert.ok(f.lasers.every(l=>l.a.y===l.b.y),"Every tripwire beam must be horizontal");
+  for(const floor of f.floors.slice(1))for(const x of [4.5,22.5])
+    assert.equal(f.lasers.filter(l=>l.a.x===x&&Math.floor(l.a.y)>=floor.y&&Math.floor(l.a.y)<floor.y+9).length,3,`B${f.floors.indexOf(floor)} needs a three-beam grid across its hall at x=${x}`);
+  for(const laser of f.lasers){
+    const [emitter,receiver]=fittings(laser);
+    assert.equal(at(emitter.x,emitter.y,emitter.z).typeId,ns+"laser_emitter");assert.equal(at(receiver.x,receiver.y,receiver.z).typeId,ns+"laser_receiver");
+    // Nothing stands in the beam's way, and nothing hangs in the air: the fittings are in the walls.
+    for(let t=0;t<=1;t+=0.25){const v={x:laser.a.x+(laser.b.x-laser.a.x)*t,y:laser.a.y,z:laser.a.z+(laser.b.z-laser.a.z)*t};
+      assert.ok(!solid(at(Math.floor(v.x),Math.floor(v.y),Math.floor(v.z))),`Beam blocked at ${JSON.stringify(v)}`);}
+  }
+  // Every sensor tick near a player redraws every nearby beam across its whole span.
+  players.length=0;players.push(playerAt({x:13.5,y:y+1,z:13.5}));f.lasersEnabled=true;
+  const before=particles.length;tickLasers();
+  const beams=particles.slice(before).filter(p=>p.id===ns+"laser_beam");
+  const inRange=f.lasers.filter(l=>Math.hypot(l.a.x-13.5,l.a.y-y-1,l.a.z-13.5)<24);
+  assert.ok(inRange.length>=6);assert.equal(beams.length,inRange.length,"Every beam near a player should be drawn every tick");
+  for(const b of beams){const len=Math.hypot(b.vars["variable.span"].x,b.vars["variable.span"].y,b.vars["variable.span"].z);
+    assert.ok(Math.abs(len-2)<1e-9&&b.vars["variable.span"].y===0,"A beam must span its hall or tunnel, level");}
+});
+test("hostile mobs crossing a live tripwire are burned; players and passive mobs are not",()=>{
+  const {f}=make(3),y=f.floors[1].y+1;
+  const guard=playerAt({x:13.5,y,z:13.5});guard.getComponent=()=>({container:{size:1,getItem(){return {typeId:ns+"keycard_black"};}}});
+  players.length=0;players.push(guard);
+  const zombie=dimension.spawnEntity("minecraft:zombie",{x:4.5,y,z:13.5});
+  const silverfish=dimension.spawnEntity("minecraft:silverfish",{x:22.5,y,z:12.8});
+  const cow=dimension.spawnEntity("minecraft:cow",{x:4.6,y,z:12.9}),bystander=dimension.spawnEntity("minecraft:player",{x:22.4,y,z:14.1});
+  const clear=dimension.spawnEntity("minecraft:zombie",{x:7.5,y,z:13.5});
+  tickLasers();
+  // One hit a tick, however many of the grid's beams run through the mob.
+  assert.equal(zombie.damage,BEAM_DAMAGE);assert.equal(silverfish.damage,BEAM_DAMAGE,"A mob low enough to crawl under the old beams is caught");
+  assert.equal(cow.damage,undefined);assert.equal(bystander.damage,undefined);assert.equal(clear.damage,undefined,"A mob beside the beam is not hit");
+  assert.ok(particles.some(p=>p.id===ns+"laser_impact"));
+  for(let i=0;i<3;i++)tickLasers();assert.equal(zombie.damage,4*BEAM_DAMAGE);
+  // Mobs are burned, not reported: a black card holder saw it all and no alarm went off.
+  assert.equal(f.state,"NORMAL");
+  f.lasersEnabled=false;tickLasers();assert.equal(zombie.damage,4*BEAM_DAMAGE,"Disabled grids must not burn");
+  f.lasersEnabled=true;players.length=0;players.push(playerAt({x:13.5,y,z:13.5+60}));tickLasers();
+  assert.equal(zombie.damage,4*BEAM_DAMAGE,"Grids far from every player stay idle");
+});
+test("readers, consoles, lift panels and grid fittings are set into walls, not floating",()=>{
+  const check=(f,label)=>{
+    const controls=[...f.doors.flatMap(d=>d.readers.map(r=>[r,`reader:${d.id}`])),...f.consoles.map(c=>[c.pos,`console:${c.kind}`]),
+      ...f.floors.map(fl=>[fl.panel,`panel:${fl.name}`]),...f.lasers.flatMap(l=>fittings(l).map(v=>[v,"grid fitting"]))];
+    for(const [v,what] of controls){
+      assert.ok(solid(at(v.x,v.y,v.z)),`${label}: ${what} missing at ${JSON.stringify(v)}`);
+      for(const dy of [-1,1])assert.ok(solid(blockAt(v.x,v.y+dy,v.z)),`${label}: ${what} at ${JSON.stringify(v)} floats (nothing ${dy<0?"below":"above"})`);
+      // And it can be reached: at least one face is open to the room or passage.
+      assert.ok([[1,0],[-1,0],[0,1],[0,-1]].some(([dx,dz])=>!solid(blockAt(v.x+dx,v.y,v.z+dz))),`${label}: ${what} at ${JSON.stringify(v)} is walled in`);
+    }
+    // Alarm lamps are set flush into a ceiling, wall, slab or parapet, not hung beneath one.
+    for(const v of f.lights)assert.ok([[1,0],[-1,0],[0,1],[0,-1]].filter(([dx,dz])=>solid(blockAt(v.x+dx,v.y,v.z+dz))).length>=2,`${label}: lamp hangs loose at ${JSON.stringify(v)}`);
+  };
+  check(make(5).f,"bunker");
+  check(make(3,4,{kind:"rock_face"}).f,"rock-face bunker");
+  check(makeEstate(3).f,"estate");
 });
 test("write an inspectable top-down estate site plan",()=>{
   const {f}=makeEstate(3,104729),top=[];

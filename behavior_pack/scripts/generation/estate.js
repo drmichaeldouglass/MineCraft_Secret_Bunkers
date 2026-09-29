@@ -54,19 +54,21 @@ export function planEstate(origin, levels, seed, defences, id = `sf_${seed >>> 0
     f.floors.push({ name: "Mansion • Grand hall", y: origin.y, clearance: 1, destination: p(13.5, 1, 13.5), panel: p(15, 2, 14) });
     const z0 = COMPOUND.z0;
     // The gate first: like the bunker's entrance, the facility's main door is its first door.
-    f.doors.push({ id: "gate", min: p(GATE.x0, 1, z0), max: p(GATE.x1, 4, z0), clearance: 1, open: false, kind: "blast", readers: [p(17, 2, z0 - 1), p(17, 2, z0 + 1)] });
+    // The gate's readers are set into the east pillar, one on its outer face and one on its inner face.
+    f.doors.push({ id: "gate", min: p(GATE.x0, 1, z0), max: p(GATE.x1, 4, z0), clearance: 1, open: false, kind: "blast", readers: [p(18, 2, z0 - 1), p(18, 2, z0 + 1)] });
+    // The mansion's readers are set into its facades either side of each door, usable from both sides.
     for (const [door, z] of [["front", 2], ["back", 22]])
-        f.doors.push({ id: door, min: p(12, 1, z), max: p(14, 3, z), clearance: 1, open: false, kind: "security", readers: [p(15, 2, z - 1), p(15, 2, z + 1)] });
+        f.doors.push({ id: door, min: p(12, 1, z), max: p(14, 3, z), clearance: 1, open: false, kind: "security", readers: [p(15, 2, z), p(11, 2, z)] });
     // Garage bays and every shuttered window close in a lockdown and open again after it.
     GARAGE_BAYS.forEach((z, i) => f.doors.push({ id: `garage_${i}`, min: p(-8, 1, z), max: p(-8, 3, z + 2), clearance: 4, open: true, kind: "shutter", readers: [] }));
     for (const x of WINDOWS)
         for (const y of [2, 8])
             for (const [side, z] of [["n", 1], ["s", 23]])
                 f.doors.push({ id: `window_${side}_${x}_${y}`, min: p(x, y, z), max: p(x + 1, y + 1, z), clearance: 4, open: true, kind: "shutter", readers: [] });
-    // Alarm lamps on the gate pillars, the watchtowers, the grand hall and the gatehouse.
-    f.lights.push(p(6, 7, -31), p(20, 7, -31), ...TOWERS.map(([x, z]) => p(x, 13, z)), p(13, 5, 6), p(13, 5, 18), p(20, 4, -27));
+    // Alarm lamps on the gate pillars and watchtowers, and set into the ceilings of the grand hall and the gatehouse.
+    f.lights.push(p(6, 7, -31), p(20, 7, -31), ...TOWERS.map(([x, z]) => p(x, 13, z)), p(13, 6, 6), p(13, 6, 18), p(20, 5, -27));
     underground(f, levels, rng);
-    // A grid across the driveway just inside the gate, between the hedges.
+    // A grid across the driveway just inside the gate, between posts in the hedges.
     for (const y of [1.4, 2.4])
         f.lasers.push({ a: p(DRIVE.x0 + 0.5, y, -26.5), b: p(DRIVE.x1 + 0.5, y, -26.5), response: "ALERT" });
     // The gatehouse guards the gate; the mansion's study is the estate's defence control room.

@@ -27,10 +27,10 @@ Choose **Deploy fortified estate** in the deployment device. Pick 3–5 floors f
 What you get:
 
 - **A walled compound.** The wall is five blocks of reinforced concrete with an iron security fence and floodlights along the top. A watchtower stands in each corner. Climb its ladder to a railed platform with a laser turret.
-- **The main gate** is a blast door in the middle of the north wall, between two pillars with a turret on each. Use the reader on either side (green card or better). Just inside, a two-beam laser grid across the driveway raises ALERT when anyone without a black card walks through, and the alert shuts the gate.
-- **The gatehouse** beside the gate holds a security console and a defence console for the `gate` zone.
+- **The main gate** is a blast door in the middle of the north wall, between two pillars with a turret on each. Use the reader set into the east pillar, on its outer or inner face (green card or better). Just inside, a two-beam laser grid across the driveway raises ALERT when anyone without a black card walks through, and the alert shuts the gate.
+- **The gatehouse** beside the gate has a security console and a defence console for the `gate` zone, set into a bank of cabinets along its east wall.
 - **The forecourt** has a three-bay garage with shutter doors, a helipad, a fountain and flower beds.
-- **The mansion.** The front and back doors need a green card. The grand hall has the lift pad and panel for the bunker below, the emergency ladder, and a staircase up the west side. The west wing is the dining room and kitchen. The east wing is the library and the study, which is the defence control room, with a security console and a defence console for the `perimeter` zone. Upstairs are four bedrooms with real beds and a gallery lounge. Every window on the north and south facades has a steel shutter that drops in a lockdown.
+- **The mansion.** The front and back doors need a green card; their readers are set into the facade either side of each door. The grand hall has the lift pad and panel for the bunker below, the emergency ladder, and a staircase up the west side. The west wing is the dining room and kitchen. The east wing is the library and the study, which is the defence control room, with a security console and a defence console for the `perimeter` zone. Upstairs are four bedrooms with real beds and a gallery lounge. Every window on the north and south facades has a steel shutter that drops in a lockdown.
 - **Behind the mansion** are a garden path and the generator house.
 - **Beneath it all** is the bunker, 3–5 floors of the same floors as the command bunker, including the B3 self-destruct deck and the B1 secret tunnel. The tunnel comes up at a remote exit outside the wall, or at a well in the back garden if no remote site suits.
 
@@ -52,7 +52,7 @@ Doors start open inside the facility; alarms close them. The exterior blast door
 
 ## Elevators and escape routes
 
-Each floor has a cyan elevator pad in the central lobby. Stand on it, interact with the adjacent elevator panel, and select a floor. The prototype plays a travel sound, waits briefly, then safely transfers the player. Clearance and destination occupancy are rechecked before arrival. Leaving the pad cancels travel. It does not have a physically moving cabin or animated cabin doors yet.
+Each floor has a cyan elevator pad in the central lobby. Stand on it, interact with the elevator panel in the steel control column beside it, and select a floor. The prototype plays a travel sound, waits briefly, then safely transfers the player. Clearance and destination occupancy are rechecked before arrival. Leaving the pad cancels travel. It does not have a physically moving cabin or animated cabin doors yet.
 
 The emergency ladder is on the east side of the lobby; it runs between every floor and the surface.
 
@@ -98,12 +98,14 @@ Every floor has a purpose, and each of its six rooms is furnished with working v
 
 ## Security controls
 
-The central lobby contains a **Security Console** and a **Turret Control Console**. The security console needs black clearance and provides NORMAL, ALERT, LOCKDOWN and laser enable/disable actions. On B3 the security console position is occupied by the self-destruct console; use another floor's security console or the debug scanner to reset alarms.
+Each floor's central lobby has a **Security Console** and a **Turret Control Console** set into its south wall, beside the passage to the room behind. On B3 the **Self-Destruct Console** is set into the lobby's north wall opposite them. The security console needs black clearance and provides NORMAL, ALERT, LOCKDOWN and laser enable/disable actions. Every door's reader is set into the wall beside it: one on the room side and one on the hall side.
 
 - NORMAL uses the configured defence modes. Shutters are raised. Previously closed security doors can be reopened at readers.
 - ALERT activates sirens, flashing emergency lights, and closes security doors.
 - LOCKDOWN also lowers shutters and restricts elevators to command clearance.
+- Each hall has a laser grid: three horizontal red beams, at ankle, waist and chest height, from an emitter in one wall to a receiver in the other. The west grid raises LOCKDOWN from B3 down and ALERT above; the east grid raises ALERT.
 - Laser grids detect unapproved player crossings or a blocked beam. Black and Creative master cards bypass crossing detection; a physically blocked beam still triggers its response. Lower cards can open room doors but do not bypass laser grids.
+- Live beams burn hostile mobs caught in them: 3 damage every quarter second. They never hurt players, villagers, animals or pets, and a mob in a beam does not raise the alarm. Disabled grids burn nothing.
 - Disable laser grids at a security console before testing ordinary clearance access without alarms.
 
 ## Defences

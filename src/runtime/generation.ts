@@ -232,8 +232,10 @@ function grounds(f:Facility):Operation[] {
     // The driveway runs from outside the gate to the mansion's front door, between hedges.
     fill(d,p(DRIVE.x0,0,C.z0-2),p(DRIVE.x1,0,1),"minecraft:smooth_stone");
     const leaves={persistent_bit:true,update_bit:false};
+    // Posts in the hedges for the driveway grid's emitters and receivers.
+    for(const x of [DRIVE.x0-1,DRIVE.x1+1])fill(d,p(x,1,-27),p(x,3,-27),"dark_reinforced_concrete");
     for(let z=C.z0+2;z<=-17;z++)for(const x of [DRIVE.x0-1,DRIVE.x1+1])
-      if(x<DRIVE.x1||z<-26||z>-24)set(d,p(x,1,z),"minecraft:oak_leaves",leaves);
+      if(z!==-27&&(x<DRIVE.x1||z<-26||z>-24))set(d,p(x,1,z),"minecraft:oak_leaves",leaves);
     // A paved yard before the garage bays, a path to the gatehouse door, and paths through the back garden.
     fill(d,p(-7,0,-24),p(DRIVE.x0-2,0,-10),"minecraft:smooth_stone");
     fill(d,p(DRIVE.x1+1,0,-25),p(18,0,-25),"minecraft:smooth_stone");

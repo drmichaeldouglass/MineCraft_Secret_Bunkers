@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased — horizontal tripwires that burn, and controls set into the walls
+
+- **Tripwires are horizontal.** Each floor's east hall had a single vertical beam from the floor up to a receiver hanging under the ceiling. Both halls now have a grid of three horizontal beams, at ankle, waist and chest height (0.4, 1.4 and 2.4 blocks above the floor), from an emitter set into one wall to a receiver in the other. The west grid still raises LOCKDOWN from B3 down; the east grid raises ALERT.
+- **Beams you can see.** A beam was a few faint dots drawn every three-quarters of a second. Each beam is now one thin, steady, glowing red line from emitter to receiver, redrawn every quarter second while a player is within 24 blocks.
+- **Tripwires burn hostile mobs.** A hostile mob caught in a live beam takes 3 damage every quarter second (12 a second), once per tick however many beams cross it, with a spark where it is hit. Only the turrets' conservative hostile list is burned: never players, villagers, animals, pets or neutral mobs. Grids that are switched off, and facilities in self-destruct or destroyed, burn nothing. Mobs are burned but do not raise the alarm; players and blocked beams still do. This covers every grid, including the tunnel's and the estate's driveway.
+- **Controls are set into the walls instead of floating in the air.**
+  - Room door readers: the room-side reader now sits in the door's own wall.
+  - Lobby consoles: each floor's security and defence consoles are in the lobby's south wall, and the B3 self-destruct console is in its north wall.
+  - Lift panels: every lift panel sits in a floor-to-ceiling control column beside its pad, on every floor, in the surface lobby and in the mansion hall.
+  - Entrance: the blast door's readers are in the portal facade and the passage wall.
+  - Estate: the gate's readers are in the east gate pillar, and the mansion's door readers are in the facade either side of each door. The gatehouse and study consoles sit in floor-to-ceiling cabinet banks, and the driveway grid in concrete posts.
+  - Alarm lamps are flush in the ceilings instead of hanging below them.
+- Bunkers and estates already built keep the positions they were saved with, so their controls go on working where they are. New deployments use the new positions.
+
 ## Unreleased — Stage 15: fortified estate
 
 - **A second facility: the fortified estate.** The deployment device now offers **Deploy fortified estate** next to the command bunker. It builds a secure mansion inside a walled compound, with a bunker underneath, a secret escape tunnel and automated defences.

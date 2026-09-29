@@ -50,7 +50,9 @@ export function planBunker(origin: Vec, levels: number, seed: number, defences: 
   };
   f.modules.push({template:"entrance",pos:p(6,0,-4),floor:0,role:"entrance"});
   f.floors.push({name:"Surface • Main entrance",y:origin.y,clearance:1,destination:p(13.5,1,13.5),panel:p(15,2,14)});
-  f.doors.push({id:"main",min:p(11,1,0),max:p(15,4,0),clearance:1,open:false,kind:"blast",readers:[p(17,2,-2),p(17,2,2)]});
+  // Readers are set into the portal's stonework: one in the facade facing the forecourt, one in the
+  // passage's side wall facing in.
+  f.doors.push({id:"main",min:p(11,1,0),max:p(15,4,0),clearance:1,open:false,kind:"blast",readers:[p(18,2,0),p(19,2,2)]});
   f.lights.push(p(9,4,0),p(17,4,0));
   underground(f,levels,rng);
   // Charges packed against the surface lobby's side walls bring the portal down.
@@ -86,9 +88,10 @@ export function underground(f: Facility, levels: number, rng: () => number): voi
       else { role=roles.get(`${gx},${gz}`)!; template=`${role}_${gz===0?"north":"south"}`; }
       f.modules.push({template,pos:p(gx*MODULE,dy,gz*MODULE),floor:level+1,role});
       if(gz!==1) {
-        const z=gz===0?8:18;
+        // One reader in the room's own wall beside the door, one in the hall's wall across the passage.
+        const z=gz===0?8:18,hall=gz===0?9:17;
         f.doors.push({id:`b${level+1}_${gx}_${gz}`,min:p(gx*MODULE+3,dy+1,z),max:p(gx*MODULE+5,dy+3,z),
-          clearance:levelClearance,open:true,kind:"security",readers:[p(gx*MODULE+6,dy+2,z-1),p(gx*MODULE+6,dy+2,z+1)]});
+          clearance:levelClearance,open:true,kind:"security",readers:[p(gx*MODULE+6,dy+2,z),p(gx*MODULE+6,dy+2,hall)]});
       }
     }
     // Demolition charges one block outside each wall, at mid-height, sealed in the encasing rock.
@@ -97,18 +100,20 @@ export function underground(f: Facility, levels: number, rng: () => number): voi
       f.charges!.push(p(a,dy+3,-1),p(-1,dy+3,a),p(27,dy+3,a));
       if(level>0||a!==13)f.charges!.push(p(a,dy+3,27));
     }
-    f.consoles.push({pos:p(12,dy+2,15),kind:"security",zone:"command"},
-      {pos:p(11,dy+2,15),kind:"defence",zone:"command"});
-    f.lights.push(p(13,dy+5,11),p(2,dy+5,13),p(20,dy+5,13));
-    // Three horizontal beams and one vertical beam create a reusable grid.
-    for(const y of [1.4,2.4,3.4]) f.lasers.push({a:p(4.5,dy+y,12.5),b:p(4.5,dy+y,14.5),response:level>=2?"LOCKDOWN":"ALERT"});
-    f.lasers.push({a:p(22.5,dy+1.3,13.5),b:p(22.5,dy+4.7,13.5),response:"ALERT"});
+    // Consoles are set into the lobby's south wall, backing onto the room behind it.
+    f.consoles.push({pos:p(11,dy+2,17),kind:"security",zone:"command"},
+      {pos:p(10,dy+2,17),kind:"defence",zone:"command"});
+    // Alarm lamps are set into the ceilings of the lobby and both halls.
+    f.lights.push(p(13,dy+6,11),p(2,dy+6,13),p(20,dy+6,13));
+    // A grid of three horizontal beams across each hall, at ankle, waist and chest height, from an
+    // emitter in one wall to a receiver in the other. The west grid guards the deeper floors' secure wing.
+    for(const x of [4.5,22.5])for(const y of [1.4,2.4,3.4])
+      f.lasers.push({a:p(x,dy+y,12.5),b:p(x,dy+y,14.5),response:x<13&&level>=2?"LOCKDOWN":"ALERT"});
     // The shutter fills the whole hall cross-section, floor to ceiling, so a lowered one seals the west wing.
     f.doors.push({id:`shutter_${level}`,min:p(7,dy+1,12),max:p(7,dy+5,14),clearance:4,open:true,kind:"shutter",readers:[]});
   }
-  // Command deck. x=11/12 already hold that floor's defence and security consoles;
-  // a shared position would hide one console behind the other in the registry lookup.
-  f.consoles.push({pos:p(13,COMMAND_Y+2,15),kind:"destruct",zone:"command"});
+  // Command deck: the self-destruct console is set into the lobby's north wall, across from the others.
+  f.consoles.push({pos:p(11,COMMAND_Y+2,9),kind:"destruct",zone:"command"});
 }
 /** The secret escape tunnel from B1 to its exit, guarded by a keycard door, a laser grid and,
  *  with defences, a laser turret at its junction. The reserved bounds grow to take in the exit. */

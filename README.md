@@ -41,7 +41,8 @@ If the kit command is unavailable, use `/give @s secretfacilities:facility_deplo
 - A five-block-wide entrance blast door that splits down the middle and slides apart sideways, room security doors, readers, alarm shutters, and emergency lights.
 - Four clearance levels and a Creative-only master card.
 - Multi-floor elevator transfer pads, a continuous emergency ladder, and a secret B1 escape tunnel. It runs under the mountain to a remote, terrain-matched exit: a utility shed, forest cabin, old well, hidden hatch or abandoned mine headframe. A keycard door, a laser grid and a junction turret guard it.
-- Horizontal and vertical laser grids, alert/lockdown controls, shared facility state, and saved configurations.
+- Horizontal laser tripwire grids that raise the alarm on intruders and burn hostile mobs caught in them, alert/lockdown controls, shared facility state, and saved configurations.
+- Readers, consoles and lift panels set into walls, door frames and control columns, with alarm lamps flush in the ceilings.
 - Two exterior laser turrets and one command-level turret when defences are enabled; range, line-of-sight, reload, zone controls, and a conservative hostile-only target filter.
 - A two-confirmation, 90-second self-destruct sequence with evacuation and an abort window, then TNT charges built into the rock around every floor blow and the bunker is demolished floor by floor.
 - Turret shots drawn as a solid, glowing laser beam.

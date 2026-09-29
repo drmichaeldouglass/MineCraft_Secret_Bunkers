@@ -73,17 +73,15 @@ export function lineClear(d, a, b) {
         return false;
     }
 }
-export function beam(d, a, b, step = 0.7, max = 36) {
-    const count = Math.min(max, Math.ceil(distance(a, b) / step));
-    for (let i = 0; i <= count; i++) {
-        const t = count ? i / count : 0;
-        try {
-            d.spawnParticle(NS + "laser_beam", { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t });
-        }
-        catch {
-            return;
-        }
+/** A tripwire beam: one emitter draws a thin, glowing red line from emitter to receiver. */
+export function tripwire(d, a, b) {
+    const span = { x: b.x - a.x, y: b.y - a.y, z: b.z - a.z }, vars = new MolangVariableMap();
+    vars.setVector3("variable.span", span);
+    vars.setFloat("variable.length", Math.hypot(span.x, span.y, span.z));
+    try {
+        d.spawnParticle(NS + "laser_beam", a, vars);
     }
+    catch { /* Unloaded. */ }
 }
 /** A turret shot: one emitter draws the whole beam as a dense, glowing, full-bright core and halo
  *  from muzzle to target, instead of a dotted trail of separate particles. */
