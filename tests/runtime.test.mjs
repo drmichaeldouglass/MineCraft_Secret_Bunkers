@@ -5,7 +5,7 @@ import { blockAt, blocks, dimension, entities, explosions, finishBuild, particle
 import { planBunker } from "../behavior_pack/scripts/generation/planner.js";
 import { facilities, load, mark, save } from "../behavior_pack/scripts/runtime/store.js";
 import { build, MAX_CUT, MAX_FILL, originAt } from "../behavior_pack/scripts/runtime/generation.js";
-import { armDestruct, abortDestruct, ease, LEAF, requestDoor, restoreDoors, setSecurity, slid, SUBSTEPS, tickAlarms, tickDoors, travel } from "../behavior_pack/scripts/runtime/security.js";
+import { armDestruct, abortDestruct, ease, LEAF, requestDoor, restoreDoors, setSecurity, slid, SUBSTEPS, tickAlarms, tickDoors, tickLasers, travel } from "../behavior_pack/scripts/runtime/security.js";
 import { column, MOUNTAIN } from "../behavior_pack/scripts/generation/mountain.js";
 import { tickDefence } from "../behavior_pack/scripts/runtime/defence.js";
 import { MISSILE, tickMissiles, tickPlaced } from "../behavior_pack/scripts/runtime/placed.js";
@@ -26,7 +26,11 @@ function flood(y,start,bounds={x0:0,x1:26,z0:-4,z1:37}){
 }
 function make(levels=5,seed=10){
   reset();facilities.clear();const f=planBunker({x:0,y:80,z:0},levels,seed,true,"test");
-  const p=playerAt({x:13,y:81,z:-10});players.push(p);build(f,p);finishBuild();assert.equal(f.phase,"ready");
+  const p=playerAt({x:13,y:81,z:-10});players.push(p);
+  // Door jobs are module-wide and keyed by facility id, and every test reuses "test". Let any an
+  // earlier test left running finish now, in the empty world the build is about to overwrite.
+  for(let n=0;n<400;n++)tickDoors();
+  build(f,p);finishBuild();assert.equal(f.phase,"ready");
   return {f,p};
 }
 test("assembled voxel navigation for 3, 5 and 8 floor bunkers",()=>{
@@ -144,11 +148,52 @@ test("lockdown closes doors and shutters; normal releases shutters",()=>{
   for(const door of f.doors)assert.equal(at(door.min.x,door.min.y,door.min.z).states[ns+"open"],false);
   setSecurity(f,"NORMAL");assert.ok(f.doors.filter(d=>d.kind==="shutter").every(d=>d.open));
 });
+test("a lowered shutter seals the hall from floor to ceiling",()=>{
+  const {f}=make();setSecurity(f,"LOCKDOWN");for(let n=0;n<200;n++)tickDoors();
+  for(const [i,floor] of f.floors.slice(1).entries()){
+    const shutter=f.doors.find(d=>d.id===`shutter_${i}`);
+    // Every block of the corridor's cross-section at the shutter must be closed steel: no gap for
+    // a small mob underneath, and none above for a player to climb over.
+    for(let y=floor.y+1;y<=floor.y+6;y++)for(let z=11;z<=15;z++){
+      const b=at(shutter.min.x,y,z);
+      assert.ok(b&&b.typeId!=="minecraft:air"&&b.states[ns+"open"]!==true,`B${i+1} shutter leaves a gap at ${shutter.min.x},${y},${z}`);
+    }
+  }
+});
+test("older saves with two-course shutters are grown to full height on load",()=>{
+  const {f}=make(3);
+  for(const door of f.doors)if(door.kind==="shutter"){door.min.y+=1;door.max.y-=2;}
+  save(f);facilities.clear();load();
+  const loaded=facilities.get(f.id);
+  for(const [i,floor] of loaded.floors.slice(1).entries()){
+    const shutter=loaded.doors.find(d=>d.id===`shutter_${i}`);
+    assert.deepEqual([shutter.min.y,shutter.max.y],[floor.y+1,floor.y+5]);
+  }
+});
 test("door obstruction delays closure without trapping entities",()=>{
   const {f}=make(),door=f.doors.find(d=>d.kind==="security");
   entities.push({id:"obstruction",typeId:"minecraft:cow",location:{...door.min},tags:[],isValid:true});
   requestDoor(f,door,false);tickDoors();assert.equal(at(door.min.x,door.min.y,door.min.z).states[ns+"open"],true);
   entities.pop();for(let n=0;n<40;n++)tickDoors();assert.equal(at(door.min.x,door.min.y,door.min.z).states[ns+"open"],false);
+});
+test("dropped items and spent arrows in a doorway do not hold the door open",()=>{
+  const {f}=make(),door=f.doors.find(d=>d.kind==="security");
+  for(const typeId of ["minecraft:item","minecraft:xp_orb","minecraft:arrow"])
+    entities.push({id:typeId,typeId,location:{x:door.min.x+0.5,y:door.min.y,z:door.min.z+0.5},tags:[],isValid:true});
+  requestDoor(f,door,false);for(let n=0;n<40;n++)tickDoors();
+  assert.equal(at(door.min.x,door.min.y,door.min.z).states[ns+"open"],false,"Loose debris kept the door from closing");
+  entities.length=0;
+});
+test("laser grids catch a player walking through, not one teleporting past",()=>{
+  const {f}=make(3),floor=f.floors[1],y=floor.y+1;
+  const intruder=playerAt({x:4.5,y,z:11.8});intruder.id="intruder";
+  intruder.getComponent=()=>({container:{size:0,getItem(){}}});
+  players.length=0;players.push(intruder);
+  // One sensor tick to learn where the player stands, then a long jump across the grid.
+  tickLasers();intruder.location={x:4.5,y,z:24};tickLasers();
+  assert.equal(f.state,"NORMAL","An elevator ride, respawn or /tp across a grid must not trip it");
+  intruder.location={x:4.5,y,z:15.2};tickLasers();intruder.location={x:4.5,y,z:12};tickLasers();
+  assert.equal(f.state,"ALERT","Walking through the beams must still trip the grid");
 });
 test("room doors retract in two-pixel steps rather than popping open",()=>{
   const {f}=make(3),door=f.doors.find(d=>d.kind==="security"),height=door.max.y-door.min.y+1;

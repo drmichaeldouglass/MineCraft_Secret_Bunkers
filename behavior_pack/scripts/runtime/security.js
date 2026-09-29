@@ -125,11 +125,14 @@ export function toggleDoor(player, f, door) {
     sound(f, "access_granted", door.min);
     requestDoor(f, door, !door.open);
 }
+/** Loose things a closing door may shut on; the game pushes them out of the block. Counting them
+ *  let one dropped item or spent arrow in a doorway hold the door open until it despawned. */
+const DEBRIS = new Set([LEAF, "minecraft:item", "minecraft:xp_orb", "minecraft:arrow", "minecraft:thrown_trident", "minecraft:snowball", "minecraft:egg"]);
 function occupied(d, door) {
     const a = door.min, b = door.max;
     const c = { x: (a.x + b.x + 1) / 2, y: (a.y + b.y + 1) / 2, z: (a.z + b.z + 1) / 2 };
     const reach = Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z) / 2 + 4;
-    return d.getEntities({ location: c, maxDistance: reach }).some(e => e.typeId !== LEAF && inside(e.location, { min: { x: a.x - 0.7, y: a.y - 1.9, z: a.z - 0.7 }, max: { x: b.x + 1.7, y: b.y + 1, z: b.z + 1.7 } }));
+    return d.getEntities({ location: c, maxDistance: reach }).some(e => !DEBRIS.has(e.typeId) && inside(e.location, { min: { x: a.x - 0.7, y: a.y - 1.9, z: a.z - 0.7 }, max: { x: b.x + 1.7, y: b.y + 1, z: b.z + 1.7 } }));
 }
 export function tickDoors() {
     let writes = 0;
@@ -243,7 +246,11 @@ export function abortDestruct(f) {
     return true;
 }
 let sensorCursor = 0;
+/** Where each player stood at the last sensor tick, and in which dimension. */
 const previous = new Map();
+/** Farther than anyone walks or runs between sensor ticks: a teleport, respawn or elevator ride.
+ *  Interpolating across it would sweep an imaginary path through every beam in between. */
+const TELEPORT = 8;
 export function tickLasers() {
     const players = world.getAllPlayers();
     for (const f of facilities.values()) {
@@ -262,7 +269,8 @@ export function tickLasers() {
                 beam(d, laser.a, laser.b, 0.9, 8);
             const obstruction = !lineClear(d, laser.a, laser.b);
             const crossed = watched.some(p => {
-                const old = previous.get(p.id) ?? p.location, current = p.location;
+                const last = previous.get(p.id), current = p.location;
+                const old = last && last.dimension === p.dimension.id && distance(last.location, current) <= TELEPORT ? last.location : current;
                 // Interpolate fast movement so walking across between sensor ticks is detected.
                 const steps = Math.min(16, Math.max(1, Math.ceil(distance(old, current) / 0.3)));
                 for (let j = 0; j <= steps; j++)
@@ -281,7 +289,7 @@ export function tickLasers() {
     }
     previous.clear();
     for (const p of players)
-        previous.set(p.id, { ...p.location });
+        previous.set(p.id, { dimension: p.dimension.id, location: { ...p.location } });
     sensorCursor++;
 }
 let alarmPhase = 0;

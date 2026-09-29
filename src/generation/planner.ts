@@ -77,7 +77,8 @@ export function planBunker(origin: Vec, levels: number, seed: number, defences: 
     // Three horizontal beams and one vertical beam create a reusable grid.
     for(const y of [1.4,2.4,3.4]) f.lasers.push({a:p(4.5,dy+y,12.5),b:p(4.5,dy+y,14.5),response:level>=2?"LOCKDOWN":"ALERT"});
     f.lasers.push({a:p(22.5,dy+1.3,13.5),b:p(22.5,dy+4.7,13.5),response:"ALERT"});
-    f.doors.push({id:`shutter_${level}`,min:p(7,dy+2,12),max:p(7,dy+3,14),clearance:4,open:true,kind:"shutter",readers:[]});
+    // The shutter fills the whole hall cross-section, floor to ceiling, so a lowered one seals the west wing.
+    f.doors.push({id:`shutter_${level}`,min:p(7,dy+1,12),max:p(7,dy+5,14),clearance:4,open:true,kind:"shutter",readers:[]});
   }
   // Command deck. x=11/12 already hold that floor's defence and security consoles;
   // a shared position would hide one console behind the other in the registry lookup.

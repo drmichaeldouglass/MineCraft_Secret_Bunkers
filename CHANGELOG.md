@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — bug fixes from a third review
+
+- **Lockdown shutters did not seal the hall.** Each floor's shutter covered only the middle two of the corridor's five courses, leaving a one-block gap along the floor that small mobs (baby zombies, silverfish, endermites) walked under, and a two-block gap under the ceiling that a player could climb into with a couple of placed blocks. Shutters now fill the corridor from floor to ceiling and take 2 s to travel. Bunkers saved by earlier builds are grown to full height when the world loads.
+- **A dropped item could hold a door open for minutes.** Door closure waited for any entity in the doorway, including dropped items, experience orbs and spent arrows. A mob shot down by the entrance turrets in front of the blast door could stop it closing until its drops despawned. Closing doors now ignore loose items and projectiles and only wait for mobs and players.
+- **Teleporting could trip a laser grid.** The tripwire check joins each player's last and current positions so a fast walk between sensor ticks is still caught. After a `/tp`, a respawn or a dimension change, that line could run straight through a beam the player never went near. A jump longer than 8 blocks, or into another dimension, is now treated as a teleport and only the new position is checked.
+- Test harness: leftover door jobs from one test no longer carry over into the next and change its timing.
+
 ## Unreleased — themed rooms, a hidden mountain site and a real self-destruct
 
 - **Rooms have specific jobs.** Every floor now has a purpose, with fixed rooms that always appear and a seeded pool for the rest: B1 Administration & Security, B2 Living Quarters, B3 Command, B4 Engineering & Mining, B5 High Security, B6 Hydroponics & Supply, B7 Research and B8 Deep Excavation. There are 19 room types, furnished with working vanilla blocks instead of construction-block props: bunk rooms and officers' bedrooms with real (coloured) beds, lounges, mess halls with a galley, hydroponic farms with irrigated crops under grow lights, mining faces of live ore-bearing rock with a railed drift and smelters, workshops, power plants with a caged reactor core, infirmaries, laboratories, command and data centres, briefing rooms, security offices with a holding cell, archives, strongrooms, water treatment and supply depots. The asset builder checks every room keeps its aisle and reader spot clear.
