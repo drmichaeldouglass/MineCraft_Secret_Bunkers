@@ -34,6 +34,13 @@ export function load() {
             // Generations interrupted by world closure can be resumed explicitly.
             if (f.phase === "building")
                 f.phase = "failed";
+            // Shutters saved by earlier builds covered only the middle two of the hall's five courses. Growing
+            // them to floor and ceiling is safe: the door repaint on load fills the new courses.
+            for (const door of f.doors)
+                if (door.kind === "shutter" && door.max.y - door.min.y === 1) {
+                    door.min = { ...door.min, y: door.min.y - 1 };
+                    door.max = { ...door.max, y: door.max.y + 2 };
+                }
             facilities.set(id, f);
         }
         catch (error) {
