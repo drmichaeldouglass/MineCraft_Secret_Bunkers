@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { blockAt, blocks, dimension, entities, explosions, finishBuild, particles, playerAt, players, properties, reset, sounds, system, terrain } from "./mock-server.mjs";
 import { planBunker } from "../behavior_pack/scripts/generation/planner.js";
-import { facilities, load, mark, save } from "../behavior_pack/scripts/runtime/store.js";
+import { facilities, levelGrids, load, mark, save } from "../behavior_pack/scripts/runtime/store.js";
 import { build, estateOriginAt, exitSite, FORECOURT, MAX_CUT, MAX_FILL, originAt } from "../behavior_pack/scripts/runtime/generation.js";
 import { COMPOUND, ESTATE_PAD, planEstate, TOWERS, WALL_HEIGHT } from "../behavior_pack/scripts/generation/estate.js";
 import { armDestruct, abortDestruct, BEAM_DAMAGE, ease, LEAF, requestDoor, restoreDoors, setSecurity, slid, SUBSTEPS, tickAlarms, tickDoors, tickLasers, travel } from "../behavior_pack/scripts/runtime/security.js";
@@ -667,6 +667,35 @@ test("hostile mobs crossing a live tripwire are burned; players and passive mobs
   f.lasersEnabled=false;tickLasers();assert.equal(zombie.damage,4*BEAM_DAMAGE,"Disabled grids must not burn");
   f.lasersEnabled=true;players.length=0;players.push(playerAt({x:13.5,y,z:13.5+60}));tickLasers();
   assert.equal(zombie.damage,4*BEAM_DAMAGE,"Grids far from every player stay idle");
+});
+test("bunkers saved with the old vertical beam are upgraded to horizontal grids when loaded",()=>{
+  const {f}=make(3),y=f.floors[1].y,set=(x,yy,z,typeId)=>blocks.set(`${x},${yy},${z}`,{typeId,states:{}});
+  // Recreate an old save: each floor's east grid was one vertical beam from a floor emitter to a receiver under the ceiling.
+  for(const floor of f.floors.slice(1)){
+    const dy=floor.y;f.lasers=f.lasers.filter(l=>!(l.a.x===22.5&&Math.floor(l.a.y)>=dy&&Math.floor(l.a.y)<dy+9));
+    f.lasers.push({a:{x:22.5,y:dy+1.3,z:13.5},b:{x:22.5,y:dy+4.7,z:13.5},response:"ALERT"});
+    for(const h of [1,2,3]){set(22,dy+h,11,ns+"dark_reinforced_concrete");set(22,dy+h,15,ns+"dark_reinforced_concrete");}
+    set(22,dy,13,ns+"laser_emitter");set(22,dy+5,13,ns+"laser_receiver");
+  }
+  save(f);facilities.clear();load();
+  const loaded=facilities.get("test");
+  assert.ok(loaded.lasers.every(l=>l.a.y===l.b.y),"A vertical beam survived the upgrade");
+  assert.equal(loaded.lasers.filter(l=>l.a.x===22.5).length,9,"Each floor's east hall needs its three-beam grid");
+  // The fittings are swapped once a player is near enough for their chunks to be loaded.
+  players.length=0;players.push(playerAt({x:13.5,y:y+1,z:13.5}));tickLasers();
+  assert.equal(loaded.retrofit,undefined,"The upgrade should finish once its chunks are loaded");
+  for(const floor of loaded.floors.slice(1)){
+    const dy=floor.y;
+    assert.equal(at(22,dy,13).typeId,ns+"industrial_floor","The old floor emitter should be paved over");
+    assert.equal(at(22,dy+5,13).typeId,"minecraft:air","The old hanging receiver should be gone");
+    for(const h of [1,2,3]){assert.equal(at(22,dy+h,11).typeId,ns+"laser_emitter");assert.equal(at(22,dy+h,15).typeId,ns+"laser_receiver");}
+  }
+  // The upgrade is saved, and a new or ruined facility is left alone.
+  save(loaded);facilities.clear();load();assert.equal(facilities.get("test").retrofit,undefined);
+  assert.equal(levelGrids(facilities.get("test")),false);
+  const ruin=planBunker({x:0,y:80,z:0},3,1,true,"ruin");ruin.phase="ready";ruin.state="DESTROYED";
+  ruin.lasers.push({a:{x:22.5,y:1.3,z:13.5},b:{x:22.5,y:4.7,z:13.5},response:"ALERT"});
+  assert.equal(levelGrids(ruin),false,"A destroyed facility's grids stay as they were");
 });
 test("readers, consoles, lift panels and grid fittings are set into walls, not floating",()=>{
   const check=(f,label)=>{

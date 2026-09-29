@@ -12,7 +12,8 @@
   - Entrance: the blast door's readers are in the portal facade and the passage wall.
   - Estate: the gate's readers are in the east gate pillar, and the mansion's door readers are in the facade either side of each door. The gatehouse and study consoles sit in floor-to-ceiling cabinet banks, and the driveway grid in concrete posts.
   - Alarm lamps are flush in the ceilings instead of hanging below them.
-- Bunkers and estates already built keep the positions they were saved with, so their controls go on working where they are. New deployments use the new positions.
+- **Existing bunkers are upgraded too.** A bunker saved with the old vertical beams gets the new horizontal grids when the world loads. The floor emitter is paved over, the hanging receiver is removed, and the new emitters and receivers are set into the hall walls as soon as a player comes near enough for their chunks to load. An unfinished build is upgraded when it finishes, and a destroyed bunker is left alone.
+- Readers, consoles and panels in facilities already built keep the positions they were saved with, so they go on working where they are. New deployments use the new positions.
 
 ## Unreleased — Stage 15: fortified estate
 

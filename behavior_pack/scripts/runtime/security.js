@@ -285,9 +285,30 @@ const previous = new Map();
 /** Farther than anyone walks or runs between sensor ticks: a teleport, respawn or elevator ride.
  *  Interpolating across it would sweep an imaginary path through every beam in between. */
 const TELEPORT = 8;
+/** Make the queued upgrade changes whose chunks are loaded; the rest wait for a later tick. */
+function retrofit(f) {
+    const d = dim(f);
+    f.retrofit = f.retrofit.filter(r => {
+        if (!loaded(d, r.pos))
+            return true;
+        try {
+            if (!r.only || d.getBlock(r.pos)?.typeId === r.only)
+                set(d, r.pos, r.block);
+        }
+        catch {
+            return true;
+        }
+        return false;
+    });
+    if (!f.retrofit.length)
+        delete f.retrofit;
+    mark(f);
+}
 export function tickLasers() {
     const players = world.getAllPlayers(), burned = new Set();
     for (const f of facilities.values()) {
+        if (f.retrofit?.length && f.phase === "ready" && nearby(f))
+            retrofit(f);
         if (f.phase !== "ready" || !f.lasersEnabled || f.state === "DESTROYED" || f.state === "SELF_DESTRUCT" || !nearby(f))
             continue;
         const d = dim(f), local = players.filter(p => p.dimension.id === f.dimension && inside(p.location, f.bounds, SENSOR_RANGE));

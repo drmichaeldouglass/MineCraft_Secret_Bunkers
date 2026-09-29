@@ -4,7 +4,7 @@ import { FLOOR_STEP, MODULE } from "../generation/planner.js";
 import { column, MOUNTAIN, PAD, PEAK, rearExit } from "../generation/mountain.js";
 import { chooseExit, EXIT_FILL, exitCandidates, EXITS, routeColumns, SITE, siteColumns } from "../generation/tunnel.js";
 import { COMPOUND, DRIVE, ESTATE_PAD, ESTATE_SEARCH, WALL_HEIGHT } from "../generation/estate.js";
-import { facilities, mark, save } from "./store.js";
+import { facilities, levelGrids, mark, save } from "./store.js";
 import { dim, fill, loaded, report, set, tell } from "./world.js";
 const active = new Set();
 const PAUSED = "Build paused because its chunks unloaded. Return here and use Resume in the deployment device.";
@@ -351,6 +351,7 @@ export function build(f, player) {
         try {
             if (f.buildStep >= ops.length) {
                 f.phase = "ready";
+                levelGrids(f);
                 save(f);
                 active.delete(f.id);
                 system.clearRun(task);

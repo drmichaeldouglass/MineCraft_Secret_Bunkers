@@ -4,7 +4,7 @@ import { FLOOR_STEP, MODULE } from "../generation/planner.js";
 import { column, MOUNTAIN, PAD, PEAK, rearExit, type Box } from "../generation/mountain.js";
 import { chooseExit, EXIT_FILL, exitCandidates, EXITS, routeColumns, SITE, siteColumns, type ExitSite, type SiteSample } from "../generation/tunnel.js";
 import { COMPOUND, DRIVE, ESTATE_PAD, ESTATE_SEARCH, WALL_HEIGHT } from "../generation/estate.js";
-import { facilities, mark, save } from "./store.js";
+import { facilities, levelGrids, mark, save } from "./store.js";
 import { dim, fill, loaded, report, set, tell } from "./world.js";
 const active=new Set<string>();
 type Operation=()=>void;
@@ -269,7 +269,7 @@ export function build(f:Facility,player:Player):void {
   const task=system.runInterval(()=>{
     try{
       if(f.buildStep>=ops.length){
-        f.phase="ready";save(f);active.delete(f.id);system.clearRun(task);
+        f.phase="ready";levelGrids(f);save(f);active.delete(f.id);system.clearRun(task);
         // Messaging a departed player throws; a finished build must not fall into the failure path.
         if(player.isValid)tell(player,f.type==="estate"?`§aEstate ready: ${f.id}. The gate faces north (−Z); use its reader with a keycard, then the reader at the mansion's front door.`
           :`§aBunker ready: ${f.id}. Entrance faces north (−Z). Use the outside reader with a keycard.`);

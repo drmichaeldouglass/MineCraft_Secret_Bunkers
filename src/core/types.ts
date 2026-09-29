@@ -44,6 +44,9 @@ export interface Facility {
   ground?: string;
   /** The secret escape tunnel's exit. Absent for facilities built with the original hut behind the mountain. */
   exit?: Exit;
+  /** Blocks still to change to bring a facility built by an earlier version up to date, set as their
+   *  chunks load. A change with 'only' is made only if that block is still there. */
+  retrofit?: { pos: Vec; block: string; only?: string }[];
 }
 export const NS = "secretfacilities:";
 export const add = (a: Vec, b: Vec): Vec => ({ x: a.x + b.x, y: a.y + b.y, z: a.z + b.z });
