@@ -1,6 +1,7 @@
 import { add } from "../core/types.js";
 import { random } from "../core/rules.js";
 import { MOUNTAIN, PEAK } from "./mountain.js";
+import { DEFAULT_SITE, EXITS, planTunnel, SITE } from "./tunnel.js";
 export const FLOOR_NAMES = ["Administration & Security", "Living Quarters", "Command", "Engineering & Mining", "High Security", "Hydroponics & Supply", "Research", "Deep Excavation"];
 /** What each floor is for. Every floor has six room slots: the fixed rooms always appear
  *  (the first in the north-west corner), and the rest are drawn from the pool without
@@ -25,30 +26,55 @@ export const MODULE = 9;
 export const FLOOR_STEP = 9;
 /** Grid column and row of the vertical core, and the command deck that carries self-destruct. */
 const CORE = 1, COMMAND_LEVEL = 2;
-export function planBunker(origin, levels, seed, defences, id = `sf_${seed >>> 0}`) {
-    if (!Number.isInteger(levels) || levels < 3 || levels > 8)
-        throw Error("Choose 3–8 underground floors.");
+/** Height of the command deck below the surface. */
+export const COMMAND_Y = -(COMMAND_LEVEL + 1) * FLOOR_STEP;
+/** Reject impossible requests before any planning: floor count, coordinates and world height. */
+export function checkRequest(origin, levels, seed, most = 8) {
+    if (!Number.isInteger(levels) || levels < 3 || levels > most)
+        throw Error(`Choose 3–${most} underground floors.`);
     if (![origin.x, origin.y, origin.z, seed].every(Number.isFinite))
         throw Error("Invalid coordinates or seed.");
     if (origin.y - levels * FLOOR_STEP < -60 || origin.y > 290)
         throw Error("Not enough vertical space. Choose a higher, ordinary surface site.");
+}
+/** The escape site comes from the deployment survey; without one the tunnel runs to flat ground behind the mountain. */
+export function planBunker(origin, levels, seed, defences, id = `sf_${seed >>> 0}`, site = DEFAULT_SITE(origin.y)) {
+    checkRequest(origin, levels, seed);
     const rng = random(seed), p = (x, y, z) => add(origin, { x, y, z });
-    const commandY = -(COMMAND_LEVEL + 1) * FLOOR_STEP;
     const f = {
         schema: 1, id, type: "bunker", dimension: "minecraft:overworld", seed, origin,
         // Reserved space includes the mountain over the site and the demolition charges around it.
         bounds: { min: p(MOUNTAIN.x0, -levels * FLOOR_STEP, MOUNTAIN.z0), max: p(MOUNTAIN.x1, PEAK + 8, MOUNTAIN.z1) }, state: "NORMAL", phase: "building", buildStep: 0,
         doors: [], floors: [], lasers: [], lights: [], turrets: [], modules: [],
-        zones: { entrance: defences ? "ACTIVE" : "OFFLINE", command: defences ? "ALERT_ONLY" : "OFFLINE" },
+        zones: { entrance: defences ? "ACTIVE" : "OFFLINE", command: defences ? "ALERT_ONLY" : "OFFLINE",
+            ...(site.kind === "rock_face" ? {} : { tunnel: defences ? "ALERT_ONLY" : "OFFLINE" }) },
         lasersEnabled: true, consoles: [], charges: [],
     };
     f.modules.push({ template: "entrance", pos: p(6, 0, -4), floor: 0, role: "entrance" });
     f.floors.push({ name: "Surface • Main entrance", y: origin.y, clearance: 1, destination: p(13.5, 1, 13.5), panel: p(15, 2, 14) });
-    f.doors.push({ id: "main", min: p(11, 1, 0), max: p(15, 4, 0), clearance: 1, open: false, kind: "blast", readers: [p(17, 2, -2), p(17, 2, 2)] });
+    // Readers are set into the portal's stonework: one in the facade facing the forecourt, one in the
+    // passage's side wall facing in.
+    f.doors.push({ id: "main", min: p(11, 1, 0), max: p(15, 4, 0), clearance: 1, open: false, kind: "blast", readers: [p(18, 2, 0), p(19, 2, 2)] });
     f.lights.push(p(9, 4, 0), p(17, 4, 0));
+    underground(f, levels, rng);
+    // Charges packed against the surface lobby's side walls bring the portal down.
+    for (const z of [4, 12])
+        f.charges.push(p(5, 3, z), p(21, 3, z));
+    if (defences) {
+        f.turrets.push({ id: "entrance_left", pos: p(8.5, 2, -2.5), zone: "entrance", enabled: true, damaged: false }, { id: "entrance_right", pos: p(18.5, 2, -2.5), zone: "entrance", enabled: true, damaged: false }, { id: "command", pos: p(23.5, COMMAND_Y + 2, 13.5), zone: "command", enabled: true, damaged: false });
+    }
+    secretTunnel(f, site, defences);
+    return f;
+}
+/** The underground floors every facility with a bunker shares: B1 to Bn under the surface at the
+ *  facility origin, each with its rooms, doors, grids, shutter, consoles and demolition charges,
+ *  and the self-destruct console on the command deck. Whatever stands on the surface must put the
+ *  lift pad at (12–14, 0, 12–14) and leave the emergency ladder's column at (15–16, 16) clear. */
+export function underground(f, levels, rng) {
+    const p = (x, y, z) => add(f.origin, { x, y, z });
     for (let level = 0; level < levels; level++) {
         const dy = -(level + 1) * FLOOR_STEP, levelClearance = Math.min(4, level + 1);
-        f.floors.push({ name: `B${level + 1} • ${FLOOR_NAMES[level]}`, y: origin.y + dy, clearance: levelClearance,
+        f.floors.push({ name: `B${level + 1} • ${FLOOR_NAMES[level]}`, y: f.origin.y + dy, clearance: levelClearance,
             destination: p(13.5, dy + 1, 13.5), panel: p(15, dy + 2, 14) });
         const program = FLOOR_PROGRAMS[level], pool = [...program.pool], roles = new Map();
         const drawn = [...program.fixed];
@@ -76,9 +102,10 @@ export function planBunker(origin, levels, seed, defences, id = `sf_${seed >>> 0
                 }
                 f.modules.push({ template, pos: p(gx * MODULE, dy, gz * MODULE), floor: level + 1, role });
                 if (gz !== 1) {
-                    const z = gz === 0 ? 8 : 18;
+                    // One reader in the room's own wall beside the door, one in the hall's wall across the passage.
+                    const z = gz === 0 ? 8 : 18, hall = gz === 0 ? 9 : 17;
                     f.doors.push({ id: `b${level + 1}_${gx}_${gz}`, min: p(gx * MODULE + 3, dy + 1, z), max: p(gx * MODULE + 5, dy + 3, z),
-                        clearance: levelClearance, open: true, kind: "security", readers: [p(gx * MODULE + 6, dy + 2, z - 1), p(gx * MODULE + 6, dy + 2, z + 1)] });
+                        clearance: levelClearance, open: true, kind: "security", readers: [p(gx * MODULE + 6, dy + 2, z), p(gx * MODULE + 6, dy + 2, hall)] });
                 }
             }
         // Demolition charges one block outside each wall, at mid-height, sealed in the encasing rock.
@@ -88,23 +115,34 @@ export function planBunker(origin, levels, seed, defences, id = `sf_${seed >>> 0
             if (level > 0 || a !== 13)
                 f.charges.push(p(a, dy + 3, 27));
         }
-        f.consoles.push({ pos: p(12, dy + 2, 15), kind: "security", zone: "command" }, { pos: p(11, dy + 2, 15), kind: "defence", zone: "command" });
-        f.lights.push(p(13, dy + 5, 11), p(2, dy + 5, 13), p(20, dy + 5, 13));
-        // Three horizontal beams and one vertical beam create a reusable grid.
-        for (const y of [1.4, 2.4, 3.4])
-            f.lasers.push({ a: p(4.5, dy + y, 12.5), b: p(4.5, dy + y, 14.5), response: level >= 2 ? "LOCKDOWN" : "ALERT" });
-        f.lasers.push({ a: p(22.5, dy + 1.3, 13.5), b: p(22.5, dy + 4.7, 13.5), response: "ALERT" });
+        // Consoles are set into the lobby's south wall, backing onto the room behind it.
+        f.consoles.push({ pos: p(11, dy + 2, 17), kind: "security", zone: "command" }, { pos: p(10, dy + 2, 17), kind: "defence", zone: "command" });
+        // Alarm lamps are set into the ceilings of the lobby and both halls.
+        f.lights.push(p(13, dy + 6, 11), p(2, dy + 6, 13), p(20, dy + 6, 13));
+        // A grid of three horizontal beams across each hall, at ankle, waist and chest height, from an
+        // emitter in one wall to a receiver in the other. The west grid guards the deeper floors' secure wing.
+        for (const x of [4.5, 22.5])
+            for (const y of [1.4, 2.4, 3.4])
+                f.lasers.push({ a: p(x, dy + y, 12.5), b: p(x, dy + y, 14.5), response: x < 13 && level >= 2 ? "LOCKDOWN" : "ALERT" });
         // The shutter fills the whole hall cross-section, floor to ceiling, so a lowered one seals the west wing.
         f.doors.push({ id: `shutter_${level}`, min: p(7, dy + 1, 12), max: p(7, dy + 5, 14), clearance: 4, open: true, kind: "shutter", readers: [] });
     }
-    // Command deck. x=11/12 already hold that floor's defence and security consoles;
-    // a shared position would hide one console behind the other in the registry lookup.
-    f.consoles.push({ pos: p(13, commandY + 2, 15), kind: "destruct", zone: "command" });
-    // Charges packed against the surface lobby's side walls bring the portal down.
-    for (const z of [4, 12])
-        f.charges.push(p(5, 3, z), p(21, 3, z));
-    if (defences) {
-        f.turrets.push({ id: "entrance_left", pos: p(8.5, 2, -2.5), zone: "entrance", enabled: true, damaged: false }, { id: "entrance_right", pos: p(18.5, 2, -2.5), zone: "entrance", enabled: true, damaged: false }, { id: "command", pos: p(23.5, commandY + 2, 13.5), zone: "command", enabled: true, damaged: false });
+    // Command deck: the self-destruct console is set into the lobby's north wall, across from the others.
+    f.consoles.push({ pos: p(11, COMMAND_Y + 2, 9), kind: "destruct", zone: "command" });
+}
+/** The secret escape tunnel from B1 to its exit, guarded by a keycard door, a laser grid and,
+ *  with defences, a laser turret at its junction. The reserved bounds grow to take in the exit. */
+export function secretTunnel(f, site, defences) {
+    const tunnel = planTunnel(f.origin, site, defences);
+    f.exit = tunnel.exit;
+    f.doors.push(...tunnel.doors);
+    f.lasers.push(...tunnel.lasers);
+    f.lights.push(...tunnel.lights);
+    if (tunnel.turret)
+        f.turrets.push(tunnel.turret);
+    if (site.kind !== "rock_face") {
+        const l = tunnel.exit.ladder, b = f.bounds;
+        b.min = { ...b.min, x: Math.min(b.min.x, l.x - SITE), z: Math.min(b.min.z, l.z - SITE) };
+        b.max = { x: Math.max(b.max.x, l.x + SITE), y: Math.max(b.max.y, l.y + EXITS[site.kind].height + 2), z: Math.max(b.max.z, l.z + SITE) };
     }
-    return f;
 }

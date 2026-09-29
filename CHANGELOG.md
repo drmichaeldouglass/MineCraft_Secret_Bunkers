@@ -1,5 +1,45 @@
 # Changelog
 
+## Unreleased — horizontal tripwires that burn, and controls set into the walls
+
+- **Tripwires are horizontal.** Each floor's east hall had a single vertical beam from the floor up to a receiver hanging under the ceiling. Both halls now have a grid of three horizontal beams, at ankle, waist and chest height (0.4, 1.4 and 2.4 blocks above the floor), from an emitter set into one wall to a receiver in the other. The west grid still raises LOCKDOWN from B3 down; the east grid raises ALERT.
+- **Beams you can see.** A beam was a few faint dots drawn every three-quarters of a second. Each beam is now one thin, steady, glowing red line from emitter to receiver, redrawn every quarter second while a player is within 24 blocks.
+- **Tripwires burn hostile mobs.** A hostile mob caught in a live beam takes 3 damage every quarter second (12 a second), once per tick however many beams cross it, with a spark where it is hit. Only the turrets' conservative hostile list is burned: never players, villagers, animals, pets or neutral mobs. Grids that are switched off, and facilities in self-destruct or destroyed, burn nothing. Mobs are burned but do not raise the alarm; players and blocked beams still do. This covers every grid, including the tunnel's and the estate's driveway.
+- **Controls are set into the walls instead of floating in the air.**
+  - Room door readers: the room-side reader now sits in the door's own wall.
+  - Lobby consoles: each floor's security and defence consoles are in the lobby's south wall, and the B3 self-destruct console is in its north wall.
+  - Lift panels: every lift panel sits in a floor-to-ceiling control column beside its pad, on every floor, in the surface lobby and in the mansion hall.
+  - Entrance: the blast door's readers are in the portal facade and the passage wall.
+  - Estate: the gate's readers are in the east gate pillar, and the mansion's door readers are in the facade either side of each door. The gatehouse and study consoles sit in floor-to-ceiling cabinet banks, and the driveway grid in concrete posts.
+  - Alarm lamps are flush in the ceilings instead of hanging below them.
+- **Existing bunkers are upgraded too.** A bunker saved with the old vertical beams gets the new horizontal grids when the world loads. The floor emitter is paved over, the hanging receiver is removed, and the new emitters and receivers are set into the hall walls as soon as a player comes near enough for their chunks to load. An unfinished build is upgraded when it finishes, and a destroyed bunker is left alone.
+- Readers, consoles and panels in facilities already built keep the positions they were saved with, so they go on working where they are. New deployments use the new positions.
+
+## Unreleased — Stage 15: fortified estate
+
+- **A second facility: the fortified estate.** The deployment device now offers **Deploy fortified estate** next to the command bunker. It builds a secure mansion inside a walled compound, with a bunker underneath, a secret escape tunnel and automated defences.
+- **The compound.** A 75 × 81 block site levelled like the bunker's pad and enclosed by a five-block reinforced concrete wall topped with an iron security fence and floodlights. Inside are a watchtower in each corner, a gatehouse beside the gate, a three-bay garage, a helipad, a fountain, flower beds, hedges along the driveway, and a generator house and garden behind the mansion.
+- **The main gate** is a five-wide blast door in the north wall, between two turret-topped pillars. Its two leaves slide into the wall like the bunker's entrance door. It needs a keycard reader on either side and a laser grid across the driveway just inside it raises ALERT.
+- **The mansion.** Two storeys in white concrete and deepslate. On the ground floor, a chequered grand hall with the lift and emergency ladder down to the bunker, a staircase, a dining room, a kitchen, a library, and a study that is the estate's defence control room. Upstairs are four bedrooms with real beds and a gallery lounge. Keycard doors front and back, and steel shutters over every window on both long facades. The shutters, like the garage doors, close in a lockdown and open again afterwards.
+- **The bunker beneath** is 3–5 floors of the command bunker's own floors, with the same rooms, lifts, ladder, grids, shutters, self-destruct deck and B1 secret tunnel. The tunnel comes up at a terrain-matched exit outside the wall, or at a well in the back garden when no remote site will do.
+- **Defences.** Nine laser turrets: one on each gate pillar (zone `gate`), one on each watchtower and one on the mansion roof (zone `perimeter`, both 28-block exterior range), plus the command deck and tunnel junction turrets. Consoles in the gatehouse and in the study.
+- **Self-destruct** brings down the floors below, then guts the mansion: fittings, glass and lamps are blown out, the stone is scorched grey, holes are torn through the roof and upper floor, fires are started and the lift is sealed with rubble. The wall, outbuildings and secret tunnel survive.
+- The estate is deployed from where its forecourt will be. Anyone standing below the new ground when it is levelled is lifted onto it rather than buried.
+- Shared systems generalised for more than one facility type: the underground floors, the secret tunnel and the survey are shared code. Exit sites can be kept clear of a facility's footprint, and exterior turret zones share the long range.
+- `tools/preview.py` also renders `docs/estate-preview.png`, a site plan of an assembled estate with the mansion template beside it.
+
+## Unreleased — Stage 14: secret tunnels
+
+- **The escape tunnel now leads somewhere secret.** The B1 tunnel no longer stops at a hut dug into the back of the bunker's mountain. It runs on under the mountain to a junction chamber, then south, east or west to a remote exit 37 to 55 blocks from the core, well clear of the mountain, and a ladder shaft climbs from the tunnel to the surface.
+- **Five exits that suit the ground.** A utility shed, a spruce forest cabin, an old dry well, a hidden hatch in the undergrowth and an abandoned mine headframe, each an authored 7×7 template. Deployment surveys nine candidate sites and picks the flattest dry one that keeps at least two blocks of rock over the tunnel. The exit type follows the ground it lands on: a cabin among trees, a well in sand, a mine on bare rock, and a shed, hatch or well on open land. The deployment menu can also force a particular exit. The chosen exit's type, direction, distance and coordinates are shown before you confirm, and again on the debug scanner and the self-destruct screens.
+- **Terrain-aware, with a safe fallback.** Exit sites are levelled with cut and fill of up to four blocks, using the local surface block. The tunnel is sealed in stone wherever it crosses a cave. Sites with water, unloaded chunks, rough ground, or ground too low to bury the tunnel are passed over. If no site works, or you choose it, the tunnel comes up at the original rock-face door behind the mountain, which the bunker's own earthworks always make possible. The mountain now closes over the back of the bunker unless that rock-face exit is used.
+- **The tunnel is guarded by the shared security systems.** A keycard door (level 1) just outside the B1 room, a two-beam laser grid that raises ALERT when someone without command clearance walks through, an emergency lamp in the junction that flashes with the alarms, and, when defences are enabled, a laser turret at the junction in a new `tunnel` defence zone (ALERT ONLY by default). No missile turret is ever placed underground.
+- **Self-destruct leaves the way out intact.** The junction turret shuts down with the rest at detonation, but its demolition blast is no longer set off inside the escape tunnel.
+- Bunkers saved before this change keep their hut behind the mountain and resume interrupted builds with exactly the original build steps.
+- Structure templates can now contain structure voids (block index −1), which keep the block already in the world. Tunnel exits use them so the levelled ground around them stays in place. The validator and the test harness understand them.
+- Horizontal laser grids can now run along x as well as z, which the tunnel's grid needs.
+- `tools/preview.py` also renders `docs/tunnel-exits.png`, an isometric view of the five exit templates.
+
 ## Unreleased — bug fixes from a third review
 
 - **Lockdown shutters did not seal the hall.** Each floor's shutter covered only the middle two of the corridor's five courses, leaving a one-block gap along the floor that small mobs (baby zombies, silverfish, endermites) walked under, and a two-block gap under the ceiling that a player could climb into with a couple of placed blocks. Shutters now fill the corridor from floor to ceiling and take 2 s to travel. Bunkers saved by earlier builds are grown to full height when the world loads.

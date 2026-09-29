@@ -3,10 +3,12 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { blockAt, blocks, dimension, entities, explosions, finishBuild, particles, playerAt, players, properties, reset, sounds, system, terrain } from "./mock-server.mjs";
 import { planBunker } from "../behavior_pack/scripts/generation/planner.js";
-import { facilities, load, mark, save } from "../behavior_pack/scripts/runtime/store.js";
-import { build, MAX_CUT, MAX_FILL, originAt } from "../behavior_pack/scripts/runtime/generation.js";
-import { armDestruct, abortDestruct, ease, LEAF, requestDoor, restoreDoors, setSecurity, slid, SUBSTEPS, tickAlarms, tickDoors, tickLasers, travel } from "../behavior_pack/scripts/runtime/security.js";
-import { column, MOUNTAIN } from "../behavior_pack/scripts/generation/mountain.js";
+import { facilities, levelGrids, load, mark, save } from "../behavior_pack/scripts/runtime/store.js";
+import { build, estateOriginAt, exitSite, FORECOURT, MAX_CUT, MAX_FILL, originAt } from "../behavior_pack/scripts/runtime/generation.js";
+import { COMPOUND, ESTATE_PAD, planEstate, TOWERS, WALL_HEIGHT } from "../behavior_pack/scripts/generation/estate.js";
+import { armDestruct, abortDestruct, BEAM_DAMAGE, ease, LEAF, requestDoor, restoreDoors, setSecurity, slid, SUBSTEPS, tickAlarms, tickDoors, tickLasers, travel } from "../behavior_pack/scripts/runtime/security.js";
+import { column, MOUNTAIN, rearExit } from "../behavior_pack/scripts/generation/mountain.js";
+import { EXITS, REMOTE, SITE } from "../behavior_pack/scripts/generation/tunnel.js";
 import { tickDefence } from "../behavior_pack/scripts/runtime/defence.js";
 import { MISSILE, tickMissiles, tickPlaced } from "../behavior_pack/scripts/runtime/placed.js";
 const ns="secretfacilities:",at=(x,y,z)=>blocks.get(`${x},${y},${z}`);
@@ -24,14 +26,41 @@ function flood(y,start,bounds={x0:0,x1:26,z0:-4,z1:37}){
   }
   return seen;
 }
-function make(levels=5,seed=10){
-  reset();facilities.clear();const f=planBunker({x:0,y:80,z:0},levels,seed,true,"test");
+function make(levels=5,seed=10,site){
+  reset();facilities.clear();const f=planBunker({x:0,y:80,z:0},levels,seed,true,"test",site);
   const p=playerAt({x:13,y:81,z:-10});players.push(p);
   // Door jobs are module-wide and keyed by facility id, and every test reuses "test". Let any an
   // earlier test left running finish now, in the empty world the build is about to overwrite.
   for(let n=0;n<400;n++)tickDoors();
   build(f,p);finishBuild();assert.equal(f.phase,"ready");
   return {f,p};
+}
+/** Walk the secret tunnel from the B1 core to its exit, climb the ladder, and step out onto open ground. */
+function escapes(f,from=[13,13]){
+  const e=f.exit,l=e.ladder,tunnel=f.floors[1].y+1,label=`${e.kind} ${e.heading??""}`;
+  const o=f.origin,reach=flood(tunnel,[o.x+from[0],o.z+from[1]],{x0:o.x-60,x1:o.x+90,z0:o.z-4,z1:o.z+90});
+  assert.ok(reach.has(`${l.x},${l.z}`),`${label}: the tunnel does not lead from the core to the exit ladder`);
+  // One ladder, hung on solid wall the whole way, from the tunnel floor to the exit.
+  const top=l.y+EXITS[e.kind].ladderTop,back={2:[0,1],3:[0,-1],4:[1,0],5:[-1,0]}[e.facing];
+  for(let y=tunnel;y<=top;y++){
+    assert.equal(at(l.x,y,l.z)?.typeId,"minecraft:ladder",`${label}: ladder missing at ${l.x},${y},${l.z}`);
+    assert.deepEqual(at(l.x,y,l.z).states,{facing_direction:e.facing});
+    assert.ok(!["minecraft:air",undefined].includes(blockAt(l.x+back[0],y,l.z+back[1]).typeId),`${label}: ladder unsupported at Y ${y}`);
+  }
+  // A player at the top of the ladder can walk out of the exit's footprint. A hatch is opened first.
+  const open=b=>passable(b)||b?.typeId==="minecraft:spruce_trapdoor";
+  const feet=(x,z)=>e.kind==="well"&&Math.abs(x-l.x)<=1&&Math.abs(z-l.z)<=1?top+1:l.y+1;
+  const todo=[[l.x,l.z]],seen=new Set([`${l.x},${l.z}`]);let out=false;
+  while(todo.length&&!out){
+    const [x,z]=todo.pop();
+    for(const [a,b] of [[x+1,z],[x-1,z],[x,z+1],[x,z-1]]){
+      if(seen.has(`${a},${b}`))continue;
+      const y=feet(a,b);if(!open(blockAt(a,y,b))||!open(blockAt(a,y+1,b)))continue;
+      if(Math.abs(a-l.x)>3||Math.abs(b-l.z)>3){out=true;break;}
+      seen.add(`${a},${b}`);todo.push([a,b]);
+    }
+  }
+  assert.ok(out,`${label}: no way out of the exit at the top of the ladder`);
 }
 test("assembled voxel navigation for 3, 5 and 8 floor bunkers",()=>{
   for(const levels of [3,5,8]){
@@ -45,16 +74,9 @@ test("assembled voxel navigation for 3, 5 and 8 floor bunkers",()=>{
         assert.ok([[1,0],[-1,0],[0,1],[0,-1]].some(([dx,dz])=>seen.has(`${reader.x+dx},${reader.z+dz}`)),`Reader inaccessible at ${JSON.stringify(reader)}`);
       assert.ok(seen.has("14,16"),"Emergency ladder approach disconnected");
     }
-    const escape=flood(f.floors[1].y+1,[13,13]);assert.ok(escape.has("13,34"),"B1 escape tunnel blocked");
+    escapes(f);
     // Only the ladder itself may pierce a floor; any open column beside it is a drop to the bottom.
     for(const floor of f.floors)assert.notEqual(at(14,floor.y,16).typeId,"minecraft:air",`Open drop beside the ladder at Y ${floor.y}`);
-    // The escape ladder must land players on a hut floor that leads to its exit.
-    const hut=f.origin.y;
-    for(let x=12;x<=14;x++)for(let z=33;z<=35;z++)if(x!==12||z!==34)
-      assert.notEqual(at(x,hut,z).typeId,"minecraft:air",`Escape hut floor open at ${x},${hut},${z}`);
-    assert.equal(at(12,hut,34).typeId,"minecraft:ladder","Escape ladder does not reach the hut");
-    // The hut is dug into the back of the mountain; its door opens south, out onto clear ground.
-    assert.ok(flood(hut+1,[13,34],{x0:10,x1:16,z0:32,z1:42}).has("13,42"),"Escape hut exit unreachable");
     for(let y=f.floors.at(-1).y+1;y<=85;y++){
       assert.equal(at(15,y,16).typeId,"minecraft:ladder");assert.equal(at(16,y,16).typeId,ns+"steel_wall");
     }
@@ -74,20 +96,22 @@ test("uneven sites are levelled instead of refused, within limits",()=>{
   s=originAt(site());
   assert.equal(s.origin.y,80,"The pad stays at the entrance ground when it can");
   assert.ok(s.cut>5&&s.fill>5&&s.cut<=MAX_CUT&&s.fill<=MAX_FILL,`cut ${s.cut}, fill ${s.fill}`);
-  const f=planBunker(s.origin,3,10,true,"hill");f.ground=s.ground;build(f,site());finishBuild();
-  assert.equal(f.phase,"ready");
+  const f=planBunker(s.origin,3,10,true,"hill",exitSite(dimension,s.origin,10));f.ground=s.ground;build(f,site());finishBuild();
+  assert.equal(f.phase,"ready");assert.notEqual(f.exit.kind,"rock_face","A gentle hillside has room for a remote exit");
+  escapes(f);
   const o=f.origin,rel=(x,y,z)=>blockAt(o.x+x,o.y+y,o.z+z).typeId;
-  // Structures that stand above the pad: entrance, ladder shaft and escape hut.
-  const built=(x,z)=>(x>=6&&x<=20&&z>=-4&&z<=17)||(x>=15&&x<=16&&z===16)||(x>=11&&x<=15&&z>=32&&z<=36);
+  // Structures that stand above the pad: entrance and ladder shaft.
+  const built=(x,z)=>(x>=6&&x<=20&&z>=-4&&z<=17)||(x>=15&&x<=16&&z===16);
+  const tunnel=(x,z)=>f.exit.passages.some(({lining:b})=>o.x+x>=b.min.x&&o.x+x<=b.max.x&&o.z+z>=b.min.z&&o.z+z<=b.max.z);
   for(let x=-2;x<=28;x++)for(let z=-6;z<=39;z++){
     if(built(x,z))continue;
     assert.notEqual(rel(x,0,z),"minecraft:air",`No pad surface at ${x},${z}`);
     // The old hill is gone: what stands on the pad now is the mountain, solid to its surface.
-    const top=column(f.seed,x,z).top;
+    const top=column(f.seed,x,z,rearExit(f)).top;
     for(let y=1;y<=top;y++)assert.notEqual(rel(x,y,z),"minecraft:air",`Hollow in the mountain at ${x},${y},${z}`);
     for(let y=top+1;y<=top+MAX_CUT;y++)assert.equal(rel(x,y,z),"minecraft:air",`Hill left standing at ${x},${y},${z}`);
     // Beside the rooms and escape tunnel, nothing under the pad may be left hollow.
-    if((x>=0&&x<=26&&z>=0&&z<=26)||(x>=11&&x<=15&&z>=26&&z<=36))continue;
+    if((x>=0&&x<=26&&z>=0&&z<=26)||tunnel(x,z))continue;
     for(let y=-MAX_FILL;y<0;y++)assert.notEqual(rel(x,y,z),"minecraft:air",`Hole left under the pad at ${x},${y},${z}`);
   }
   assert.equal(rel(0,-1,-6),"minecraft:dirt","The low side is backfilled with earth");
@@ -103,17 +127,19 @@ test("uneven sites are levelled instead of refused, within limits",()=>{
   // Water level with the pad is filled; water standing above it would flood the entrance.
   terrain.height=x=>x>=105?74:80;terrain.water=x=>x>=105?80:undefined;
   s=originAt(site());assert.deepEqual([s.origin.y,s.fill],[80,6]);
-  const lake=planBunker(s.origin,3,10,true,"lake");lake.ground=s.ground;build(lake,site());finishBuild();
+  const lake=planBunker(s.origin,3,10,true,"lake",exitSite(dimension,s.origin,10));lake.ground=s.ground;build(lake,site());finishBuild();
+  assert.ok(["south","west"].includes(lake.exit.heading),`The exit must stay out of the lake, not go ${lake.exit.heading}`);
+  escapes(lake);
   assert.ok(!["minecraft:air","minecraft:water"].includes(blockAt(lake.origin.x+27,77,lake.origin.z+26).typeId),"The bunker wall on the lake side is exposed");
   assert.equal(blockAt(lake.origin.x+28,77,lake.origin.z+30).typeId,"minecraft:dirt","Lake water under the pad is filled");
   reset();facilities.clear();
   terrain.height=(x,z)=>z>=235?78:80;terrain.water=(x,z)=>z>=235?82:undefined;
   assert.throws(()=>originAt(site()),/flood/,"water above the pad must be refused");
   terrain.water=()=>undefined;
-  // A rise behind the footprint is cut back so the escape hut's exit stays open.
+  // A rise behind the footprint is cut back so the rock-face exit's hut stays open.
   terrain.height=(x,z)=>z>=240?90:80;
   s=originAt(site());assert.equal(s.cut,10);
-  const hut=planBunker(s.origin,3,10,true,"hut");hut.ground=s.ground;build(hut,site());finishBuild();
+  const hut=planBunker(s.origin,3,10,true,"hut",{kind:"rock_face"});hut.ground=s.ground;build(hut,site());finishBuild();
   for(const z of [36,37,38,39])for(const y of [1,2])
     assert.equal(blockAt(hut.origin.x+13,hut.origin.y+y,hut.origin.z+z).typeId,"minecraft:air","Hut exit buried");
 });
@@ -318,7 +344,14 @@ test("self-destruct fires the charges and brings the whole bunker down",()=>{
   }
   // The portal passage is filled with rubble, sealing the ruin, and the defences are gone.
   assert.equal(flood(81,[13,-2],{x0:6,x1:20,z0:-4,z1:17}).has("13,13"),false,"The collapsed portal can still be walked through");
-  assert.equal(entities.filter(e=>e.typeId===ns+"laser_turret"||e.typeId===LEAF).length,0);
+  assert.equal(entities.filter(e=>e.typeId===ns+"laser_turret"&&!e.tags.includes(`sf:${f.id}:tunnel`)||e.typeId===LEAF).length,0);
+  // The secret tunnel and its exit are the way out and come through intact, with no blast in them;
+  // the junction turret is left standing but shut down for good.
+  escapes(f,[13,27]);
+  const junction=f.turrets.find(t=>t.zone==="tunnel");
+  assert.ok(junction.damaged&&!junction.enabled);
+  const inTunnel=v=>f.exit.passages.slice(1).some(({interior:b})=>v.x>=b.min.x-2&&v.x<=b.max.x+3&&v.y>=b.min.y-2&&v.y<=b.max.y+3&&v.z>=b.min.z-2&&v.z<=b.max.z+3);
+  assert.ok(!explosions.some(x=>inTunnel(x.location)),"An explosion went off in the escape tunnel");
 });
 test("turret target selection, cooldown, line-of-sight and disabled state",()=>{
   const {f}=make(3),turret=f.turrets[0],source=turret.pos;
@@ -385,14 +418,14 @@ test("the bunker is buried in a mountain with its portal and escape exit left op
   const {f}=make(3),o=f.origin,rel=(x,y,z)=>blockAt(o.x+x,o.y+y,o.z+z).typeId;
   // Solid rock over the lobby roof and every hut, with the mountain's surface where it should be.
   for(let x=6;x<=20;x++)for(let z=0;z<=17;z++){
-    const top=column(f.seed,x,z).top;assert.ok(top>=12,`Thin cover over the entrance at ${x},${z}`);
+    const top=column(f.seed,x,z,rearExit(f)).top;assert.ok(top>=12,`Thin cover over the entrance at ${x},${z}`);
     for(let y=9;y<=top;y++)assert.notEqual(rel(x,y,z),"minecraft:air",`Hole in the mountain at ${x},${y},${z}`);
     assert.equal(rel(x,top+1,z),"minecraft:air");
   }
   let peak=0;for(let x=MOUNTAIN.x0;x<=MOUNTAIN.x1;x++)for(let z=MOUNTAIN.z0;z<=MOUNTAIN.z1;z++)peak=Math.max(peak,column(f.seed,x,z).top);
   assert.ok(peak>=20,`A ${peak}-block mound is not a mountain`);
   // The forecourt is a cave mouth under an overhanging brow, open to the approach.
-  for(let x=8;x<=18;x++)for(let z=-4;z<=-1;z++)for(let y=2;y<=(z===-1?6:8);y++)if(!(x===17&&y===2&&z===-2))assert.equal(rel(x,y,z),"minecraft:air",`Forecourt blocked at ${x},${y},${z}`);
+  for(let x=8;x<=18;x++)for(let z=-4;z<=-1;z++)for(let y=2;y<=(z===-1?6:8);y++)assert.equal(rel(x,y,z),"minecraft:air",`Forecourt blocked at ${x},${y},${z}`);
   for(let x=6;x<=20;x++)assert.notEqual(rel(x,9,-2),"minecraft:air","The portal has no overhanging brow");
   const approach=flood(o.y+1,[13,MOUNTAIN.z0],{x0:MOUNTAIN.x0,x1:MOUNTAIN.x1,z0:MOUNTAIN.z0,z1:-1});
   assert.ok(approach.has("13,-1"),"The portal cannot be reached from outside the mountain");
@@ -403,6 +436,297 @@ test("the bunker is buried in a mountain with its portal and escape exit left op
     for(const [dx,dy,dz] of [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]])
       assert.notEqual(at(c.x+dx,c.y+dy,c.z+dz)?.typeId??"minecraft:air","minecraft:air",`Exposed charge at ${JSON.stringify(c)}`);
   }
+});
+test("every secret tunnel exit, in every direction, leads out to open ground",()=>{
+  const sites=[["south",13,50],["east",46,38],["west",-20,38],["south",13,66]];
+  REMOTE.forEach((kind,i)=>{
+    for(const [heading,x,z] of sites){
+      // Exits stand anywhere from a little below to well above the pad.
+      const level=80+[-3,0,6,14][(i+x)&3];
+      const {f}=make(3,i*7+x,{kind,heading,x,z,level,ground:"minecraft:grass_block"});
+      assert.equal(f.exit.kind,kind);escapes(f);
+      // The exit's template stands where it should: its floor on the levelled ground.
+      const l=f.exit.ladder;
+      for(const [dx,dz] of [[-SITE,-SITE],[SITE,SITE]])assert.equal(at(l.x+dx,l.y,l.z+dz).typeId,"minecraft:grass_block",`${kind}: exit site not levelled`);
+      for(const [dx,dz] of [[-SITE,0],[SITE,0]])assert.equal(at(l.x+dx,l.y+1,l.z+dz).typeId,"minecraft:air",`${kind}: exit site not cleared`);
+    }
+  });
+});
+test("the survey picks an exit that suits the ground around the bunker",()=>{
+  const origin={x:0,y:80,z:0},pick=(seed=4,preference)=>exitSite(dimension,origin,seed,preference);
+  reset();
+  assert.ok(["utility_shed","hidden_hatch","well"].includes(pick().kind),"Open grassland takes a shed, hatch or well");
+  terrain.tree=()=>true;assert.equal(pick().kind,"forest_cabin");
+  assert.equal(pick(4,"hidden_hatch").kind,"hidden_hatch","A chosen exit overrides the terrain");
+  const forest=planBunker(origin,3,4,true,"test",pick());
+  players.push(playerAt({x:13,y:81,z:-10}));build(forest,players[0]);finishBuild();escapes(forest);
+  reset();terrain.top=()=>"minecraft:sand";assert.equal(pick().kind,"well");
+  reset();terrain.top=()=>"minecraft:stone";assert.equal(pick().kind,"mine_headframe");
+  // A valley below the tunnel all round: nowhere keeps the tunnel buried, so it comes up behind the mountain.
+  reset();terrain.height=(x,z)=>Math.hypot(x-13,z-13)>34?72:80;assert.equal(pick().kind,"rock_face");
+  // Lakes to the south and west leave only the east.
+  reset();const wet=(x,z)=>x<40&&(z>43||x<-12);terrain.height=(x,z)=>wet(x,z)?74:80;terrain.water=(x,z)=>wet(x,z)?80:undefined;
+  for(let seed=0;seed<6;seed++)assert.equal(pick(seed).heading,"east");
+  // A hill rising behind the bunker carries the exit up onto it, within the ladder's reach.
+  reset();terrain.height=(x,z)=>z>44?88:80;const hill=pick(2);
+  if(hill.heading==="south")assert.equal(hill.level,88);
+  reset();assert.equal(pick(1,"rock_face").kind,"rock_face");
+});
+test("a cave the tunnel crosses is sealed around it",()=>{
+  reset();facilities.clear();
+  const f=planBunker({x:0,y:80,z:0},3,5,true,"test",{kind:"utility_shed",heading:"east",x:46,z:38,level:80,ground:"minecraft:grass_block"});
+  // A cave pocket beyond the mountain's skirts, right across the tunnel's path.
+  for(let x=40;x<=44;x++)for(let y=68;y<=78;y++)for(let z=33;z<=43;z++)blocks.set(`${x},${y},${z}`,{typeId:"minecraft:air",states:{}});
+  players.push(playerAt({x:13,y:81,z:-10}));build(f,players[0]);finishBuild();escapes(f);
+  for(let x=40;x<=44;x++){
+    for(let y=70;y<=76;y++)for(const z of [35,41])assert.notEqual(at(x,y,z).typeId,"minecraft:air",`Tunnel wall open to the cave at ${x},${y},${z}`);
+    for(let z=35;z<=41;z++)for(const y of [70,76])assert.notEqual(at(x,y,z).typeId,"minecraft:air",`Tunnel roof or floor open at ${x},${y},${z}`);
+    for(let y=72;y<=74;y++)assert.equal(at(x,y,38).typeId,"minecraft:air","The sealing filled the tunnel itself");
+  }
+});
+test("the secret tunnel is guarded by a keycard door, a laser grid and a junction turret",()=>{
+  const {f}=make(3,8,{kind:"hidden_hatch",heading:"west",x:-20,z:38,level:80,ground:"minecraft:grass_block"});
+  const door=f.doors.find(d=>d.id==="tunnel"),y=f.floors[1].y+1;
+  for(const r of door.readers)assert.equal(at(r.x,r.y,r.z).typeId,ns+"keycard_reader");
+  assert.equal(at(11,y+1,32).typeId,ns+"laser_emitter");assert.equal(at(15,y+1,32).typeId,ns+"laser_receiver");
+  // Someone without command clearance walking in from the exit trips the grid, and the door shuts behind it.
+  const intruder=playerAt({x:13.5,y,z:34});intruder.id="intruder";intruder.getComponent=()=>({container:{size:0,getItem(){}}});
+  players.length=0;players.push(intruder);
+  tickLasers();intruder.location={x:13.5,y,z:31};tickLasers();
+  assert.equal(f.state,"ALERT");assert.equal(door.open,false);
+  for(let n=0;n<40;n++)tickDoors();
+  assert.equal(flood(y,[13,34],{x0:-30,x1:30,z0:22,z1:50}).has("13,24"),false,"A closed tunnel door can be walked past");
+  // The junction turret only fires once the alarm is up, at hostiles only.
+  const turret=f.turrets.find(t=>t.zone==="tunnel"),entity=entities.find(e=>e.tags.includes(`sf:${f.id}:tunnel`));
+  assert.equal(entity.nameTag,"§7TUNNEL DEFENCE");assert.equal(at(Math.floor(turret.pos.x),turret.pos.y-1,Math.floor(turret.pos.z)).typeId,ns+"laser_turret_mount");
+  const zombie=dimension.spawnEntity("minecraft:zombie",{x:13.5,y,z:38.5}),cow=dimension.spawnEntity("minecraft:cow",{x:12.5,y,z:38.5});
+  setSecurity(f,"NORMAL");for(let i=0;i<30;i++){system.currentTick+=5;tickDefence();}
+  assert.equal(zombie.damage,undefined,"ALERT ONLY must hold fire in NORMAL");
+  setSecurity(f,"ALERT");for(let i=0;i<30;i++){system.currentTick+=5;tickDefence();}
+  assert.ok(zombie.damage>0);assert.equal(cow.damage,undefined);
+  // Self-destruct opens the way out.
+  armDestruct(f);assert.equal(door.open,true);
+});
+test("the rock-face fallback, and bunkers saved before remote exits, keep the hut behind the mountain",()=>{
+  for(const legacy of [false,true]){
+    reset();facilities.clear();
+    const f=planBunker({x:0,y:80,z:0},3,12,true,"test",{kind:"rock_face"});
+    if(legacy){delete f.exit;f.doors=f.doors.filter(d=>d.id!=="tunnel");f.lasers=f.lasers.filter(l=>l.a.z===l.b.z?false:true);f.lights.pop();}
+    assert.equal(rearExit(f),true);
+    players.push(playerAt({x:13,y:81,z:-10}));build(f,players[0]);finishBuild();
+    if(!legacy)escapes(f);
+    assert.ok(flood(f.floors[1].y+1,[13,13]).has("13,34"),"B1 escape tunnel blocked");
+    // The escape ladder lands players on a hut floor that leads to its exit.
+    const hut=f.origin.y;
+    for(let x=12;x<=14;x++)for(let z=33;z<=35;z++)if(x!==12||z!==34)
+      assert.notEqual(at(x,hut,z).typeId,"minecraft:air",`Escape hut floor open at ${x},${hut},${z}`);
+    assert.equal(at(12,hut,34).typeId,"minecraft:ladder","Escape ladder does not reach the hut");
+    // The hut is dug into the back of the mountain; its door opens south, out onto clear ground.
+    assert.ok(flood(hut+1,[13,34],{x0:10,x1:16,z0:32,z1:42}).has("13,42"),"Escape hut exit unreachable");
+    assert.equal(column(f.seed,13,40).open,true,"The hut's apron must stay open");
+  }
+  // Remote exits need no apron: the mountain closes over the back of the bunker.
+  assert.equal(column(1,13,40,false).open,false);
+});
+function makeEstate(levels=3,seed=7,site){
+  reset();facilities.clear();const f=planEstate({x:0,y:80,z:0},levels,seed,true,"estate",site);f.ground="minecraft:grass_block";
+  const p=playerAt({x:13.5,y:81,z:-15.5});players.push(p);
+  for(let n=0;n<400;n++)tickDoors();
+  build(f,p);finishBuild();assert.equal(f.phase,"ready");
+  return {f,p};
+}
+const COMPOUND_BOX={x0:COMPOUND.x0-2,x1:COMPOUND.x1+2,z0:COMPOUND.z0-2,z1:COMPOUND.z1+2};
+test("the fortified estate: walled and gated, a mansion over its bunker, and a secret way out",()=>{
+  const {f}=makeEstate(3);
+  const gate=f.doors.find(d=>d.id==="gate"),front=f.doors.find(d=>d.id==="front"),back=f.doors.find(d=>d.id==="back");
+  // The wall runs unbroken all the way round, fence on top, and only the gate opens it.
+  for(let x=COMPOUND.x0;x<=COMPOUND.x1;x++)for(const z of [COMPOUND.z0,COMPOUND.z1])for(let y=81;y<=80+WALL_HEIGHT;y++)
+    assert.notEqual(blockAt(x,y,z).typeId,"minecraft:air",`Hole in the wall at ${x},${y},${z}`);
+  for(let z=COMPOUND.z0;z<=COMPOUND.z1;z++)for(const x of [COMPOUND.x0,COMPOUND.x1])for(let y=81;y<=80+WALL_HEIGHT;y++)
+    assert.notEqual(blockAt(x,y,z).typeId,"minecraft:air",`Hole in the wall at ${x},${y},${z}`);
+  assert.equal(at(0,86,COMPOUND.z1).typeId,"minecraft:iron_bars");
+  const outside=()=>flood(81,[13,COMPOUND.z0-2],COMPOUND_BOX);
+  assert.equal(outside().has("13,-20"),false,"The closed gate can be bypassed");
+  requestDoor(f,gate,true);for(let n=0;n<60;n++)tickDoors();
+  const court=outside();
+  for(const cell of ["13,-20","13,1","22,-25","-7,-20","36,-20"])assert.ok(court.has(cell),`The forecourt does not reach ${cell}`);
+  assert.equal(court.has("13,10"),false,"The closed front door can be bypassed");
+  // Through the front door to the lift, the ladder and the back door.
+  requestDoor(f,front,true);for(let n=0;n<40;n++)tickDoors();
+  const hall=outside();for(const cell of ["13,13","14,16","13,21"])assert.ok(hall.has(cell),`The hall does not reach ${cell}`);
+  requestDoor(f,back,true);for(let n=0;n<40;n++)tickDoors();assert.ok(outside().has("13,30"),"The back door does not open onto the garden");
+  // The mansion's lift lands on a pad, and the emergency ladder climbs into its hall.
+  const lift=f.floors[0].destination;
+  assert.equal(blockAt(13,80,13).typeId,ns+"elevator_pad");assert.equal(blockAt(13,81,13).typeId,"minecraft:air");assert.equal(blockAt(13,82,13).typeId,"minecraft:air");
+  assert.equal(at(Math.floor(lift.x)+2,82,Math.floor(lift.z)+1).typeId,ns+"elevator_panel");
+  for(let y=f.floors.at(-1).y+1;y<=85;y++)assert.equal(at(15,y,16).typeId,"minecraft:ladder",`Emergency ladder broken at Y ${y}`);
+  // The bunker below is the same as the command bunker's: every room reachable from its core.
+  for(const floor of f.floors.slice(1)){
+    const seen=flood(floor.y+1,[13,13]);
+    for(const m of f.modules.filter(m=>m.pos.y===floor.y))assert.ok(seen.has(`${m.pos.x+4},${m.pos.z+4}`),`Cannot reach ${m.template} under the estate`);
+  }
+  escapes(f);
+  assert.ok(f.exit.ladder.z>COMPOUND.z1||f.exit.ladder.x>COMPOUND.x1||f.exit.ladder.x<COMPOUND.x0,"The secret exit must lie outside the wall");
+  // Lockdown shuts the gate, the doors, the garage and every window; normal opens the shutters again.
+  setSecurity(f,"LOCKDOWN");for(let n=0;n<300;n++)tickDoors();
+  for(const door of f.doors.filter(d=>d.id==="gate"||d.id.startsWith("window")||d.id.startsWith("garage")))
+    for(let x=door.min.x;x<=door.max.x;x++)assert.equal(at(x,door.min.y,door.min.z).states[ns+"open"],false,`${door.id} did not close`);
+  setSecurity(f,"NORMAL");for(let n=0;n<300;n++)tickDoors();
+  for(const door of f.doors.filter(d=>d.kind==="shutter"))assert.equal(at(door.min.x,door.min.y,door.min.z).states[ns+"open"],true,`${door.id} did not reopen`);
+  // Nine turrets: two on the gate pillars, one on each watchtower, one on the roof, the command deck and the tunnel.
+  assert.equal(entities.filter(e=>e.typeId===ns+"laser_turret").length,9);
+  for(const t of f.turrets)assert.equal(at(Math.floor(t.pos.x),t.pos.y-1,Math.floor(t.pos.z)).typeId,ns+"laser_turret_mount",`${t.id} has no mount`);
+});
+test("estate watchtowers and gate turrets fire at hostiles outside the wall, and the gate grid raises the alarm",()=>{
+  const {f}=makeEstate(3,9);
+  const [x,z]=TOWERS[0],zombie=dimension.spawnEntity("minecraft:zombie",{x:x-8,y:81,z:z-6}),cow=dimension.spawnEntity("minecraft:cow",{x:x-6,y:81,z:z-8});
+  const raider=dimension.spawnEntity("minecraft:pillager",{x:13.5,y:81,z:COMPOUND.z0-12});
+  for(let i=0;i<40;i++){system.currentTick+=5;tickDefence();}
+  assert.ok(zombie.damage>0,"The north-west watchtower did not fire");assert.equal(cow.damage,undefined);
+  assert.ok(raider.damage>0,"The gate turrets did not fire");
+  const intruder=playerAt({x:13.5,y:81,z:-28});intruder.id="intruder";intruder.getComponent=()=>({container:{size:0,getItem(){}}});
+  players.length=0;players.push(intruder);tickLasers();intruder.location={x:13.5,y:81,z:-25};tickLasers();
+  assert.equal(f.state,"ALERT");assert.equal(f.doors.find(d=>d.id==="gate").open,false);
+});
+test("estate self-destruct guts and burns the mansion, seals its lift, and leaves the walls and tunnel",()=>{
+  const {f}=makeEstate(3,5);armDestruct(f);for(let n=0;n<80;n++)tickDoors();f.countdown=0;
+  for(let i=0;i<40&&f.state!=="DESTROYED";i++){system.currentTick+=10;tickAlarms();}
+  assert.equal(f.state,"DESTROYED");
+  const house=id=>[...blocks].filter(([k,b])=>{const [x,y,z]=k.split(",").map(Number);return b.typeId===id&&x>=-4&&x<=30&&y>=80&&y<=92&&z>=1&&z<=23;}).length;
+  for(const id of [ns+"keycard_reader",ns+"security_door",ns+"security_shutter","minecraft:glass",ns+"elevator_pad","minecraft:white_concrete"])
+    assert.equal(house(id),0,`${id} survived in the mansion`);
+  assert.ok(house("minecraft:gray_concrete")>500,"The mansion should be scorched");
+  assert.equal(at(13,81,13).typeId,"minecraft:cobblestone","The lift in the hall must be sealed");
+  assert.equal(blockAt(0,83,COMPOUND.z1).typeId,ns+"light_reinforced_concrete","The perimeter wall should stand");
+  assert.equal(entities.filter(e=>e.typeId===ns+"laser_turret").length,1,"Only the tunnel's shut-down turret remains");
+  escapes(f,[13,27]);
+});
+test("estates are surveyed across the whole compound, and without a remote site the tunnel comes up in the garden",()=>{
+  reset();facilities.clear();
+  const at=()=>{const p=playerAt({x:200.5,y:81,z:300.5});players.length=0;players.push(p);return p;};
+  let s=estateOriginAt(at());
+  assert.deepEqual([s.origin.x+FORECOURT.x,s.origin.z+FORECOURT.z,s.origin.y,s.cut,s.fill],[200,300,80,0,0],"The player stands in the forecourt");
+  terrain.height=x=>80+Math.round((x-200)*0.25);
+  s=estateOriginAt(at());assert.ok(s.cut>0&&s.fill>0&&s.cut<=MAX_CUT&&s.fill<=MAX_FILL,`cut ${s.cut} fill ${s.fill}`);
+  terrain.height=x=>80+Math.round((x-200)*0.6);assert.throws(()=>estateOriginAt(at()),/rises and falls/);
+  // Water everywhere beyond the wall: no remote site, so the tunnel comes up at a well in the back garden.
+  reset();const pad=ESTATE_PAD,outside=(x,z)=>x<200-13+pad.x0||x>200-13+pad.x1||z<300+15+pad.z0||z>300+15+pad.z1;
+  terrain.height=(x,z)=>outside(x,z)?74:80;terrain.water=(x,z)=>outside(x,z)?80:undefined;
+  s=estateOriginAt(at());const exit=exitSite(dimension,s.origin,3,undefined,"estate");assert.equal(exit.kind,"rock_face");
+  const f=planEstate(s.origin,3,3,true,"garden",exit);f.ground=s.ground;build(f,players[0]);finishBuild();
+  assert.equal(f.phase,"ready");assert.equal(f.exit.kind,"well");escapes(f);
+  // A builder standing below the new ground when it is levelled is lifted onto it, not buried.
+  reset();facilities.clear();s=estateOriginAt(at());
+  const lifted=planEstate(s.origin,3,4,false,"lift");lifted.ground=s.ground;
+  const builder=players[0];build(lifted,builder);builder.location={...builder.location,y:76};finishBuild();
+  assert.equal(builder.location.y,81,"The builder was left inside the ground");
+});
+/** Where a grid's emitter and receiver sit: one block beyond each end of the beam, in the wall. */
+function fittings(laser){
+  const alongX=laser.a.z===laser.b.z,cell=v=>({x:Math.floor(v.x),y:Math.floor(v.y),z:Math.floor(v.z)});
+  return [cell({...laser.a,[alongX?"x":"z"]:laser.a[alongX?"x":"z"]-1}),cell({...laser.b,[alongX?"x":"z"]:laser.b[alongX?"x":"z"]+1})];
+}
+const solid=b=>b&&b.typeId!=="minecraft:air"&&b.states?.[ns+"open"]!==true;
+test("tripwires are horizontal beams from wall to wall, drawn as a steady line",()=>{
+  const {f}=make(3),y=f.floors[1].y;
+  assert.ok(f.lasers.every(l=>l.a.y===l.b.y),"Every tripwire beam must be horizontal");
+  for(const floor of f.floors.slice(1))for(const x of [4.5,22.5])
+    assert.equal(f.lasers.filter(l=>l.a.x===x&&Math.floor(l.a.y)>=floor.y&&Math.floor(l.a.y)<floor.y+9).length,3,`B${f.floors.indexOf(floor)} needs a three-beam grid across its hall at x=${x}`);
+  for(const laser of f.lasers){
+    const [emitter,receiver]=fittings(laser);
+    assert.equal(at(emitter.x,emitter.y,emitter.z).typeId,ns+"laser_emitter");assert.equal(at(receiver.x,receiver.y,receiver.z).typeId,ns+"laser_receiver");
+    // Nothing stands in the beam's way, and nothing hangs in the air: the fittings are in the walls.
+    for(let t=0;t<=1;t+=0.25){const v={x:laser.a.x+(laser.b.x-laser.a.x)*t,y:laser.a.y,z:laser.a.z+(laser.b.z-laser.a.z)*t};
+      assert.ok(!solid(at(Math.floor(v.x),Math.floor(v.y),Math.floor(v.z))),`Beam blocked at ${JSON.stringify(v)}`);}
+  }
+  // Every sensor tick near a player redraws every nearby beam across its whole span.
+  players.length=0;players.push(playerAt({x:13.5,y:y+1,z:13.5}));f.lasersEnabled=true;
+  const before=particles.length;tickLasers();
+  const beams=particles.slice(before).filter(p=>p.id===ns+"laser_beam");
+  const inRange=f.lasers.filter(l=>Math.hypot(l.a.x-13.5,l.a.y-y-1,l.a.z-13.5)<24);
+  assert.ok(inRange.length>=6);assert.equal(beams.length,inRange.length,"Every beam near a player should be drawn every tick");
+  for(const b of beams){const len=Math.hypot(b.vars["variable.span"].x,b.vars["variable.span"].y,b.vars["variable.span"].z);
+    assert.ok(Math.abs(len-2)<1e-9&&b.vars["variable.span"].y===0,"A beam must span its hall or tunnel, level");}
+});
+test("hostile mobs crossing a live tripwire are burned; players and passive mobs are not",()=>{
+  const {f}=make(3),y=f.floors[1].y+1;
+  const guard=playerAt({x:13.5,y,z:13.5});guard.getComponent=()=>({container:{size:1,getItem(){return {typeId:ns+"keycard_black"};}}});
+  players.length=0;players.push(guard);
+  const zombie=dimension.spawnEntity("minecraft:zombie",{x:4.5,y,z:13.5});
+  const silverfish=dimension.spawnEntity("minecraft:silverfish",{x:22.5,y,z:12.8});
+  const cow=dimension.spawnEntity("minecraft:cow",{x:4.6,y,z:12.9}),bystander=dimension.spawnEntity("minecraft:player",{x:22.4,y,z:14.1});
+  const clear=dimension.spawnEntity("minecraft:zombie",{x:7.5,y,z:13.5});
+  tickLasers();
+  // One hit a tick, however many of the grid's beams run through the mob.
+  assert.equal(zombie.damage,BEAM_DAMAGE);assert.equal(silverfish.damage,BEAM_DAMAGE,"A mob low enough to crawl under the old beams is caught");
+  assert.equal(cow.damage,undefined);assert.equal(bystander.damage,undefined);assert.equal(clear.damage,undefined,"A mob beside the beam is not hit");
+  assert.ok(particles.some(p=>p.id===ns+"laser_impact"));
+  for(let i=0;i<3;i++)tickLasers();assert.equal(zombie.damage,4*BEAM_DAMAGE);
+  // Mobs are burned, not reported: a black card holder saw it all and no alarm went off.
+  assert.equal(f.state,"NORMAL");
+  f.lasersEnabled=false;tickLasers();assert.equal(zombie.damage,4*BEAM_DAMAGE,"Disabled grids must not burn");
+  f.lasersEnabled=true;players.length=0;players.push(playerAt({x:13.5,y,z:13.5+60}));tickLasers();
+  assert.equal(zombie.damage,4*BEAM_DAMAGE,"Grids far from every player stay idle");
+});
+test("bunkers saved with the old vertical beam are upgraded to horizontal grids when loaded",()=>{
+  const {f}=make(3),y=f.floors[1].y,set=(x,yy,z,typeId)=>blocks.set(`${x},${yy},${z}`,{typeId,states:{}});
+  // Recreate an old save: each floor's east grid was one vertical beam from a floor emitter to a receiver under the ceiling.
+  for(const floor of f.floors.slice(1)){
+    const dy=floor.y;f.lasers=f.lasers.filter(l=>!(l.a.x===22.5&&Math.floor(l.a.y)>=dy&&Math.floor(l.a.y)<dy+9));
+    f.lasers.push({a:{x:22.5,y:dy+1.3,z:13.5},b:{x:22.5,y:dy+4.7,z:13.5},response:"ALERT"});
+    for(const h of [1,2,3]){set(22,dy+h,11,ns+"dark_reinforced_concrete");set(22,dy+h,15,ns+"dark_reinforced_concrete");}
+    set(22,dy,13,ns+"laser_emitter");set(22,dy+5,13,ns+"laser_receiver");
+  }
+  save(f);facilities.clear();load();
+  const loaded=facilities.get("test");
+  assert.ok(loaded.lasers.every(l=>l.a.y===l.b.y),"A vertical beam survived the upgrade");
+  assert.equal(loaded.lasers.filter(l=>l.a.x===22.5).length,9,"Each floor's east hall needs its three-beam grid");
+  // The fittings are swapped once a player is near enough for their chunks to be loaded.
+  players.length=0;players.push(playerAt({x:13.5,y:y+1,z:13.5}));tickLasers();
+  assert.equal(loaded.retrofit,undefined,"The upgrade should finish once its chunks are loaded");
+  for(const floor of loaded.floors.slice(1)){
+    const dy=floor.y;
+    assert.equal(at(22,dy,13).typeId,ns+"industrial_floor","The old floor emitter should be paved over");
+    assert.equal(at(22,dy+5,13).typeId,"minecraft:air","The old hanging receiver should be gone");
+    for(const h of [1,2,3]){assert.equal(at(22,dy+h,11).typeId,ns+"laser_emitter");assert.equal(at(22,dy+h,15).typeId,ns+"laser_receiver");}
+  }
+  // The upgrade is saved, and a new or ruined facility is left alone.
+  save(loaded);facilities.clear();load();assert.equal(facilities.get("test").retrofit,undefined);
+  assert.equal(levelGrids(facilities.get("test")),false);
+  const ruin=planBunker({x:0,y:80,z:0},3,1,true,"ruin");ruin.phase="ready";ruin.state="DESTROYED";
+  ruin.lasers.push({a:{x:22.5,y:1.3,z:13.5},b:{x:22.5,y:4.7,z:13.5},response:"ALERT"});
+  assert.equal(levelGrids(ruin),false,"A destroyed facility's grids stay as they were");
+});
+test("readers, consoles, lift panels and grid fittings are set into walls, not floating",()=>{
+  const check=(f,label)=>{
+    const controls=[...f.doors.flatMap(d=>d.readers.map(r=>[r,`reader:${d.id}`])),...f.consoles.map(c=>[c.pos,`console:${c.kind}`]),
+      ...f.floors.map(fl=>[fl.panel,`panel:${fl.name}`]),...f.lasers.flatMap(l=>fittings(l).map(v=>[v,"grid fitting"]))];
+    for(const [v,what] of controls){
+      assert.ok(solid(at(v.x,v.y,v.z)),`${label}: ${what} missing at ${JSON.stringify(v)}`);
+      for(const dy of [-1,1])assert.ok(solid(blockAt(v.x,v.y+dy,v.z)),`${label}: ${what} at ${JSON.stringify(v)} floats (nothing ${dy<0?"below":"above"})`);
+      // And it can be reached: at least one face is open to the room or passage.
+      assert.ok([[1,0],[-1,0],[0,1],[0,-1]].some(([dx,dz])=>!solid(blockAt(v.x+dx,v.y,v.z+dz))),`${label}: ${what} at ${JSON.stringify(v)} is walled in`);
+    }
+    // Alarm lamps are set flush into a ceiling, wall, slab or parapet, not hung beneath one.
+    for(const v of f.lights)assert.ok([[1,0],[-1,0],[0,1],[0,-1]].filter(([dx,dz])=>solid(blockAt(v.x+dx,v.y,v.z+dz))).length>=2,`${label}: lamp hangs loose at ${JSON.stringify(v)}`);
+  };
+  check(make(5).f,"bunker");
+  check(make(3,4,{kind:"rock_face"}).f,"rock-face bunker");
+  check(makeEstate(3).f,"estate");
+});
+test("write an inspectable top-down estate site plan",()=>{
+  const {f}=makeEstate(3,104729),top=[];
+  const pad=ESTATE_PAD;
+  for(let z=pad.z0;z<=pad.z1;z++){const row=[];
+    for(let x=pad.x0;x<=pad.x1;x++){
+      let found="minecraft:air",height=0;
+      for(let y=100;y>=80;y--){const b=blockAt(x,y,z);if(b.typeId!=="minecraft:air"&&b.states?.[ns+"open"]!==true){found=b.typeId;height=y-80;break;}}
+      row.push([found,height]);
+    }
+    top.push(row);
+  }
+  fs.mkdirSync(new URL("../docs/generated/",import.meta.url),{recursive:true});
+  fs.writeFileSync(new URL("../docs/generated/estate-preview.json",import.meta.url),JSON.stringify({pad,exit:f.exit.ladder,modules:f.modules.filter(m=>m.size).map(m=>({role:m.role,x:m.pos.x,z:m.pos.z,size:m.size})),top}));
 });
 test("write inspectable first-floor voxel preview",()=>{
   const {f}=make(5,104729);

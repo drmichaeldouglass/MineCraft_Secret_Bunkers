@@ -1,9 +1,11 @@
-import { system, world } from "@minecraft/server";
+import { EntityDamageCause, system, world } from "@minecraft/server";
 import { defenceActive, mayOpen, segmentDistance } from "../core/rules.js";
-import { distance, inside, NS } from "../core/types.js";
+import { add, distance, inside, NS } from "../core/types.js";
 import { facilities, mark, save } from "./store.js";
-import { beam, dim, fill, getClearance, lineClear, loaded, nearby, set, sound, tell } from "./world.js";
+import { dim, fill, getClearance, lineClear, loaded, nearby, set, sound, tell, tripwire } from "./world.js";
+import { allowed } from "./defence.js";
 import { demolish } from "./destruct.js";
+import { EXITS } from "../generation/tunnel.js";
 const moving = new Map();
 /** Two-pixel sub-steps the leaf travels; eight per block of door height, one per tick. */
 export const SUBSTEPS = 8;
@@ -245,28 +247,81 @@ export function abortDestruct(f) {
     save(f);
     return true;
 }
-let sensorCursor = 0;
+/** Beams are drawn, and burn hostile mobs, only within this distance of a player. */
+const SENSOR_RANGE = 24;
+/** Health a hostile mob loses each sensor tick (four a second) while any beam passes through it. */
+export const BEAM_DAMAGE = 3;
+/** Heights above a mob's feet tested against the beams: low enough for a silverfish, high enough for a zombie. */
+const BODY = [0.1, 0.6, 1.1, 1.6];
+/** Hostile mobs near a grid, found once per grid per tick however many beams it has. */
+function mobsNear(d, laser, cache) {
+    const key = `${laser.a.x},${laser.a.z},${laser.b.x},${laser.b.z}`;
+    let mobs = cache.get(key);
+    if (!mobs) {
+        const mid = { x: (laser.a.x + laser.b.x) / 2, y: (laser.a.y + laser.b.y) / 2, z: (laser.a.z + laser.b.z) / 2 };
+        mobs = d.getEntities({ location: mid, maxDistance: distance(laser.a, laser.b) / 2 + 3 }).filter(allowed);
+        cache.set(key, mobs);
+    }
+    return mobs;
+}
+/** Burn every hostile mob a live beam passes through, at most once a tick however many beams it crosses. */
+function burn(d, laser, mobs, burned) {
+    for (const mob of mobs) {
+        if (burned.has(mob.id) || !mob.isValid)
+            continue;
+        const at = BODY.map(h => add(mob.location, { x: 0, y: h, z: 0 })).find(v => segmentDistance(v, laser.a, laser.b) < 0.5);
+        if (!at)
+            continue;
+        burned.add(mob.id);
+        try {
+            mob.applyDamage(BEAM_DAMAGE, { cause: EntityDamageCause.entityAttack });
+            d.spawnParticle(NS + "laser_impact", at);
+        }
+        catch { /* Gone. */ }
+    }
+}
 /** Where each player stood at the last sensor tick, and in which dimension. */
 const previous = new Map();
 /** Farther than anyone walks or runs between sensor ticks: a teleport, respawn or elevator ride.
  *  Interpolating across it would sweep an imaginary path through every beam in between. */
 const TELEPORT = 8;
+/** Make the queued upgrade changes whose chunks are loaded; the rest wait for a later tick. */
+function retrofit(f) {
+    const d = dim(f);
+    f.retrofit = f.retrofit.filter(r => {
+        if (!loaded(d, r.pos))
+            return true;
+        try {
+            if (!r.only || d.getBlock(r.pos)?.typeId === r.only)
+                set(d, r.pos, r.block);
+        }
+        catch {
+            return true;
+        }
+        return false;
+    });
+    if (!f.retrofit.length)
+        delete f.retrofit;
+    mark(f);
+}
 export function tickLasers() {
-    const players = world.getAllPlayers();
+    const players = world.getAllPlayers(), burned = new Set();
     for (const f of facilities.values()) {
+        if (f.retrofit?.length && f.phase === "ready" && nearby(f))
+            retrofit(f);
         if (f.phase !== "ready" || !f.lasersEnabled || f.state === "DESTROYED" || f.state === "SELF_DESTRUCT" || !nearby(f))
             continue;
-        const d = dim(f), local = players.filter(p => p.dimension.id === f.dimension && inside(p.location, f.bounds));
+        const d = dim(f), local = players.filter(p => p.dimension.id === f.dimension && inside(p.location, f.bounds, SENSOR_RANGE));
         // Reading clearance scans a whole inventory; do it once per tick, not once per beam.
-        const watched = local.filter(p => getClearance(p) < 4);
-        for (let i = 0; i < f.lasers.length; i++) {
-            const laser = f.lasers[i];
-            if (!local.some(p => distance(p.location, laser.a) < 14))
+        const watched = local.filter(p => getClearance(p) < 4), mobs = new Map();
+        for (const laser of f.lasers) {
+            if (!local.some(p => distance(p.location, laser.a) < SENSOR_RANGE))
                 continue;
             if (!loaded(d, laser.a) || !loaded(d, laser.b))
                 continue;
-            if ((i + sensorCursor) % 3 === 0)
-                beam(d, laser.a, laser.b, 0.9, 8);
+            // Every sensor tick redraws the beam; each drawing outlasts the gap to the next, so it holds steady.
+            tripwire(d, laser.a, laser.b);
+            burn(d, laser, mobsNear(d, laser, mobs), burned);
             const obstruction = !lineClear(d, laser.a, laser.b);
             const crossed = watched.some(p => {
                 const last = previous.get(p.id), current = p.location;
@@ -290,7 +345,6 @@ export function tickLasers() {
     previous.clear();
     for (const p of players)
         previous.set(p.id, { dimension: p.dimension.id, location: { ...p.location } });
-    sensorCursor++;
 }
 let alarmPhase = 0;
 export function tickAlarms() {
@@ -316,7 +370,7 @@ export function tickAlarms() {
                 mark(f);
                 for (const p of world.getAllPlayers())
                     if (p.dimension.id === f.dimension && inside(p.location, f.bounds, 5))
-                        p.onScreenDisplay.setActionBar(`§cEVACUATE • ${f.countdown}s • rear B1 escape tunnel`);
+                        p.onScreenDisplay.setActionBar(`§cEVACUATE • ${f.countdown}s • B1 secret tunnel to the ${EXITS[f.exit?.kind ?? "rock_face"].label}`);
             }
             else if (demolish(f)) {
                 for (const t of f.turrets) {

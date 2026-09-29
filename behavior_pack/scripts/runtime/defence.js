@@ -3,6 +3,8 @@ import { isHostile, defenceActive } from "../core/rules.js";
 import { add, distance, NS } from "../core/types.js";
 import { facilities, mark } from "./store.js";
 import { dim, lineClear, nearby, sound, turretBeam } from "./world.js";
+/** Zones defending the outside of a facility get the long exterior range; the rest are interior. */
+const EXTERIOR = new Set(["entrance", "gate", "perimeter"]);
 const cache = new Map();
 export const allowed = (e) => e.isValid && isHostile(e.typeId, e.getComponent("minecraft:tameable")?.isTamed ?? false);
 /** Where turrets aim: the middle of a mob, not its feet. */
@@ -36,7 +38,7 @@ function update(f, t) {
         tracking.target = undefined;
         return;
     }
-    const source = add(entity.location, { x: 0, y: 0.95, z: 0 }), range = t.zone === "entrance" ? 28 : 16;
+    const source = add(entity.location, { x: 0, y: 0.95, z: 0 }), range = EXTERIOR.has(t.zone) ? 28 : 16;
     let target = tracking.target ? world.getEntity(tracking.target) : undefined;
     if (target && (!allowed(target) || target.dimension.id !== f.dimension || distance(target.location, source) > range))
         target = undefined;

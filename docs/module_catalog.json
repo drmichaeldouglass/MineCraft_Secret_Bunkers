@@ -342,5 +342,109 @@
       9,
       22
     ]
+  },
+  {
+    "identifier": "secretfacilities:tunnel/exit_utility_shed",
+    "size": [
+      7,
+      5,
+      7
+    ]
+  },
+  {
+    "identifier": "secretfacilities:tunnel/exit_forest_cabin",
+    "size": [
+      7,
+      7,
+      7
+    ]
+  },
+  {
+    "identifier": "secretfacilities:tunnel/exit_well",
+    "size": [
+      7,
+      5,
+      7
+    ]
+  },
+  {
+    "identifier": "secretfacilities:tunnel/exit_hidden_hatch",
+    "size": [
+      7,
+      2,
+      7
+    ]
+  },
+  {
+    "identifier": "secretfacilities:tunnel/exit_mine_headframe",
+    "size": [
+      7,
+      7,
+      7
+    ]
+  },
+  {
+    "identifier": "secretfacilities:estate/mansion",
+    "size": [
+      35,
+      13,
+      23
+    ]
+  },
+  {
+    "identifier": "secretfacilities:estate/gatehouse",
+    "size": [
+      7,
+      6,
+      7
+    ]
+  },
+  {
+    "identifier": "secretfacilities:estate/garage",
+    "size": [
+      9,
+      6,
+      15
+    ]
+  },
+  {
+    "identifier": "secretfacilities:estate/helipad",
+    "size": [
+      13,
+      2,
+      13
+    ]
+  },
+  {
+    "identifier": "secretfacilities:estate/fountain",
+    "size": [
+      7,
+      3,
+      7
+    ]
+  },
+  {
+    "identifier": "secretfacilities:estate/utility",
+    "size": [
+      9,
+      6,
+      7
+    ]
+  },
+  {
+    "identifier": "secretfacilities:estate/watchtower",
+    "size": [
+      5,
+      15,
+      5
+    ]
+  },
+  {
+    "identifier": "secretfacilities:estate/gate_pillar",
+    "size": [
+      3,
+      8,
+      3
+    ]
   }
 ]

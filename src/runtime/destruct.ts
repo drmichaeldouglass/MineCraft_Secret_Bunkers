@@ -84,11 +84,38 @@ function wreckSurface(f:Facility,d:Dimension,rng:Rng):void {
   }
   volume(d,p(12,6,11),p(14,7,14),"minecraft:gravel");
   for(const door of f.doors)for(const e of d.getEntities({type:NS+"blast_door_leaf",tags:[`sf_door:${f.id}:${door.id}`]}))try{e.remove();}catch{/* Gone. */}
-  for(const t of f.turrets){
+  // The tunnel survives as the way out: its junction turret is shut down with the rest, not blown up in it.
+  for(const t of f.turrets.filter(t=>t.zone!=="tunnel")){
     for(const e of d.getEntities({type:NS+"laser_turret",tags:[`sf:${f.id}:${t.id}`]}))try{e.remove();}catch{/* Gone. */}
     explode(d,t.pos,3);
   }
   explode(d,p(13.5,2.5,-1.5),6);explode(d,p(13.5,2,13.5),5);
+}
+/** The estate's mansion is gutted and burns: fittings, glass and lamps blown out, the white stone
+ *  scorched grey, holes torn through its roof and upper floor, and the lift in its hall sealed with
+ *  rubble. The gatehouse is stripped too. The perimeter wall and outbuildings are left standing. */
+function wreckEstate(f:Facility,d:Dimension,rng:Rng):void {
+  const o=f.origin,p=(x:number,y:number,z:number)=>add(o,{x,y,z});
+  const house=[p(-4,0,1),p(30,12,23)] as const,blown=[...EQUIPMENT,"minecraft:glass","minecraft:glass_pane","minecraft:sea_lantern","minecraft:lantern"];
+  volume(d,house[0],house[1],"minecraft:air",blown);
+  volume(d,house[0],house[1],"minecraft:gray_concrete",["minecraft:white_concrete"]);
+  volume(d,p(19,0,-28),p(25,5,-22),"minecraft:air",EQUIPMENT);
+  for(let i=0;i<5;i++){
+    const x=range(rng,-2,24),z=range(rng,3,17),w=range(rng,2,4),l=range(rng,2,4);
+    volume(d,p(x,6,z),p(x+w,11,z+l),"minecraft:air");
+    volume(d,p(x,1,z),p(x+w,range(rng,1,2),z+l),RUBBLE[range(rng,0,RUBBLE.length-1)],["minecraft:air"]);
+  }
+  volume(d,p(12,1,12),p(14,3,14),"minecraft:cobblestone");
+  for(let i=0;i<6;i++){
+    const at=p(range(rng,-3,29),1,range(rng,3,21)),below=block(d,{...at,y:at.y-1});
+    if(block(d,at)?.isAir&&below&&!below.isAir&&!below.isLiquid)try{set(d,at,"minecraft:fire");}catch{/* Fire refused here. */}
+  }
+  for(const door of f.doors)for(const e of d.getEntities({type:NS+"blast_door_leaf",tags:[`sf_door:${f.id}:${door.id}`]}))try{e.remove();}catch{/* Gone. */}
+  for(const t of f.turrets.filter(t=>t.zone!=="tunnel")){
+    for(const e of d.getEntities({type:NS+"laser_turret",tags:[`sf:${f.id}:${t.id}`]}))try{e.remove();}catch{/* Gone. */}
+    explode(d,t.pos,3);
+  }
+  for(const x of [2,13,24])explode(d,p(x,2.5,11.5),5);
 }
 /** One stage of the demolition, deepest floor first and the surface last. Returns true once the
  *  whole facility has been brought down. A stage waits while its ground is unloaded. */
@@ -98,7 +125,7 @@ export function demolish(f:Facility):boolean {
   const centre=add(f.origin,{x:13,y:step<floors.length?floors[step].y-f.origin.y+2:2,z:step<floors.length?13:8});
   if(!loaded(d,centre))return false;
   const rng=random((f.seed^Math.imul(step+1,0x9e3779b1))>>>0);
-  if(step<floors.length)wreckFloor(f,d,floors[step].y,rng);else wreckSurface(f,d,rng);
+  if(step<floors.length)wreckFloor(f,d,floors[step].y,rng);else if(f.type==="estate")wreckEstate(f,d,rng);else wreckSurface(f,d,rng);
   sound(f,"destruction",centre,1);
   for(const player of world.getAllPlayers())
     if(player.dimension.id===f.dimension&&inside(player.location,f.bounds,24))shake(player,1.4,0.5);

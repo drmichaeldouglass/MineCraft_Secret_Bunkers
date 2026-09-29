@@ -42,19 +42,22 @@ export interface Column {
   /** A channel kept clear down to pad level: the entrance approach and the hut's exit apron. */
   open: boolean;
 }
-export function column(seed: number, x: number, z: number): Column {
+/** Whether a facility's escape tunnel comes up behind its mountain: every facility built before
+ *  remote exits, and any whose survey found no remote site. Only those keep the rear apron and hut. */
+export const rearExit = (f: { exit?: { kind: string } }): boolean => !f.exit || f.exit.kind === "rock_face";
+export function column(seed: number, x: number, z: number, rear = true): Column {
   const none = (open: boolean): Column => ({ top: 0, base: 1, open });
   if (!within(MOUNTAIN, x, z)) return none(false);
   if (z <= -5 && Math.abs(x-13) <= approach(z)) return none(true);
-  if (z >= 37 && Math.abs(x-13) <= apron(z)) return none(true);
+  if (rear && z >= 37 && Math.abs(x-13) <= apron(z)) return none(true);
   const d = Math.hypot((x-CX)/RX, (z-CZ)/RZ);
   let h = d >= 1 ? 0 : PEAK*Math.pow(1-d*d, 1.4)+(noise(seed, x/10, z/10)*7+noise(seed+7, x/4, z/4)*2.5-4.75)*(1-d);
-  const entrance = within(ENTRANCE, x, z), hut = within(HUT, x, z);
+  const entrance = within(ENTRANCE, x, z), hut = rear && within(HUT, x, z);
   if (entrance || (x >= ENTRANCE.x0-1 && x <= ENTRANCE.x1+1 && z >= -4 && z <= ENTRANCE.z1+1)) h = Math.max(h, COVER);
   if (hut) h = Math.max(h, HUT.roof+2);
   // Slope down into the open channels instead of standing over them as sheer walls.
   if (z <= -5) h = Math.min(h, 1+(Math.abs(x-13)-approach(z))*1.4);
-  if (z >= 37) h = Math.min(h, 1+(Math.abs(x-13)-apron(z))*1.2);
+  if (rear && z >= 37) h = Math.min(h, 1+(Math.abs(x-13)-apron(z))*1.2);
   const top = h < 1 ? 0 : Math.round(h);
   if (!top) return none(false);
   // The earthworks already made the pad solid; only skirts beyond it are filled from below.

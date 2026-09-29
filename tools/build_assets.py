@@ -262,14 +262,6 @@ def turret():
         "controller.render.secretfacilities.turret":{"geometry":"Geometry.default","materials":[{"*":"Material.default"}],"textures":["Texture.default"]}}})
     write(RP/"animations/turret.animation.json",{"format_version":"1.8.0","animations":{
         "animation.secretfacilities.turret.aim":{"loop":True,"bones":{"pitch_mount":{"rotation":["query.target_x_rotation",0,0]}}}}})
-    # Tripwire grids keep their faint dotted beam.
-    write(RP/"particles/laser_beam.json",{"format_version":"1.10.0","particle_effect":{
-        "description":{"identifier":NS+"laser_beam","basic_render_parameters":{"material":"particles_alpha","texture":"textures/particle/laser"}},
-        "components":{"minecraft:emitter_rate_instant":{"num_particles":1},"minecraft:emitter_lifetime_once":{"active_time":0.1},
-            "minecraft:emitter_shape_point":{},"minecraft:particle_lifetime_expression":{"max_lifetime":0.22},
-            "minecraft:particle_appearance_billboard":{"size":[0.055,0.055],"facing_camera_mode":"lookat_xyz","uv":{"texture_width":8,"texture_height":8,"uv":[0,0],"uv_size":[8,8]}},
-            "minecraft:particle_appearance_tinting":{"color":[1,0.13,0.09,1]}}}})
-    save(Image.new("RGBA",(8,8),(255,255,255,255)),RP/"textures/particle/laser.png")
     # A soft round glow; drawn additively and unlit, overlapping sprites fuse into a solid light.
     glow=Image.new("RGBA",(16,16))
     for x in range(16):
@@ -277,6 +269,19 @@ def turret():
             r=math.hypot(x-7.5,y-7.5)/8;glow.putpixel((x,y),(255,255,255,int(255*max(0,1-r)**1.6)))
     save(glow,RP/"textures/particle/laser_glow.png")
     fade="(1 - v.particle_age / v.particle_lifetime)"
+    # A tripwire beam is one emitter per sensor tick spanning emitter to receiver ('span'), thinner
+    # and steadier than a turret shot: a pale core inside a red body and a faint halo. Each drawing
+    # lives a little longer than the quarter-second between sensor ticks, so the beam holds steady.
+    wire=lambda core,body,halo:f"(v.particle_random_2 < 0.4 ? {core} : (v.particle_random_2 < 0.85 ? {body} : {halo}))"
+    write(RP/"particles/laser_beam.json",{"format_version":"1.10.0","particle_effect":{
+        "description":{"identifier":NS+"laser_beam","basic_render_parameters":{"material":"particles_add","texture":"textures/particle/laser_glow"}},
+        "components":{"minecraft:emitter_rate_instant":{"num_particles":"math.clamp(v.length * 18, 8, 240)"},
+            "minecraft:emitter_lifetime_once":{"active_time":0.05},"minecraft:emitter_shape_point":{},
+            "minecraft:particle_lifetime_expression":{"max_lifetime":0.34},
+            "minecraft:particle_motion_parametric":{"relative_position":[f"v.span.{a} * v.particle_random_1" for a in "xyz"]},
+            "minecraft:particle_appearance_billboard":{"size":[wire(0.03,0.06,0.13),wire(0.03,0.06,0.13)],"facing_camera_mode":"lookat_xyz",
+                "uv":{"texture_width":16,"texture_height":16,"uv":[0,0],"uv_size":[16,16]}},
+            "minecraft:particle_appearance_tinting":{"color":["1",wire(0.6,0.12,0.06),wire(0.55,0.08,0.04),wire(0.95,0.8,0.3)]}}}})
     # The turret beam is one emitter per shot. Every sprite sits at a random point along the shot
     # (script variable 'span' is the muzzle-to-target vector), densely enough to read as one solid
     # beam: a white-hot core, a red body and a wide faint halo, all fading together.
@@ -355,6 +360,19 @@ def missile_turret():
     write(RP/"animations/missile.animation.json",{"format_version":"1.8.0","animations":{
         "animation.secretfacilities.missile.pitch":{"loop":True,"bones":{"body":{"rotation":["query.target_x_rotation",0,0]}}}}})
     fade="(1 - v.particle_age / v.particle_lifetime)"
+    # A tripwire beam is one emitter per sensor tick spanning emitter to receiver ('span'), thinner
+    # and steadier than a turret shot: a pale core inside a red body and a faint halo. Each drawing
+    # lives a little longer than the quarter-second between sensor ticks, so the beam holds steady.
+    wire=lambda core,body,halo:f"(v.particle_random_2 < 0.4 ? {core} : (v.particle_random_2 < 0.85 ? {body} : {halo}))"
+    write(RP/"particles/laser_beam.json",{"format_version":"1.10.0","particle_effect":{
+        "description":{"identifier":NS+"laser_beam","basic_render_parameters":{"material":"particles_add","texture":"textures/particle/laser_glow"}},
+        "components":{"minecraft:emitter_rate_instant":{"num_particles":"math.clamp(v.length * 18, 8, 240)"},
+            "minecraft:emitter_lifetime_once":{"active_time":0.05},"minecraft:emitter_shape_point":{},
+            "minecraft:particle_lifetime_expression":{"max_lifetime":0.34},
+            "minecraft:particle_motion_parametric":{"relative_position":[f"v.span.{a} * v.particle_random_1" for a in "xyz"]},
+            "minecraft:particle_appearance_billboard":{"size":[wire(0.03,0.06,0.13),wire(0.03,0.06,0.13)],"facing_camera_mode":"lookat_xyz",
+                "uv":{"texture_width":16,"texture_height":16,"uv":[0,0],"uv_size":[16,16]}},
+            "minecraft:particle_appearance_tinting":{"color":["1",wire(0.6,0.12,0.06),wire(0.55,0.08,0.04),wire(0.95,0.8,0.3)]}}}})
     # Emitted at the missile's tail every tick: a hot exhaust flame and a lingering smoke trail.
     write(RP/"particles/missile_exhaust.json",{"format_version":"1.10.0","particle_effect":{
         "description":{"identifier":NS+"missile_exhaust","basic_render_parameters":{"material":"particles_add","texture":"textures/particle/laser_glow"}},
@@ -476,12 +494,16 @@ def nbt_payload(kind,value):
 ROOM_ROLES=sorted(["archive","barracks","bedroom","briefing","canteen","command","farm","generator","laboratory","lounge",
     "medical","mining","office","security","server","storage","utility","vault","workshop"])
 
+# A structure void cell places nothing, so the block already in the world stays (block index -1).
+VOID="structure_void"
+
 class Template:
-    def __init__(self,name,size=(9,7,9)):
-        self.name,self.size=name,size;self.blocks={};self.entities={}
+    def __init__(self,name,size=(9,7,9),folder="bunker"):
+        self.name,self.size,self.folder=name,size,folder;self.blocks={};self.entities={}
         self.fill((0,0,0),tuple(n-1 for n in size),"minecraft:air")
     def set(self,x,y,z,block,states=None):
         if not (0<=x<self.size[0] and 0<=y<self.size[1] and 0<=z<self.size[2]):raise ValueError((self.name,x,y,z))
+        if block==VOID:self.blocks[x,y,z]=(VOID,());return
         # Palette entries carry every state, as game-saved structures do.
         if states is None and block in ["blast_door","security_door","security_shutter"]:states={NS+"open":False,NS+"slide":0}
         if states is None and block=="emergency_light":states={NS+"active":False}
@@ -501,7 +523,8 @@ class Template:
         self.fill((1,0,1),(sx-2,0,sz-2),"industrial_floor")
         self.fill((1,sy-1,1),(sx-2,sy-1,sz-2),"bunker_ceiling_panel")
     def export(self):
-        palette=list(dict.fromkeys(self.blocks.values()));lookup={v:i for i,v in enumerate(palette)}
+        palette=[v for v in dict.fromkeys(self.blocks.values()) if v[0]!=VOID];lookup={v:i for i,v in enumerate(palette)}
+        lookup[VOID,()]=-1
         sx,sy,sz=self.size
         indices=[lookup[self.blocks[x,y,z]] for x in range(sx) for y in range(sy) for z in range(sz)]
         pals=[]
@@ -511,9 +534,9 @@ class Template:
               "structure":(10,{"block_indices":(9,(9,[(3,indices),(3,[-1]*len(indices))])),"entities":(9,(10,[])),
               "palette":(10,{"default":(10,{"block_palette":(9,(10,pals)),"block_position_data":(10,{
                   str((x*sy+y)*sz+z):(10,{"block_entity_data":(10,data)}) for (x,y,z),data in sorted(self.entities.items())})})})})}
-        path=BP/"structures/secretfacilities/bunker"/f"{self.name}.mcstructure";path.parent.mkdir(parents=True,exist_ok=True)
+        path=BP/"structures/secretfacilities"/self.folder/f"{self.name}.mcstructure";path.parent.mkdir(parents=True,exist_ok=True)
         path.write_bytes(b"\x0a\x00\x00"+nbt_payload(10,root))
-        return {"name":self.name,"size":list(self.size),"palette":[[n,dict(s)] for n,s in palette],"indices":indices}
+        return {"name":self.name,"folder":self.folder,"size":list(self.size),"palette":[[n,dict(s)] for n,s in palette],"indices":indices}
 
 # Room furniture is authored facing north (door in the south wall at z=8, far wall at z=0) and
 # mirrored for south-facing rooms. Interior: x 1..7, z 1..7. The aisle x 3..5 stays walkable from
@@ -725,6 +748,271 @@ def room(role,side):
     else:raise ValueError(role)
     return r.check()
 
+# Secret tunnel exits: 7 x 7 surface structures the escape ladder comes up through. Must match
+# EXITS in src/generation/tunnel.ts. The ladder column is the centre (3,3); layer y=0 is the ground
+# the exit is levelled to, and the runtime lays the ladder through it after placing the template.
+# Void cells keep the levelled ground and its matching surface block.
+EXIT_KINDS={"utility_shed":(5,0),"forest_cabin":(7,0),"well":(5,1),"hidden_hatch":(2,0),"mine_headframe":(7,0)}
+EXIT_WALKABLE=("minecraft:air","minecraft:rail","minecraft:red_carpet","minecraft:spruce_trapdoor",VOID)
+
+def exit_template(kind):
+    height,top=EXIT_KINDS[kind];t=Template(f"exit_{kind}",(7,height,7),"tunnel")
+    log=lambda axis:{"pillar_axis":axis}
+    stairs=lambda back:{"weirdo_direction":STAIR[back],"upside_down_bit":False}
+    t.fill((0,0,0),(6,0,6),VOID)
+    if kind=="utility_shed":  # A plain concrete service shed with a south door.
+        t.fill((0,0,0),(6,0,6),"reinforced_concrete");t.fill((1,0,1),(5,0,5),"industrial_floor");t.set(3,0,3,"minecraft:air")
+        for y in [1,2,3]:
+            for x in range(7):t.set(x,y,0,"concrete_panel");t.set(x,y,6,"concrete_panel")
+            for z in range(7):t.set(0,y,z,"concrete_panel");t.set(6,y,z,"concrete_panel")
+            for x,z in [(0,0),(6,0),(0,6),(6,6)]:t.set(x,y,z,"reinforced_concrete")
+        t.fill((0,4,0),(6,4,6),"steel_plate");t.set(3,4,3,"industrial_light")
+        t.fill((3,1,6),(3,2,6),"minecraft:air")
+        t.set(0,2,3,"security_glass");t.set(6,2,3,"security_glass")
+        t.fill((1,3,0),(5,3,0),"cable_tray");t.set(5,2,0,"utility_panel");t.set(3,3,0,"ventilation_grille")
+        t.set(5,1,1,"electrical_cabinet");t.set(1,1,1,"minecraft:barrel",{"facing_direction":1,"open_bit":False})
+    elif kind=="forest_cabin":  # A spruce trapper's cabin under a gable roof.
+        t.fill((0,0,1),(6,0,5),"minecraft:spruce_planks");t.set(3,0,3,"minecraft:air")
+        for y in [1,2,3]:
+            t.fill((0,y,1),(6,y,1),"minecraft:spruce_planks");t.fill((0,y,5),(6,y,5),"minecraft:spruce_planks")
+            t.fill((0,y,1),(0,y,5),"minecraft:spruce_planks");t.fill((6,y,1),(6,y,5),"minecraft:spruce_planks")
+            for x,z in [(0,1),(6,1),(0,5),(6,5)]:t.set(x,y,z,"minecraft:spruce_log",log("y"))
+        t.fill((3,1,5),(3,2,5),"minecraft:air")
+        for x,z in [(0,3),(6,3),(1,1),(5,1)]:t.set(x,2,z,"minecraft:glass_pane")
+        for y,(north,south) in zip([4,5,6],[(0,6),(1,5),(2,4)]):
+            t.fill((0,y,north+1),(6,y,south-1),"minecraft:spruce_planks")
+            t.fill((0,y,north),(6,y,north),"minecraft:spruce_stairs",stairs("south"))
+            t.fill((0,y,south),(6,y,south),"minecraft:spruce_stairs",stairs("north"))
+        t.fill((0,6,3),(6,6,3),"minecraft:spruce_slab")
+        t.set(1,1,2,"minecraft:crafting_table");t.set(5,1,2,"minecraft:barrel",{"facing_direction":1,"open_bit":False})
+        t.set(1,1,4,"minecraft:chest",{"minecraft:cardinal_direction":"east"});t.set(4,1,3,"minecraft:red_carpet")
+        t.set(2,3,3,"minecraft:lantern",{"hanging":True})
+    elif kind=="well":  # An old dry well; the ladder climbs its shaft to the rim.
+        t.fill((1,0,1),(5,0,5),"minecraft:cobblestone")
+        for x,z in [(1,1),(5,2),(2,5),(4,1)]:t.set(x,0,z,"minecraft:mossy_cobblestone")
+        t.set(3,0,3,"minecraft:air")
+        for x in range(2,5):
+            for z in range(2,5):
+                if (x,z)!=(3,3):t.set(x,1,z,"minecraft:mossy_stone_bricks" if (x+z)%2 else "minecraft:stone_bricks")
+        for x,z in [(2,2),(4,2),(2,4),(4,4)]:t.fill((x,2,z),(x,3,z),"minecraft:spruce_fence")
+        t.fill((2,4,2),(4,4,4),"minecraft:spruce_slab")
+    elif kind=="hidden_hatch":  # A trapdoor in the undergrowth, flush with the ground.
+        t.fill((0,1,0),(6,1,6),VOID)
+        for x,z in [(2,3),(3,2),(4,4),(2,4)]:t.set(x,0,z,"minecraft:coarse_dirt")
+        t.set(3,0,3,"minecraft:air")
+        t.set(3,1,3,"minecraft:spruce_trapdoor",{"direction":0,"open_bit":False,"upside_down_bit":False})
+        leaves={"persistent_bit":True,"update_bit":False}
+        for x,z in [(1,2),(1,3),(2,1),(5,5)]:t.set(x,1,z,"minecraft:oak_leaves",leaves)
+        for x,z in [(5,3),(5,4),(4,5)]:t.set(x,1,z,"minecraft:mossy_cobblestone")
+    elif kind=="mine_headframe":  # A timber headframe over an old mine shaft.
+        t.fill((1,0,1),(5,0,5),"minecraft:spruce_planks");t.set(3,0,3,"minecraft:air")
+        for x,z in [(1,1),(5,1),(1,5),(5,5)]:t.fill((x,1,z),(x,5,z),"minecraft:spruce_log",log("y"))
+        for z in [1,5]:t.fill((1,6,z),(5,6,z),"minecraft:spruce_log",log("x"))
+        for x in [1,5]:t.fill((x,6,2),(x,6,4),"minecraft:spruce_log",log("z"))
+        t.fill((2,6,3),(4,6,3),"minecraft:spruce_log",log("x"))
+        t.fill((3,4,3),(3,5,3),"minecraft:chain",log("y"))
+        t.set(2,5,1,"minecraft:lantern",{"hanging":True});t.set(4,5,5,"minecraft:lantern",{"hanging":True})
+        for z in [4,5,6]:t.set(3,1,z,"minecraft:rail",{"rail_direction":0})
+        for x,y,z in [(0,1,0),(1,1,0),(0,1,1),(0,2,0)]:t.set(x,y,z,"minecraft:gravel")
+        t.set(0,0,0,"minecraft:gravel");t.set(6,1,6,"minecraft:cobblestone")
+        t.set(5,1,3,"minecraft:barrel",{"facing_direction":1,"open_bit":False})
+        for x,z in [(2,5),(5,2)]:t.set(x,5,z,"minecraft:web")
+    else:raise ValueError(kind)
+    return check_exit(t,top)
+
+def check_exit(t,top):
+    """The ladder comes up through an open column into headroom, hangs on solid ground (or a void
+    cell the levelled ground fills) all the way up, and there is a way out of the footprint."""
+    walk=lambda x,y,z:not (0<=x<7 and 0<=y<t.size[1] and 0<=z<7) or t.blocks[x,y,z][0] in EXIT_WALKABLE
+    assert t.blocks[3,0,3][0]=="minecraft:air",(t.name,"shaft")
+    for y in range(top+1,top+3):assert walk(3,y,3),(t.name,"headroom",y)
+    for y in range(top+1):
+        for dx,dz in [(1,0),(-1,0),(0,1),(0,-1)]:
+            block=t.blocks[3+dx,y,3+dz][0]
+            assert block==VOID and y==0 or block not in EXIT_WALKABLE,(t.name,"ladder wall",y)
+    # Step off where the ladder ends: a well's rim stands a block above the ground around it.
+    feet=lambda x,z:top+1 if 2<=x<=4 and 2<=z<=4 else 1
+    seen={(3,3)};todo=[(3,3)]
+    while todo:
+        x,z=todo.pop()
+        if x in (0,6) or z in (0,6):return t
+        for a,b in [(x+1,z),(x-1,z),(x,z+1),(x,z-1)]:
+            if (a,b) not in seen and walk(a,feet(a,b),b) and walk(a,feet(a,b)+1,b):seen.add((a,b));todo.append((a,b))
+    raise AssertionError((t.name,"no way out"))
+
+# Fortified estate: the mansion and compound buildings. Positions and sizes must match ESTATE in
+# src/generation/estate.ts. The mansion stands over the estate's underground bunker: its grand hall
+# holds the bunker's lift pad, panel and emergency ladder at the bunker's surface coordinates, so
+# mansion local x = bunker x + 4 and local z = bunker z - 1. Rows z=0 and z=22 carry the window
+# shutters and their housings outside the facades; the runtime installs doors, readers and consoles.
+MANSION=(35,13,23)
+ESTATE_TEMPLATES=8
+WINDOWS=[2,7,26,31]
+ESTATE_WALK=("minecraft:air","minecraft:red_carpet","minecraft:mangrove_trapdoor",VOID)
+
+def bed_at(t,x,y,z,head,color):
+    dx,dz=STEP[head]
+    for (bx,bz),is_head in [((x,z),False),((x+dx,z+dz),True)]:
+        t.set(bx,y,bz,"minecraft:bed",{"direction":BED[head],"head_piece_bit":is_head,"occupied_bit":False})
+        t.entity(bx,y,bz,{"id":(8,"Bed"),"color":(1,color),"isMovable":(1,1)})
+
+def chair_at(t,x,y,z,facing):
+    t.set(x,y,z,"minecraft:mangrove_stairs",{"weirdo_direction":STAIR[OPPOSITE[facing]],"upside_down_bit":False})
+
+def mansion():
+    t=Template("mansion",MANSION,"estate")
+    W,TRIM,ROOF,WOOD="minecraft:white_concrete","minecraft:polished_deepslate","minecraft:deepslate_tiles","minecraft:mangrove_planks"
+    t.fill((0,0,1),(34,11,21),W)
+    t.fill((1,1,2),(33,5,20),"minecraft:air");t.fill((1,7,2),(33,10,20),"minecraft:air")
+    t.fill((0,0,1),(34,0,21),TRIM);t.fill((1,0,2),(33,0,20),WOOD);t.fill((1,6,2),(33,6,20),WOOD)
+    t.fill((0,11,1),(34,11,21),ROOF)
+    for x in range(35):t.set(x,12,1,TRIM);t.set(x,12,21,TRIM)
+    for z in range(1,22):t.set(0,12,z,TRIM);t.set(34,12,z,TRIM)
+    for x in [0,12,22,34]:t.fill((x,1,1),(x,10,1),TRIM);t.fill((x,1,21),(x,10,21),TRIM)
+    for z in [1,11,21]:t.fill((0,1,z),(0,10,z),TRIM);t.fill((34,1,z),(34,10,z),TRIM)
+    for a,b in [((0,6,1),(34,6,1)),((0,6,21),(34,6,21)),((0,6,1),(0,6,21)),((34,6,1),(34,6,21))]:t.fill(a,b,TRIM)
+    # Grand hall: a chequered floor, the bunker lift pad and deepslate columns.
+    for x in range(13,22):
+        for z in range(2,21):t.set(x,0,z,"minecraft:white_concrete" if (x+z)%2 else "minecraft:black_concrete")
+    t.fill((16,0,11),(18,0,13),"elevator_pad")
+    # The lift panel's column; the runtime sets the panel into it.
+    t.fill((19,1,13),(19,5,13),TRIM)
+    for x,z in [(13,4),(21,4),(13,9),(21,9)]:t.fill((x,1,z),(x,5,z),TRIM)
+    t.fill((17,1,3),(17,1,9),"minecraft:red_carpet")
+    # Walls between the hall and the wings, and across each wing, with doorways.
+    for x in [12,22]:
+        t.fill((x,1,2),(x,5,20),W)
+        for z in [6,16]:t.fill((x,1,z),(x,3,z+1),"minecraft:air")
+    for a,b,door in [(1,11,5),(23,33,28)]:
+        t.fill((a,1,11),(b,5,11),W);t.fill((door,1,11),(door+1,3,11),"minecraft:air")
+    # Stairs up the west side of the hall, rising north, with a hole in the upper floor above them.
+    for k in range(1,7):
+        t.fill((13,k,20-k),(14,k,20-k),"minecraft:mangrove_stairs",{"weirdo_direction":STAIR["north"],"upside_down_bit":False})
+        if k>1:t.fill((13,1,20-k),(14,k-1,20-k),WOOD)
+    t.fill((13,6,15),(14,6,18),"minecraft:air")
+    t.fill((15,7,15),(15,7,18),"minecraft:mangrove_fence");t.fill((13,7,19),(14,7,19),"minecraft:mangrove_fence")
+    # Upper floor: a corridor across the house, four bedrooms and a gallery over the entrance.
+    for x in [12,22]:t.fill((x,7,2),(x,10,9),W);t.fill((x,7,13),(x,10,20),W)
+    for a,b,door in [(1,11,5),(23,33,28)]:
+        for z in [9,13]:t.fill((a,7,z),(b,10,z),W);t.fill((door,7,z),(door+1,9,z),"minecraft:air")
+    # Front and back doorways (the runtime fits security doors) and a porch canopy.
+    t.fill((16,1,1),(18,3,1),"minecraft:air");t.fill((16,1,21),(18,3,21),"minecraft:air")
+    t.fill((15,5,0),(19,5,0),"minecraft:polished_blackstone_brick_slab",{"minecraft:vertical_half":"bottom"})
+    for x in [16,18]:t.set(x,4,0,"minecraft:lantern",{"hanging":True})
+    # Windows: shuttered on the long facades, plain on the ends and the hall.
+    for x in WINDOWS:
+        for y in [2,8]:
+            for z,row in [(1,0),(21,22)]:
+                t.fill((x,y,z),(x+1,y+1,z),"minecraft:glass");t.fill((x,y+2,row),(x+1,y+2,row),"security_shutter_housing")
+    for x in [0,34]:
+        for y in [2,8]:t.fill((x,y,5),(x,y+1,6),"minecraft:glass");t.fill((x,y,18),(x,y+1,19),"minecraft:glass")
+    for z in [1,21]:t.fill((16,8,z),(18,9,z),"minecraft:glass")
+    for x,z in [(6,6),(6,16),(28,6),(28,16),(17,5),(17,8)]:t.set(x,6,z,"minecraft:sea_lantern")
+    for x,z in [(6,5),(6,17),(28,5),(28,17),(17,5),(17,11),(6,11),(28,11)]:t.set(x,11,z,"minecraft:sea_lantern")
+    # Dining room.
+    t.fill((3,1,5),(9,1,6),"minecraft:mangrove_slab",{"minecraft:vertical_half":"top"})
+    for x in [3,5,7,9]:chair_at(t,x,1,4,"south");chair_at(t,x,1,7,"north")
+    for x in [4,8]:t.set(x,2,5,"minecraft:lantern",{"hanging":False})
+    # Kitchen.
+    for z,block,facing in [(13,"minecraft:smoker","east"),(14,"minecraft:furnace","east"),(15,"minecraft:furnace","east")]:t.set(1,1,z,block,{"minecraft:cardinal_direction":facing})
+    t.set(1,1,17,"minecraft:cauldron",{"cauldron_liquid":"water","fill_level":6});t.set(1,1,18,"minecraft:crafting_table")
+    for x in [3,5,7,9]:t.set(x,1,20,"minecraft:barrel",{"facing_direction":2,"open_bit":False})
+    t.fill((5,1,15),(7,1,16),"minecraft:mangrove_slab",{"minecraft:vertical_half":"top"})
+    # Library.
+    for x in range(23,34):
+        if x not in (28,29):t.fill((x,1,10),(x,3,10),"minecraft:bookshelf")
+        t.fill((x,1,2),(x,3,2),"minecraft:bookshelf")
+    t.set(28,1,6,"minecraft:enchanting_table");t.set(25,1,6,"minecraft:lectern",{"minecraft:cardinal_direction":"east","powered_bit":False})
+    t.fill((26,1,4),(30,1,8),"minecraft:red_carpet");t.set(28,1,6,"minecraft:enchanting_table")
+    # Study: the estate's defence control room. A bank of cabinets along the east wall, floor to
+    # ceiling, that the runtime sets the consoles into.
+    t.fill((33,1,14),(33,5,18),"control_cabinet")
+    t.fill((23,1,20),(25,2,20),"server_rack");t.set(33,3,16,"facility_status_display");t.set(30,1,20,"electrical_cabinet")
+    t.fill((27,1,15),(28,1,17),"minecraft:mangrove_slab",{"minecraft:vertical_half":"top"})
+    chair_at(t,29,1,16,"west")
+    # Bedrooms.
+    for x,z,head,color in [(2,3,"north",BED_BLUE),(3,3,"north",BED_BLUE),(2,19,"south",BED_GREEN),(32,3,"north",BED_RED),(31,3,"north",BED_RED),(32,19,"south",BED_WHITE)]:
+        bed_at(t,x,7,z+(1 if head=="north" else -1),head,color)
+    for x,z,facing in [(10,3,"west"),(10,19,"west"),(24,3,"east"),(24,19,"east")]:t.set(x,7,z,"minecraft:chest",{"minecraft:cardinal_direction":facing})
+    for x in [6,28]:
+        for z in [5,17]:t.set(x,10,z,"minecraft:lantern",{"hanging":True})
+    # Gallery lounge over the entrance.
+    for x in [14,15,19,20]:chair_at(t,x,7,3,"south")
+    t.fill((13,7,2),(21,8,2),"minecraft:bookshelf");t.fill((16,7,5),(18,7,6),"minecraft:red_carpet")
+    return check_mansion(t)
+
+def check_mansion(t):
+    """The hall leads from the front door to the lift pad, the back door, every ground-floor room and
+    the foot of the stairs; the stairs climb to a landing that reaches every upstairs room."""
+    def walk(x,y,z):return t.blocks[x,y,z][0] in ESTATE_WALK
+    def reach(start,y):
+        seen={start};todo=[start]
+        while todo:
+            x,z=todo.pop()
+            for a,b in [(x+1,z),(x-1,z),(x,z+1),(x,z-1)]:
+                if 0<a<34 and 1<b<21 and (a,b) not in seen and walk(a,y,b) and walk(a,y+1,b) and not walk(a,y-1,b):
+                    seen.add((a,b));todo.append((a,b))
+        return seen
+    down=reach((17,2),1)
+    for cell in [(17,12),(17,20),(6,8),(6,14),(28,8),(28,14),(13,20),(19,14),(18,15)]:assert cell in down,("mansion ground floor",cell)
+    for y in (1,2):assert t.blocks[19,y,15][0]=="minecraft:air",("mansion ladder spot",y)
+    for y in range(1,6):assert t.blocks[19,y,13][0]=="minecraft:polished_deepslate",("mansion lift column",y)
+    for z in range(14,20):assert t.blocks[13,20-z,z][0]=="minecraft:mangrove_stairs"
+    up=reach((13,13),7)
+    for cell in [(6,5),(6,17),(28,5),(28,17),(17,5)]:assert cell in up,("mansion upper floor",cell)
+    return t
+
+def estate_buildings():
+    out=[]
+    # Gatehouse inside the main gate: a guard post with a west door; consoles are fitted at runtime.
+    t=Template("gatehouse",(7,6,7),"estate");t.fill((0,0,0),(6,5,6),"light_reinforced_concrete")
+    t.fill((1,1,1),(5,4,5),"minecraft:air");t.fill((1,0,1),(5,0,5),"industrial_floor");t.fill((0,5,0),(6,5,6),"steel_plate")
+    t.fill((0,1,3),(0,2,3),"minecraft:air");t.fill((2,2,0),(4,3,0),"security_glass");t.fill((0,2,1),(0,3,1),"security_glass")
+    # A floor-to-ceiling bank of cabinets along the east wall; the runtime sets the consoles into it.
+    t.fill((5,1,1),(5,4,5),"control_cabinet")
+    t.set(3,4,3,"industrial_light");t.set(1,1,5,"minecraft:barrel",{"facing_direction":1,"open_bit":False});out.append(t)
+    # Garage: three vehicle bays opening east onto the forecourt; the runtime fits shutter doors.
+    t=Template("garage",(9,6,15),"estate");t.fill((0,0,0),(8,5,14),"light_reinforced_concrete")
+    t.fill((1,1,1),(7,4,13),"minecraft:air");t.fill((1,0,1),(7,0,13),"minecraft:gray_concrete");t.fill((0,5,0),(8,5,14),"steel_plate")
+    for z0 in [1,6,11]:
+        t.fill((8,1,z0),(8,3,z0+2),"minecraft:air");t.set(3,0,z0+1,"minecraft:black_concrete");t.set(4,4,z0+1,"industrial_light")
+    for z in [5,10]:t.fill((1,1,z),(4,3,z),"concrete_warning_stripe")
+    t.set(1,1,1,"generator_panel");t.set(1,1,13,"minecraft:chest",{"minecraft:cardinal_direction":"east"});t.set(1,1,7,"minecraft:crafting_table");out.append(t)
+    # Helipad: a white-ringed pad with a yellow H and a floodlight at each corner.
+    t=Template("helipad",(13,2,13),"estate");t.fill((0,0,0),(12,0,12),"minecraft:gray_concrete")
+    for i in range(13):
+        for j in [0,12]:t.set(i,0,j,"minecraft:white_concrete");t.set(j,0,i,"minecraft:white_concrete")
+    for z in range(3,10):t.set(4,0,z,"minecraft:yellow_concrete");t.set(8,0,z,"minecraft:yellow_concrete")
+    for x in range(4,9):t.set(x,0,6,"minecraft:yellow_concrete")
+    for x in [0,12]:
+        for z in [0,12]:t.set(x,1,z,"floodlight")
+    out.append(t)
+    # Fountain: a still pool in a stone basin, the water held in by its rim.
+    t=Template("fountain",(7,3,7),"estate");t.fill((0,0,0),(6,2,6),VOID);t.fill((0,0,0),(6,0,6),"minecraft:smooth_stone")
+    for i in range(7):
+        for j in [0,6]:t.set(i,1,j,"minecraft:smooth_stone");t.set(j,1,i,"minecraft:smooth_stone")
+    t.fill((1,1,1),(5,1,5),"minecraft:water",{"liquid_depth":0});t.set(3,1,3,"minecraft:smooth_stone");t.set(3,2,3,"minecraft:sea_lantern")
+    out.append(t)
+    # Generator house behind the mansion, door facing north to the garden.
+    t=Template("utility",(9,6,7),"estate");t.fill((0,0,0),(8,5,6),"light_reinforced_concrete")
+    t.fill((1,1,1),(7,4,5),"minecraft:air");t.fill((1,0,1),(7,0,5),"grated_floor");t.fill((0,5,0),(8,5,6),"steel_plate")
+    t.fill((4,1,0),(4,2,0),"minecraft:air");t.fill((1,1,5),(7,2,5),"generator_panel");t.fill((1,3,5),(7,3,5),"pipe")
+    t.set(1,1,1,"electrical_cabinet");t.set(7,1,1,"electrical_cabinet");t.set(4,4,3,"industrial_light");t.fill((6,1,3),(7,1,3),"large_vent")
+    out.append(t)
+    # Watchtower for each corner: a hollow concrete tower with a ladder to a railed turret platform.
+    # Its doorways face all four ways; the two against the perimeter wall are simply closed by it.
+    t=Template("watchtower",(5,15,5),"estate");t.fill((0,0,0),(4,12,4),"light_reinforced_concrete")
+    t.fill((1,1,1),(3,11,3),"minecraft:air");t.fill((1,0,1),(3,0,3),"industrial_floor")
+    for x,z in [(2,0),(2,4),(0,2),(4,2)]:t.fill((x,1,z),(x,2,z),"minecraft:air")
+    t.fill((1,1,1),(1,12,1),"minecraft:ladder",{"facing_direction":5})
+    for i in range(5):
+        for j in [0,4]:t.set(i,13,j,"minecraft:iron_bars");t.set(j,13,i,"minecraft:iron_bars")
+    t.fill((0,6,0),(4,6,0),"concrete_warning_stripe");t.set(2,11,2,"industrial_light");out.append(t)
+    # Gate pillar: solid, banded, topped with a turret mount at runtime.
+    t=Template("gate_pillar",(3,8,3),"estate");t.fill((0,0,0),(2,7,2),"dark_reinforced_concrete")
+    t.fill((0,1,0),(2,6,2),"light_reinforced_concrete");t.fill((0,4,0),(2,4,2),"concrete_warning_stripe");out.append(t)
+    return out
+
 def structures():
     templates=[]
     for role in ROOM_ROLES:
@@ -741,7 +1029,8 @@ def structures():
         if name=="core":
             t.fill((1,1,1),(7,5,7),"minecraft:air")
             t.fill((3,0,3),(5,0,5),"elevator_pad")
-            t.set(6,2,5,"elevator_panel")
+            # The lift panel is set into a floor-to-ceiling control column beside the pad.
+            t.fill((6,1,5),(6,5,5),"steel_plate");t.set(6,2,5,"elevator_panel")
         templates.append(t)
     # Authored entrance, 15 wide x 9 high x 22 deep; its rear core aligns with all floors.
     t=Template("entrance",(15,9,22));t.shell()
@@ -753,13 +1042,15 @@ def structures():
     t.fill((5,1,5),(9,5,12),"minecraft:air")
     t.fill((3,1,13),(11,6,20),"minecraft:air")
     t.fill((6,0,16),(8,0,18),"elevator_pad")
-    t.set(9,2,18,"elevator_panel")
+    t.fill((9,1,18),(9,7,18),"steel_plate");t.set(9,2,18,"elevator_panel")
     for x in [2,12]:t.set(x,1,1,"laser_turret_mount")
     for z in [8,12,16,20]:t.fill((6,7,z),(8,7,z),"industrial_light")
     templates.append(t)
+    for kind in EXIT_KINDS:templates.append(exit_template(kind))
+    templates.append(mansion());templates.extend(estate_buildings())
     catalog=[t.export() for t in templates]
     write(ROOT/"tools/generated/template_voxels.json",catalog)
-    write(ROOT/"docs/module_catalog.json",[{"identifier":NS+"bunker/"+t["name"],"size":t["size"]} for t in catalog])
+    write(ROOT/"docs/module_catalog.json",[{"identifier":NS+t["folder"]+"/"+t["name"],"size":t["size"]} for t in catalog])
 
 def icon():
     im=Image.new("RGB",(128,128),(17,29,34));d=ImageDraw.Draw(im)
@@ -793,14 +1084,14 @@ def asset_inventory():
         "| `secretfacilities:missile` | Entity | Scripted missile: steers toward its target, detonates on contact, near the target or at a wall, and damages hostile mobs only without breaking blocks | Original 32×32 atlas | Body, nose, fins and exhaust | Pitch bone follows the flight path | Vanilla explosion on impact |",
         "| `secretfacilities:blast_door_leaf` | Entity | Two blast door leaves that part at a central seam and slide sideways into the wall, present only while the entrance door travels | Shared blast door texture | Two bones of block-column cubes | Client-eased slide driven by a synced property | Blast door sounds |",
         "| `secretfacilities:turret_beam` | Particle | Turret shot: one emitter draws a solid glowing beam from muzzle to target | Original 16×16 soft glow, additive, unlit | Dense billboards placed along the shot | 0.32-second fade | Shared firing pulse |",
-        "| `secretfacilities:laser_beam` | Particle | Tripwire grids | Original 8×8 white mask, tinted red | Billboard | 0.22-second particle lifetime | None |",
+        "| `secretfacilities:laser_beam` | Particle | Tripwire grids: one emitter per sensor tick draws a steady, thin glowing red line from emitter to receiver | Shared soft glow, additive, unlit | Dense billboards placed along the beam | 0.34-second life, redrawn every 0.25 seconds | None |",
         "| `secretfacilities:laser_impact` | Particle | Hit flash and sparks | Shared soft glow, additive | Billboards with gravity | Up to 0.45 seconds | Shared firing pulse |",
         "| `secretfacilities:missile_exhaust` | Particle | Missile flame at the tail, emitted every tick of flight | Shared soft glow, additive | Billboards | 0.15 seconds | None |",
         "| `secretfacilities:missile_smoke` | Particle | Missile smoke trail that lingers and rises | Shared soft glow, blended grey | Growing billboards | Up to 1.4 seconds | None |", "",
         "## Audio", "", "Twelve original mono WAV assets are mapped through `resource_pack/sounds/sound_definitions.json`.", "",
         "`access_granted`, `access_denied`, `alarm_alert`, `alarm_lockdown`, `blast_door_movement`, `blast_door_warning`, `elevator_move`, `elevator_arrive`, `laser_turret_fire`, `warning_beep`, `destruction`, `missile_launch`.", "",
         "`warning_beep` is available for future countdown polish; the other sound events are wired to the shared systems. No third-party audio is included.", "",
-        "## Structures", "", "43 authored/generated binary templates: 19 furnished room roles (bedrooms, bunk rooms, lounges, mess halls, hydroponic farms, mining faces, workshops, labs and more) in north/south connector orientations, four hall/core modules and the surface entrance. Rooms use vanilla furniture with block entity data for bed colours. See `module_catalog.json`. Programmed overlays add doors, readers, controls, grids, shafts, escape route, turrets, the covering mountain and TNT demolition charges.", "",
+        "## Structures", "", f"{2*len(ROOM_ROLES)+5+len(EXIT_KINDS)+ESTATE_TEMPLATES} authored/generated binary templates: {len(ROOM_ROLES)} furnished room roles (bedrooms, bunk rooms, lounges, mess halls, hydroponic farms, mining faces, workshops, labs and more) in north/south connector orientations, four hall/core modules, the surface entrance, and {len(EXIT_KINDS)} secret tunnel exits under `secretfacilities:tunnel/` (utility shed, forest cabin, old well, hidden hatch and abandoned mine headframe). The fortified estate adds {ESTATE_TEMPLATES} under `secretfacilities:estate/`: a two-storey mansion over the estate's bunker (grand hall with the lift and emergency ladder, dining room, kitchen, library, a study that is the defence control room, four bedrooms and a gallery), a gatehouse, a three-bay garage, a helipad, a fountain, a generator house, a corner watchtower and a gate pillar. Rooms use vanilla furniture with block entity data for bed colours; exits use structure voids so the levelled ground around them stays in place. See `module_catalog.json`. Programmed overlays add doors, readers, controls, grids, shafts, the escape tunnel and its ladder shaft, turrets, the covering mountain and TNT demolition charges.", "",
         "## Other", "", "Both packs include an original 128×128 bunker icon and en_US names. Advanced control models, damaged turret models, directional animated doors, facility-specific palettes and cinematic particles are deferred."])
     (ROOT/"docs").mkdir(exist_ok=True)
     (ROOT/"docs/assets.md").write_text("\n".join(lines)+"\n")
@@ -813,6 +1104,6 @@ def main():
     write(RP/"manifest.json",{"format_version":2,"header":{"name":"Secret Facilities RP","description":"Original industrial pixel art, turret model, effects and sounds","uuid":RP_UUID,"version":VERSION,"min_engine_version":[1,21,90]},
         "modules":[{"type":"resources","uuid":"071c689c-24f6-45d4-8aaa-4843be1664cf","version":VERSION}]})
     textures();turret();missile_turret();door_leaf();sounds();structures();icon();asset_inventory()
-    print(f"Built {len(BLOCKS)} blocks, {len(ITEMS)} items, {len(SPAWNABLE)} turret spawn eggs, {2*len(ROOM_ROLES)+5} structure templates, turrets, missile, particles and 12 sounds.")
+    print(f"Built {len(BLOCKS)} blocks, {len(ITEMS)} items, {len(SPAWNABLE)} turret spawn eggs, {2*len(ROOM_ROLES)+5+len(EXIT_KINDS)+ESTATE_TEMPLATES} structure templates, turrets, missile, particles and 12 sounds.")
 
 if __name__=="__main__":main()
