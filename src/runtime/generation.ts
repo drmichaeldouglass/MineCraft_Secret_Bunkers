@@ -1,7 +1,8 @@
 import { BlockVolume, GameMode, system, world, type Block, type Dimension, type Player } from "@minecraft/server";
-import { add, intersects, NS, type Facility, type Vec } from "../core/types.js";
+import { add, intersects, NS, type Bounds, type ExitKind, type Facility, type Vec } from "../core/types.js";
 import { FLOOR_STEP, MODULE } from "../generation/planner.js";
-import { column, MOUNTAIN, PAD, PEAK } from "../generation/mountain.js";
+import { column, MOUNTAIN, PAD, PEAK, rearExit } from "../generation/mountain.js";
+import { chooseExit, EXIT_FILL, exitCandidates, EXITS, routeColumns, SITE, siteColumns, type ExitSite, type SiteSample } from "../generation/tunnel.js";
 import { facilities, mark, save } from "./store.js";
 import { dim, fill, loaded, report, set, tell } from "./world.js";
 const active=new Set<string>();
@@ -37,6 +38,7 @@ function installations(f:Facility):Operation[] {
   for(let y=low+1;y<=o.y+5;y+=FLOOR_STEP){const top=Math.min(y+FLOOR_STEP-1,o.y+5);
     ops.push(()=>{fill(d,{x:o.x+16,y,z:o.z+16},{x:o.x+16,y:top,z:o.z+16},"steel_wall");
       fill(d,{x:o.x+15,y,z:o.z+16},{x:o.x+15,y:top,z:o.z+16},"minecraft:ladder",{facing_direction:4});});}
+  if(!rearExit(f)){ops.push(...tunnel(f));return [...ops,...fittings(f)];}
   // B1 rear escape tunnel and a second ladder to a discreet surface utility hut.
   // It opens from the back of the room south of the lobby, whose aisle is cleared through to it.
   ops.push(()=>{fill(d,p(11,-9,26),p(15,-5,36),"reinforced_concrete");fill(d,p(12,-8,22),p(14,-6,35),"minecraft:air");
@@ -47,6 +49,44 @@ function installations(f:Facility):Operation[] {
     fill(d,p(12,-8,34),p(12,3,34),"minecraft:ladder",{facing_direction:5});
     // The hut is dug into the back of the mountain, so its door faces away from it, south.
     fill(d,p(13,1,36),p(14,2,36),"minecraft:air");set(d,p(13,4,34),"industrial_light");});
+  return [...ops,...fittings(f)];
+}
+const PAUSED="Build paused because its chunks unloaded. Return here and use Resume in the deployment device.";
+/** The secret tunnel to a remote exit: the exit site levelled, then sealed and lined pieces and their
+ *  open interiors, then the exit's shaft, its structure and the ladder up through it all. */
+function tunnel(f:Facility):Operation[] {
+  const d=dim(f),o=f.origin,e=f.exit!,l=e.ladder,ops:Operation[]=[],edge={ignoreChunkBoundErrors:true};
+  const need=(...at:Vec[])=>{if(!at.every(v=>loaded(d,v)))throw Error(PAUSED);};
+  const grown=(b:Bounds):BlockVolume=>new BlockVolume(add(b.min,{x:-1,y:-1,z:-1}),add(b.max,{x:1,y:1,z:1}));
+  const [top,under]=padMaterial(e.ground),lo={x:l.x-SITE,z:l.z-SITE},hi={x:l.x+SITE,z:l.z+SITE};
+  // Level the exit site first: its backfill would otherwise plug a tunnel running close beneath it.
+  ops.push(()=>{
+    need({...lo,y:l.y},{...hi,y:l.y});
+    d.fillBlocks(new BlockVolume({...lo,y:l.y+1},{...hi,y:l.y+12}),"minecraft:air",edge);
+    d.fillBlocks(new BlockVolume({...lo,y:l.y-EXIT_FILL-2},{...hi,y:l.y-1}),under,{...edge,blockFilter:{includeTypes:LOOSE}});
+    d.fillBlocks(new BlockVolume({...lo,y:l.y},{...hi,y:l.y}),top,edge);
+  });
+  e.passages.forEach((piece,i)=>ops.push(()=>{
+    need(piece.lining.min,piece.lining.max);
+    // Seal any cave or ravine the tunnel crosses, so its lining is never left hanging in the open.
+    // The first piece leaves the bunker itself, whose room must not be filled.
+    if(i>0)d.fillBlocks(grown(piece.lining),"minecraft:stone",{...edge,blockFilter:{includeTypes:LOOSE}});
+    fill(d,piece.lining.min,piece.lining.max,"reinforced_concrete");
+  }));
+  for(const piece of e.passages)ops.push(()=>fill(d,piece.interior.min,piece.interior.max,"minecraft:air"));
+  ops.push(()=>{for(const lamp of e.lamps)set(d,lamp,"industrial_light");});
+  // The shaft rises from the tunnel roof to just under the exit's floor.
+  ops.push(()=>{
+    d.fillBlocks(new BlockVolume({x:l.x-2,y:o.y-5,z:l.z-2},{x:l.x+2,y:l.y-1,z:l.z+2}),"minecraft:stone",{...edge,blockFilter:{includeTypes:LOOSE}});
+    fill(d,{x:l.x-1,y:o.y-5,z:l.z-1},{x:l.x+1,y:l.y-1,z:l.z+1},"reinforced_concrete");
+  });
+  ops.push(()=>{need({...lo,y:l.y},{...hi,y:l.y});world.structureManager.place(NS+"tunnel/exit_"+e.kind,d,{x:l.x-3,y:l.y,z:l.z-3},{includeEntities:false});});
+  ops.push(()=>fill(d,{x:l.x,y:o.y-8,z:l.z},{x:l.x,y:l.y+EXITS[e.kind].ladderTop,z:l.z},"minecraft:ladder",{facing_direction:e.facing}));
+  return ops;
+}
+/** Doors, readers, panels, consoles, lamps, grids and turrets at their registered positions. */
+function fittings(f:Facility):Operation[] {
+  const d=dim(f),ops:Operation[]=[];
   for(const door of f.doors)ops.push(()=>{
     const id=door.kind==="blast"?"blast_door":door.kind==="shutter"?"security_shutter":"security_door";
     fill(d,door.min,door.max,id,{[NS+"open"]:door.open,[NS+"slide"]:0});
@@ -57,8 +97,10 @@ function installations(f:Facility):Operation[] {
   for(const light of f.lights)ops.push(()=>set(d,light,"emergency_light",{[NS+"active"]:false}));
   for(const laser of f.lasers)ops.push(()=>{
     if(laser.a.y===laser.b.y){
-      set(d,{x:Math.floor(laser.a.x),y:Math.floor(laser.a.y),z:Math.floor(laser.a.z)-1},"laser_emitter");
-      set(d,{x:Math.floor(laser.b.x),y:Math.floor(laser.b.y),z:Math.floor(laser.b.z)+1},"laser_receiver");
+      // Horizontal beams run along z or, across a tunnel, along x; the fittings sit in the walls at each end.
+      const alongX=laser.a.z===laser.b.z?1:0;
+      set(d,{x:Math.floor(laser.a.x)-alongX,y:Math.floor(laser.a.y),z:Math.floor(laser.a.z)-(1-alongX)},"laser_emitter");
+      set(d,{x:Math.floor(laser.b.x)+alongX,y:Math.floor(laser.b.y),z:Math.floor(laser.b.z)+(1-alongX)},"laser_receiver");
     }else{
       set(d,{x:Math.floor(laser.a.x),y:Math.floor(laser.a.y)-1,z:Math.floor(laser.a.z)},"laser_emitter");
       set(d,{x:Math.floor(laser.b.x),y:Math.ceil(laser.b.y),z:Math.floor(laser.b.z)},"laser_receiver");
@@ -69,7 +111,7 @@ function installations(f:Facility):Operation[] {
     if(d.getEntities({type:NS+"laser_turret",tags:[tag]}).length)return;
     set(d,{x:Math.floor(turret.pos.x),y:turret.pos.y-1,z:Math.floor(turret.pos.z)},"laser_turret_mount");
     const e=d.spawnEntity(NS+"laser_turret",turret.pos);e.addTag(tag);e.setDynamicProperty(NS+"facility",f.id);e.setDynamicProperty(NS+"turret",turret.id);
-    e.nameTag=turret.zone==="entrance"?"§7ENTRANCE DEFENCE":"§7COMMAND DEFENCE";
+    e.nameTag=`§7${turret.zone.toUpperCase()} DEFENCE`;
   });
   return ops;
 }
@@ -113,13 +155,19 @@ function mountain(f:Facility):Operation[] {
   if(!f.charges)return [];
   const d=dim(f),o=f.origin,[top,under]=padMaterial(f.ground??"minecraft:grass_block"),ops:Operation[]=[];
   const core=under==="minecraft:dirt"?"minecraft:stone":under,edge={ignoreChunkBoundErrors:true};
-  const only={...edge,blockFilter:{includeTypes:COVERABLE}};
-  const lay=(x:number,z:number,a:number,b:number,block:string)=>{
+  const only={...edge,blockFilter:{includeTypes:COVERABLE}},rear=rearExit(f),passages=rear?[]:f.exit!.passages;
+  const fillColumn=(x:number,z:number,a:number,b:number,block:string)=>{
     if(b>=a)d.fillBlocks(new BlockVolume({x:o.x+x,y:o.y+a,z:o.z+z},{x:o.x+x,y:o.y+b,z:o.z+z}),block,only);
+  };
+  // A skirt laid over a tunnel passing beneath it must not fill the tunnel, which is open air.
+  const lay=(x:number,z:number,a:number,b:number,block:string)=>{
+    const piece=passages.find(q=>o.x+x>=q.lining.min.x&&o.x+x<=q.lining.max.x&&o.z+z>=q.lining.min.z&&o.z+z<=q.lining.max.z);
+    if(!piece)return fillColumn(x,z,a,b,block);
+    fillColumn(x,z,a,Math.min(b,piece.lining.min.y-o.y-1),block);fillColumn(x,z,Math.max(a,piece.lining.max.y-o.y+1),b,block);
   };
   for(let z=MOUNTAIN.z0;z<=MOUNTAIN.z1;z++)ops.push(()=>{
     for(let x=MOUNTAIN.x0;x<=MOUNTAIN.x1;x++){
-      const c=column(f.seed,x,z);
+      const c=column(f.seed,x,z,rear);
       if(c.open){
         // Keep the approach and the hut's apron open at pad level, whatever the terrain beyond does.
         d.fillBlocks(new BlockVolume({x:o.x+x,y:o.y+1,z:o.z+z},{x:o.x+x,y:o.y+CLEAR_HEIGHT,z:o.z+z}),"minecraft:air",edge);
@@ -130,7 +178,7 @@ function mountain(f:Facility):Operation[] {
       }
       if(!c.top)continue;
       // Steep faces and the summit are bare rock; gentler slopes carry the local soil.
-      const slope=Math.max(...[[1,0],[-1,0],[0,1],[0,-1]].map(([dx,dz])=>Math.abs(c.top-column(f.seed,x+dx,z+dz).top)));
+      const slope=Math.max(...[[1,0],[-1,0],[0,1],[0,-1]].map(([dx,dz])=>Math.abs(c.top-column(f.seed,x+dx,z+dz,rear).top)));
       const rock=(x*7+z*13+f.seed)%5===0?"minecraft:andesite":core;
       const surface=c.top>=PEAK-2?"minecraft:snow":slope>=3?rock:top;
       lay(x,z,c.base,c.top-4,core);
@@ -156,8 +204,9 @@ export function build(f:Facility,player:Player):void {
   for(const other of facilities.values())if(other.id!==f.id && other.dimension===f.dimension && intersects(f.bounds,other.bounds,8))throw Error("Another facility overlaps this site. Move farther away.");
   const d=dim(f);
   // The mountain's skirts may run into unloaded chunks; the pad itself must be loaded.
-  for(const x of [PAD.x0,PAD.x1])for(const z of [PAD.z0,PAD.z1])
-    if(!loaded(d,add(f.origin,{x,y:0,z})))throw Error("The full site must be loaded. Move closer or raise simulation distance, then retry.");
+  const corners=[PAD.x0,PAD.x1].flatMap(x=>[PAD.z0,PAD.z1].map(z=>add(f.origin,{x,y:0,z})));
+  if(!rearExit(f)){const l=f.exit!.ladder;for(const dx of [-SITE,SITE])for(const dz of [-SITE,SITE])corners.push(add(l,{x:dx,y:0,z:dz}));}
+  if(!corners.every(c=>loaded(d,c)))throw Error("The full site, including the escape exit, must be loaded. Move closer or raise simulation distance, then retry.");
   facilities.set(f.id,f);f.phase="building";save(f);active.add(f.id);
   // Level ground, then rock, then modules carved into it, then fittings, then the mountain over it all.
   const ops:Operation[]=[...earthworks(f),...encasement(f)];
@@ -181,6 +230,8 @@ export function build(f:Facility,player:Player):void {
   tell(player,`Building ${f.floors.length-1} floors. Stay near this site until construction finishes.`);
 }
 // Canopy, ground cover and decoration sit above the real surface and must not count as relief.
+/** What a tree is made of, for telling a forest from open ground. */
+const TREE=["leaves","_log","wood"];
 const CANOPY=["leaves","_log","wood","_stem","sapling","vine","bamboo","cactus","sugar_cane","snow_layer",
   "short_grass","tall_grass","fern","flower","mushroom","deadbush","azalea","moss_carpet","hanging_roots",
   "kelp","seagrass","coral","lantern","torch","web","berry","pumpkin","melon","crop","sculk_vein"];
@@ -195,8 +246,9 @@ function groundAt(d:Dimension,x:number,z:number):Block|undefined {
   } catch { return undefined; }
 }
 /** The solid floor of a column, looking through canopy and any water or lava standing on it. */
-function floorAt(d:Dimension,x:number,z:number):{floor:number;liquid?:number}|undefined {
-  let block=groundAt(d,x,z),liquid:number|undefined;
+function floorAt(d:Dimension,x:number,z:number):{floor:number;liquid?:number;ground:string;canopy:boolean}|undefined {
+  let block=groundAt(d,x,z),liquid:number|undefined,canopy=false;
+  try{const crown=d.getTopmostBlock({x,z})?.typeId??"";canopy=TREE.some(part=>crown.includes(part));}catch{return undefined;}
   try {
     for(let i=0;i<64&&block&&(block.isLiquid||CANOPY.some(part=>block!.typeId.includes(part)));i++){
       if(block.isLiquid)liquid??=block.location.y;
@@ -204,7 +256,7 @@ function floorAt(d:Dimension,x:number,z:number):{floor:number;liquid?:number}|un
     }
   } catch { return undefined; }
   if(!block||block.isLiquid)return undefined;
-  return {floor:block.location.y,liquid};
+  return {floor:block.location.y,liquid,ground:block.typeId,canopy};
 }
 export interface Site { origin:Vec; ground:string; cut:number; fill:number }
 /** Measure the footprint and choose the surface level closest to the entrance ground that the
@@ -236,4 +288,23 @@ export function originAt(player:Player):Site {
   if(!ground||ground.isLiquid)throw Error("Choose dry land for the main entrance.");
   const {level,cut,fill}=survey(player.dimension,{x:x-13,y:ground.location.y,z});
   return {origin:{x:x-13,y:level,z},ground:ground.typeId,cut,fill};
+}
+/** Survey the remote exit sites around a planned bunker and choose where its escape tunnel comes up. */
+export function exitSite(d:Dimension,origin:Vec,seed:number,preference?:ExitKind):ExitSite {
+  if(preference==="rock_face")return {kind:"rock_face"};
+  const inPad=(x:number,z:number)=>x>=PAD.x0&&x<=PAD.x1&&z>=PAD.z0&&z<=PAD.z1;
+  const surveys=exitCandidates().map(c=>{
+    const samples=siteColumns(c).map(([x,z]):SiteSample|undefined=>{
+      const at=floorAt(d,origin.x+x,origin.z+z);
+      return at&&{floor:at.floor,liquid:at.liquid!==undefined,ground:at.ground,canopy:at.canopy};
+    });
+    // The pad and the mountain's skirts bury the tunnel wherever they reach; elsewhere the ground must.
+    let routeLow=Infinity;
+    for(const [x,z] of routeColumns(c)){
+      if(inPad(x,z)||column(seed,x,z,false).top>0)continue;
+      routeLow=Math.min(routeLow,floorAt(d,origin.x+x,origin.z+z)?.floor??-Infinity);
+    }
+    return {...c,samples,routeLow};
+  });
+  return chooseExit(surveys,origin.y,seed,preference);
 }

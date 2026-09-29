@@ -1,15 +1,17 @@
 import fs from "node:fs";
 const catalog=JSON.parse(fs.readFileSync(new URL("../tools/generated/template_voxels.json",import.meta.url),"utf8"));
-const templates=new Map(catalog.map(t=>["secretfacilities:bunker/"+t.name,t]));
+const templates=new Map(catalog.map(t=>[`secretfacilities:${t.folder}/${t.name}`,t]));
 const xyz=p=>`${Math.floor(p.x)},${Math.floor(p.y)},${Math.floor(p.z)}`;
 export const blocks=new Map(),properties=new Map(),players=[],entities=[],tasks=new Map(),explosions=[],particles=[],sounds=[];
-// Terrain profile the site survey reads. Flat by default; tests override it to model slopes
-// and standing water (the water surface y, or undefined for a dry column).
-export const terrain={height:()=>80,water:()=>undefined};
+// Terrain profile the site survey reads. Flat by default; tests override it to model slopes,
+// standing water (the water surface y, or undefined for a dry column), the surface block, and
+// trees: a four-block trunk under a leaf crown.
+export const terrain={height:()=>80,water:()=>undefined,top:()=>"minecraft:grass_block",tree:()=>false};
 const surface=(x,z)=>terrain.height(x,z);
-/** The untouched world: grass on stone up to the terrain height, then any water, then air. */
-const natural=(x,y,z)=>{const h=surface(x,z),w=terrain.water(x,z);
-  return {typeId:y<h?"minecraft:stone":y===h?"minecraft:grass_block":w!==undefined&&y<=w?"minecraft:water":"minecraft:air",states:{}};};
+/** The untouched world: the surface block on stone up to the terrain height, then any tree or water, then air. */
+const natural=(x,y,z)=>{const h=surface(x,z),w=terrain.water(x,z),tree=terrain.tree(x,z);
+  return {typeId:y<h?"minecraft:stone":y===h?terrain.top(x,z):tree&&y<=h+4?"minecraft:oak_log":tree&&y===h+5?"minecraft:oak_leaves":
+    w!==undefined&&y<=w?"minecraft:water":"minecraft:air",states:{}};};
 export const blockAt=(x,y,z)=>blocks.get(xyz({x,y,z}))??natural(x,y,z);
 let serial=0;
 export const GameMode={Creative:"Creative",Survival:"Survival"};
@@ -32,7 +34,8 @@ export const dimension={
       if(!only||only.includes(blockAt(x,y,z).typeId))blocks.set(xyz({x,y,z}),permutation);
   },
   getTopmostBlock({x,z}){const h=surface(x,z),w=terrain.water(x,z);
-    return w!==undefined&&w>h?{location:{x,y:w,z},typeId:"minecraft:water",isAir:false,isLiquid:true}:{location:{x,y:h,z},typeId:"minecraft:grass_block",isAir:false,isLiquid:false};},
+    if(terrain.tree(x,z))return this.getBlock({x,y:h+5,z});
+    return w!==undefined&&w>h?{location:{x,y:w,z},typeId:"minecraft:water",isAir:false,isLiquid:true}:{location:{x,y:h,z},typeId:terrain.top(x,z),isAir:false,isLiquid:false};},
   getEntities(options={}){return entities.filter(e=>(!options.type||e.typeId===options.type)&&(!options.tags||options.tags.every(t=>e.tags.includes(t)))&&(!options.maxDistance||Math.hypot(e.location.x-options.location.x,e.location.y-options.location.y,e.location.z-options.location.z)<=options.maxDistance));},
   spawnEntity(typeId,location,options){const e={id:`e${serial++}`,typeId,location,dimension:this,tags:[],isValid:true,props:new Map(),properties:new Map(),spawnEvent:options?.spawnEvent,
     addTag(tag){this.tags.push(tag);},getDynamicProperty(k){return this.props.get(k);},setDynamicProperty(k,v){this.props.set(k,v);},
@@ -50,7 +53,9 @@ export const world={getDimension(){return dimension;},getAllPlayers(){return pla
   structureManager:{place(id,d,pos){
     const t=templates.get(id);if(!t)throw Error(`Unknown template ${id}`);let i=0;
     for(let x=0;x<t.size[0];x++)for(let y=0;y<t.size[1];y++)for(let z=0;z<t.size[2];z++){
-      const [typeId,states]=t.palette[t.indices[i++]];blocks.set(xyz({x:pos.x+x,y:pos.y+y,z:pos.z+z}),{typeId,states});
+      // -1 is a structure void: the block already in the world stays.
+      const index=t.indices[i++];if(index<0)continue;
+      const [typeId,states]=t.palette[index];blocks.set(xyz({x:pos.x+x,y:pos.y+y,z:pos.z+z}),{typeId,states});
     }
   }},
 };
@@ -62,4 +67,4 @@ export function playerAt(location){return {id:"player1",typeId:"minecraft:player
   camera:{fade(){}},
   getComponent(){return {container:{size:1,getItem(){return {typeId:"secretfacilities:keycard_master"};}}};}};}
 export function finishBuild(){for(let i=0;i<1500&&tasks.size;i++){for(const work of [...tasks.values()])work();system.currentTick+=2;}if(tasks.size)throw Error("Build did not finish");}
-export function reset(){blocks.clear();properties.clear();players.length=0;entities.length=0;tasks.clear();explosions.length=0;particles.length=0;sounds.length=0;system.currentTick=0;terrain.height=()=>80;terrain.water=()=>undefined;}
+export function reset(){blocks.clear();properties.clear();players.length=0;entities.length=0;tasks.clear();explosions.length=0;particles.length=0;sounds.length=0;system.currentTick=0;terrain.height=()=>80;terrain.water=()=>undefined;terrain.top=()=>"minecraft:grass_block";terrain.tree=()=>false;}

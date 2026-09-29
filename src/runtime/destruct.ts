@@ -84,7 +84,8 @@ function wreckSurface(f:Facility,d:Dimension,rng:Rng):void {
   }
   volume(d,p(12,6,11),p(14,7,14),"minecraft:gravel");
   for(const door of f.doors)for(const e of d.getEntities({type:NS+"blast_door_leaf",tags:[`sf_door:${f.id}:${door.id}`]}))try{e.remove();}catch{/* Gone. */}
-  for(const t of f.turrets){
+  // The tunnel survives as the way out: its junction turret is shut down with the rest, not blown up in it.
+  for(const t of f.turrets.filter(t=>t.zone!=="tunnel")){
     for(const e of d.getEntities({type:NS+"laser_turret",tags:[`sf:${f.id}:${t.id}`]}))try{e.remove();}catch{/* Gone. */}
     explode(d,t.pos,3);
   }

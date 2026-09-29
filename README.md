@@ -8,7 +8,9 @@ A Minecraft **Bedrock Edition** add-on built from `Secret_Facilities_Plan.md`.
 
 ![Generated bunker floor plans](docs/bunker-preview.png)
 
-The preview is rendered from the actual assembled block data in the test harness. It is not a Minecraft screenshot.
+![Secret tunnel exits](docs/tunnel-exits.png)
+
+The previews are rendered from the actual assembled block data and template voxels in the test harness. They are not Minecraft screenshots.
 
 ## Install and start
 
@@ -20,20 +22,20 @@ The preview is rendered from the actual assembled block data in the test harness
    /scriptevent secretfacilities:kit
    ```
 
-4. Stand on open ground. Hills, dips and shallow water are levelled automatically, and a mountain is raised over the finished bunker. Use the device, choose 3–8 floors, and confirm the displayed site. **Deployment replaces terrain/buildings in its footprint.** Use a test world or a backup.
+4. Stand on open ground. Hills, dips and shallow water are levelled automatically, and a mountain is raised over the finished bunker. Use the device, choose 3–8 floors and an escape exit (automatic by default), and confirm the displayed site. **Deployment replaces terrain/buildings in its footprint.** Use a test world or a backup.
 5. Stay near the build until “Bunker ready” appears. The entrance faces north (−Z). Use its reader with a keycard in your inventory.
 
 If the kit command is unavailable, use `/give @s secretfacilities:facility_deployment_device`, then choose **Get development kit** in its menu.
 
 ## Included
 
-- A 27-block-square modular command bunker with 3–8 underground floors and 43 binary `.mcstructure` templates.
+- A 27-block-square modular command bunker with 3–8 underground floors and 48 binary `.mcstructure` templates.
 - Floors with a purpose — living quarters, command, engineering & mining, hydroponics, research — furnished from 19 room types with working vanilla blocks: bunk rooms and bedrooms with real beds, lounges, mess halls, hydroponic farms with growing crops, live mining faces full of ore, workshops, labs, infirmaries, data centres, strongrooms and supply depots.
-- The whole site buried under a seeded mountain, with an open, overhung portal and approach cut and the escape hut dug into its back.
+- The whole site buried under a seeded mountain, with an open, overhung portal and approach cut.
 - Automatic cut-and-fill site levelling and solid rock encasement, so no floor surfaces through a hillside.
 - A five-block-wide entrance blast door that splits down the middle and slides apart sideways, room security doors, readers, alarm shutters, and emergency lights.
 - Four clearance levels and a Creative-only master card.
-- Multi-floor elevator transfer pads, a continuous emergency ladder, and a B1 escape tunnel to a surface utility hut.
+- Multi-floor elevator transfer pads, a continuous emergency ladder, and a secret B1 escape tunnel. It runs under the mountain to a remote, terrain-matched exit: a utility shed, forest cabin, old well, hidden hatch or abandoned mine headframe. A keycard door, a laser grid and a junction turret guard it.
 - Horizontal and vertical laser grids, alert/lockdown controls, shared facility state, and saved configurations.
 - Two exterior laser turrets and one command-level turret when defences are enabled; range, line-of-sight, reload, zone controls, and a conservative hostile-only target filter.
 - A two-confirmation, 90-second self-destruct sequence with evacuation and an abort window, then TNT charges built into the rock around every floor blow and the bunker is demolished floor by floor.
@@ -70,4 +72,4 @@ Alternatively, `python3 tools/bootstrap.py` downloads the pinned TypeScript comp
 | `docs/` | Controls, architecture, assets, status, and manual acceptance checks |
 | `dist/` | Combined `.mcaddon`, separate `.mcpack` files, and SHA-256 checksums |
 
-The later facility types, missile turrets inside generated facilities, natural generation, jigsaw pools, and advanced animation/art stages remain on the [roadmap](docs/STATUS.md). Guards, loot, quests, stories, and handheld weapons have not been added.
+The later facility types, missile turrets inside generated facilities, horizontal cave and drainage-pipe exits, natural generation, jigsaw pools, and advanced animation/art stages remain on the [roadmap](docs/STATUS.md). Guards, loot, quests, stories, and handheld weapons have not been added.

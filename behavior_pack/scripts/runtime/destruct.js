@@ -109,7 +109,8 @@ function wreckSurface(f, d, rng) {
                 e.remove();
             }
             catch { /* Gone. */ }
-    for (const t of f.turrets) {
+    // The tunnel survives as the way out: its junction turret is shut down with the rest, not blown up in it.
+    for (const t of f.turrets.filter(t => t.zone !== "tunnel")) {
         for (const e of d.getEntities({ type: NS + "laser_turret", tags: [`sf:${f.id}:${t.id}`] }))
             try {
                 e.remove();

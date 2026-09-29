@@ -4,6 +4,7 @@ import { distance, inside, NS, type Door, type Facility, type SecurityState, typ
 import { facilities, mark, save } from "./store.js";
 import { beam, dim, fill, getClearance, lineClear, loaded, nearby, set, sound, tell } from "./world.js";
 import { demolish } from "./destruct.js";
+import { EXITS } from "../generation/tunnel.js";
 
 interface DoorJob { f:Facility; door:Door; progress:number; target:number; repaint:boolean; started:boolean; leaf?:string; motion?:number; hidden?:boolean }
 const moving=new Map<string,DoorJob>();
@@ -229,7 +230,7 @@ export function tickAlarms():void {
     if(f.state==="SELF_DESTRUCT"&&alarmPhase%2===0){
       if((f.countdown??0)>0){f.countdown!--;mark(f);
         for(const p of world.getAllPlayers())if(p.dimension.id===f.dimension&&inside(p.location,f.bounds,5))
-          p.onScreenDisplay.setActionBar(`§cEVACUATE • ${f.countdown}s • rear B1 escape tunnel`);
+          p.onScreenDisplay.setActionBar(`§cEVACUATE • ${f.countdown}s • B1 secret tunnel to the ${EXITS[f.exit?.kind??"rock_face"].label}`);
       }else if(demolish(f)){
         for(const t of f.turrets){t.enabled=false;t.damaged=true;}
         setSecurity(f,"DESTROYED");

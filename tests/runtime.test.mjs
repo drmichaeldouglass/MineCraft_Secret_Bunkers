@@ -4,9 +4,10 @@ import fs from "node:fs";
 import { blockAt, blocks, dimension, entities, explosions, finishBuild, particles, playerAt, players, properties, reset, sounds, system, terrain } from "./mock-server.mjs";
 import { planBunker } from "../behavior_pack/scripts/generation/planner.js";
 import { facilities, load, mark, save } from "../behavior_pack/scripts/runtime/store.js";
-import { build, MAX_CUT, MAX_FILL, originAt } from "../behavior_pack/scripts/runtime/generation.js";
+import { build, exitSite, MAX_CUT, MAX_FILL, originAt } from "../behavior_pack/scripts/runtime/generation.js";
 import { armDestruct, abortDestruct, ease, LEAF, requestDoor, restoreDoors, setSecurity, slid, SUBSTEPS, tickAlarms, tickDoors, tickLasers, travel } from "../behavior_pack/scripts/runtime/security.js";
-import { column, MOUNTAIN } from "../behavior_pack/scripts/generation/mountain.js";
+import { column, MOUNTAIN, rearExit } from "../behavior_pack/scripts/generation/mountain.js";
+import { EXITS, REMOTE, SITE } from "../behavior_pack/scripts/generation/tunnel.js";
 import { tickDefence } from "../behavior_pack/scripts/runtime/defence.js";
 import { MISSILE, tickMissiles, tickPlaced } from "../behavior_pack/scripts/runtime/placed.js";
 const ns="secretfacilities:",at=(x,y,z)=>blocks.get(`${x},${y},${z}`);
@@ -24,14 +25,41 @@ function flood(y,start,bounds={x0:0,x1:26,z0:-4,z1:37}){
   }
   return seen;
 }
-function make(levels=5,seed=10){
-  reset();facilities.clear();const f=planBunker({x:0,y:80,z:0},levels,seed,true,"test");
+function make(levels=5,seed=10,site){
+  reset();facilities.clear();const f=planBunker({x:0,y:80,z:0},levels,seed,true,"test",site);
   const p=playerAt({x:13,y:81,z:-10});players.push(p);
   // Door jobs are module-wide and keyed by facility id, and every test reuses "test". Let any an
   // earlier test left running finish now, in the empty world the build is about to overwrite.
   for(let n=0;n<400;n++)tickDoors();
   build(f,p);finishBuild();assert.equal(f.phase,"ready");
   return {f,p};
+}
+/** Walk the secret tunnel from the B1 core to its exit, climb the ladder, and step out onto open ground. */
+function escapes(f,from=[13,13]){
+  const e=f.exit,l=e.ladder,tunnel=f.floors[1].y+1,label=`${e.kind} ${e.heading??""}`;
+  const o=f.origin,reach=flood(tunnel,[o.x+from[0],o.z+from[1]],{x0:o.x-60,x1:o.x+90,z0:o.z-4,z1:o.z+90});
+  assert.ok(reach.has(`${l.x},${l.z}`),`${label}: the tunnel does not lead from the core to the exit ladder`);
+  // One ladder, hung on solid wall the whole way, from the tunnel floor to the exit.
+  const top=l.y+EXITS[e.kind].ladderTop,back={2:[0,1],3:[0,-1],4:[1,0],5:[-1,0]}[e.facing];
+  for(let y=tunnel;y<=top;y++){
+    assert.equal(at(l.x,y,l.z)?.typeId,"minecraft:ladder",`${label}: ladder missing at ${l.x},${y},${l.z}`);
+    assert.deepEqual(at(l.x,y,l.z).states,{facing_direction:e.facing});
+    assert.ok(!["minecraft:air",undefined].includes(blockAt(l.x+back[0],y,l.z+back[1]).typeId),`${label}: ladder unsupported at Y ${y}`);
+  }
+  // A player at the top of the ladder can walk out of the exit's footprint. A hatch is opened first.
+  const open=b=>passable(b)||b?.typeId==="minecraft:spruce_trapdoor";
+  const feet=(x,z)=>e.kind==="well"&&Math.abs(x-l.x)<=1&&Math.abs(z-l.z)<=1?top+1:l.y+1;
+  const todo=[[l.x,l.z]],seen=new Set([`${l.x},${l.z}`]);let out=false;
+  while(todo.length&&!out){
+    const [x,z]=todo.pop();
+    for(const [a,b] of [[x+1,z],[x-1,z],[x,z+1],[x,z-1]]){
+      if(seen.has(`${a},${b}`))continue;
+      const y=feet(a,b);if(!open(blockAt(a,y,b))||!open(blockAt(a,y+1,b)))continue;
+      if(Math.abs(a-l.x)>3||Math.abs(b-l.z)>3){out=true;break;}
+      seen.add(`${a},${b}`);todo.push([a,b]);
+    }
+  }
+  assert.ok(out,`${label}: no way out of the exit at the top of the ladder`);
 }
 test("assembled voxel navigation for 3, 5 and 8 floor bunkers",()=>{
   for(const levels of [3,5,8]){
@@ -45,16 +73,9 @@ test("assembled voxel navigation for 3, 5 and 8 floor bunkers",()=>{
         assert.ok([[1,0],[-1,0],[0,1],[0,-1]].some(([dx,dz])=>seen.has(`${reader.x+dx},${reader.z+dz}`)),`Reader inaccessible at ${JSON.stringify(reader)}`);
       assert.ok(seen.has("14,16"),"Emergency ladder approach disconnected");
     }
-    const escape=flood(f.floors[1].y+1,[13,13]);assert.ok(escape.has("13,34"),"B1 escape tunnel blocked");
+    escapes(f);
     // Only the ladder itself may pierce a floor; any open column beside it is a drop to the bottom.
     for(const floor of f.floors)assert.notEqual(at(14,floor.y,16).typeId,"minecraft:air",`Open drop beside the ladder at Y ${floor.y}`);
-    // The escape ladder must land players on a hut floor that leads to its exit.
-    const hut=f.origin.y;
-    for(let x=12;x<=14;x++)for(let z=33;z<=35;z++)if(x!==12||z!==34)
-      assert.notEqual(at(x,hut,z).typeId,"minecraft:air",`Escape hut floor open at ${x},${hut},${z}`);
-    assert.equal(at(12,hut,34).typeId,"minecraft:ladder","Escape ladder does not reach the hut");
-    // The hut is dug into the back of the mountain; its door opens south, out onto clear ground.
-    assert.ok(flood(hut+1,[13,34],{x0:10,x1:16,z0:32,z1:42}).has("13,42"),"Escape hut exit unreachable");
     for(let y=f.floors.at(-1).y+1;y<=85;y++){
       assert.equal(at(15,y,16).typeId,"minecraft:ladder");assert.equal(at(16,y,16).typeId,ns+"steel_wall");
     }
@@ -74,20 +95,22 @@ test("uneven sites are levelled instead of refused, within limits",()=>{
   s=originAt(site());
   assert.equal(s.origin.y,80,"The pad stays at the entrance ground when it can");
   assert.ok(s.cut>5&&s.fill>5&&s.cut<=MAX_CUT&&s.fill<=MAX_FILL,`cut ${s.cut}, fill ${s.fill}`);
-  const f=planBunker(s.origin,3,10,true,"hill");f.ground=s.ground;build(f,site());finishBuild();
-  assert.equal(f.phase,"ready");
+  const f=planBunker(s.origin,3,10,true,"hill",exitSite(dimension,s.origin,10));f.ground=s.ground;build(f,site());finishBuild();
+  assert.equal(f.phase,"ready");assert.notEqual(f.exit.kind,"rock_face","A gentle hillside has room for a remote exit");
+  escapes(f);
   const o=f.origin,rel=(x,y,z)=>blockAt(o.x+x,o.y+y,o.z+z).typeId;
-  // Structures that stand above the pad: entrance, ladder shaft and escape hut.
-  const built=(x,z)=>(x>=6&&x<=20&&z>=-4&&z<=17)||(x>=15&&x<=16&&z===16)||(x>=11&&x<=15&&z>=32&&z<=36);
+  // Structures that stand above the pad: entrance and ladder shaft.
+  const built=(x,z)=>(x>=6&&x<=20&&z>=-4&&z<=17)||(x>=15&&x<=16&&z===16);
+  const tunnel=(x,z)=>f.exit.passages.some(({lining:b})=>o.x+x>=b.min.x&&o.x+x<=b.max.x&&o.z+z>=b.min.z&&o.z+z<=b.max.z);
   for(let x=-2;x<=28;x++)for(let z=-6;z<=39;z++){
     if(built(x,z))continue;
     assert.notEqual(rel(x,0,z),"minecraft:air",`No pad surface at ${x},${z}`);
     // The old hill is gone: what stands on the pad now is the mountain, solid to its surface.
-    const top=column(f.seed,x,z).top;
+    const top=column(f.seed,x,z,rearExit(f)).top;
     for(let y=1;y<=top;y++)assert.notEqual(rel(x,y,z),"minecraft:air",`Hollow in the mountain at ${x},${y},${z}`);
     for(let y=top+1;y<=top+MAX_CUT;y++)assert.equal(rel(x,y,z),"minecraft:air",`Hill left standing at ${x},${y},${z}`);
     // Beside the rooms and escape tunnel, nothing under the pad may be left hollow.
-    if((x>=0&&x<=26&&z>=0&&z<=26)||(x>=11&&x<=15&&z>=26&&z<=36))continue;
+    if((x>=0&&x<=26&&z>=0&&z<=26)||tunnel(x,z))continue;
     for(let y=-MAX_FILL;y<0;y++)assert.notEqual(rel(x,y,z),"minecraft:air",`Hole left under the pad at ${x},${y},${z}`);
   }
   assert.equal(rel(0,-1,-6),"minecraft:dirt","The low side is backfilled with earth");
@@ -103,17 +126,19 @@ test("uneven sites are levelled instead of refused, within limits",()=>{
   // Water level with the pad is filled; water standing above it would flood the entrance.
   terrain.height=x=>x>=105?74:80;terrain.water=x=>x>=105?80:undefined;
   s=originAt(site());assert.deepEqual([s.origin.y,s.fill],[80,6]);
-  const lake=planBunker(s.origin,3,10,true,"lake");lake.ground=s.ground;build(lake,site());finishBuild();
+  const lake=planBunker(s.origin,3,10,true,"lake",exitSite(dimension,s.origin,10));lake.ground=s.ground;build(lake,site());finishBuild();
+  assert.ok(["south","west"].includes(lake.exit.heading),`The exit must stay out of the lake, not go ${lake.exit.heading}`);
+  escapes(lake);
   assert.ok(!["minecraft:air","minecraft:water"].includes(blockAt(lake.origin.x+27,77,lake.origin.z+26).typeId),"The bunker wall on the lake side is exposed");
   assert.equal(blockAt(lake.origin.x+28,77,lake.origin.z+30).typeId,"minecraft:dirt","Lake water under the pad is filled");
   reset();facilities.clear();
   terrain.height=(x,z)=>z>=235?78:80;terrain.water=(x,z)=>z>=235?82:undefined;
   assert.throws(()=>originAt(site()),/flood/,"water above the pad must be refused");
   terrain.water=()=>undefined;
-  // A rise behind the footprint is cut back so the escape hut's exit stays open.
+  // A rise behind the footprint is cut back so the rock-face exit's hut stays open.
   terrain.height=(x,z)=>z>=240?90:80;
   s=originAt(site());assert.equal(s.cut,10);
-  const hut=planBunker(s.origin,3,10,true,"hut");hut.ground=s.ground;build(hut,site());finishBuild();
+  const hut=planBunker(s.origin,3,10,true,"hut",{kind:"rock_face"});hut.ground=s.ground;build(hut,site());finishBuild();
   for(const z of [36,37,38,39])for(const y of [1,2])
     assert.equal(blockAt(hut.origin.x+13,hut.origin.y+y,hut.origin.z+z).typeId,"minecraft:air","Hut exit buried");
 });
@@ -318,7 +343,14 @@ test("self-destruct fires the charges and brings the whole bunker down",()=>{
   }
   // The portal passage is filled with rubble, sealing the ruin, and the defences are gone.
   assert.equal(flood(81,[13,-2],{x0:6,x1:20,z0:-4,z1:17}).has("13,13"),false,"The collapsed portal can still be walked through");
-  assert.equal(entities.filter(e=>e.typeId===ns+"laser_turret"||e.typeId===LEAF).length,0);
+  assert.equal(entities.filter(e=>e.typeId===ns+"laser_turret"&&!e.tags.includes(`sf:${f.id}:tunnel`)||e.typeId===LEAF).length,0);
+  // The secret tunnel and its exit are the way out and come through intact, with no blast in them;
+  // the junction turret is left standing but shut down for good.
+  escapes(f,[13,27]);
+  const junction=f.turrets.find(t=>t.zone==="tunnel");
+  assert.ok(junction.damaged&&!junction.enabled);
+  const inTunnel=v=>f.exit.passages.slice(1).some(({interior:b})=>v.x>=b.min.x-2&&v.x<=b.max.x+3&&v.y>=b.min.y-2&&v.y<=b.max.y+3&&v.z>=b.min.z-2&&v.z<=b.max.z+3);
+  assert.ok(!explosions.some(x=>inTunnel(x.location)),"An explosion went off in the escape tunnel");
 });
 test("turret target selection, cooldown, line-of-sight and disabled state",()=>{
   const {f}=make(3),turret=f.turrets[0],source=turret.pos;
@@ -385,7 +417,7 @@ test("the bunker is buried in a mountain with its portal and escape exit left op
   const {f}=make(3),o=f.origin,rel=(x,y,z)=>blockAt(o.x+x,o.y+y,o.z+z).typeId;
   // Solid rock over the lobby roof and every hut, with the mountain's surface where it should be.
   for(let x=6;x<=20;x++)for(let z=0;z<=17;z++){
-    const top=column(f.seed,x,z).top;assert.ok(top>=12,`Thin cover over the entrance at ${x},${z}`);
+    const top=column(f.seed,x,z,rearExit(f)).top;assert.ok(top>=12,`Thin cover over the entrance at ${x},${z}`);
     for(let y=9;y<=top;y++)assert.notEqual(rel(x,y,z),"minecraft:air",`Hole in the mountain at ${x},${y},${z}`);
     assert.equal(rel(x,top+1,z),"minecraft:air");
   }
@@ -403,6 +435,97 @@ test("the bunker is buried in a mountain with its portal and escape exit left op
     for(const [dx,dy,dz] of [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]])
       assert.notEqual(at(c.x+dx,c.y+dy,c.z+dz)?.typeId??"minecraft:air","minecraft:air",`Exposed charge at ${JSON.stringify(c)}`);
   }
+});
+test("every secret tunnel exit, in every direction, leads out to open ground",()=>{
+  const sites=[["south",13,50],["east",46,38],["west",-20,38],["south",13,66]];
+  REMOTE.forEach((kind,i)=>{
+    for(const [heading,x,z] of sites){
+      // Exits stand anywhere from a little below to well above the pad.
+      const level=80+[-3,0,6,14][(i+x)&3];
+      const {f}=make(3,i*7+x,{kind,heading,x,z,level,ground:"minecraft:grass_block"});
+      assert.equal(f.exit.kind,kind);escapes(f);
+      // The exit's template stands where it should: its floor on the levelled ground.
+      const l=f.exit.ladder;
+      for(const [dx,dz] of [[-SITE,-SITE],[SITE,SITE]])assert.equal(at(l.x+dx,l.y,l.z+dz).typeId,"minecraft:grass_block",`${kind}: exit site not levelled`);
+      for(const [dx,dz] of [[-SITE,0],[SITE,0]])assert.equal(at(l.x+dx,l.y+1,l.z+dz).typeId,"minecraft:air",`${kind}: exit site not cleared`);
+    }
+  });
+});
+test("the survey picks an exit that suits the ground around the bunker",()=>{
+  const origin={x:0,y:80,z:0},pick=(seed=4,preference)=>exitSite(dimension,origin,seed,preference);
+  reset();
+  assert.ok(["utility_shed","hidden_hatch","well"].includes(pick().kind),"Open grassland takes a shed, hatch or well");
+  terrain.tree=()=>true;assert.equal(pick().kind,"forest_cabin");
+  assert.equal(pick(4,"hidden_hatch").kind,"hidden_hatch","A chosen exit overrides the terrain");
+  const forest=planBunker(origin,3,4,true,"test",pick());
+  players.push(playerAt({x:13,y:81,z:-10}));build(forest,players[0]);finishBuild();escapes(forest);
+  reset();terrain.top=()=>"minecraft:sand";assert.equal(pick().kind,"well");
+  reset();terrain.top=()=>"minecraft:stone";assert.equal(pick().kind,"mine_headframe");
+  // A valley below the tunnel all round: nowhere keeps the tunnel buried, so it comes up behind the mountain.
+  reset();terrain.height=(x,z)=>Math.hypot(x-13,z-13)>34?72:80;assert.equal(pick().kind,"rock_face");
+  // Lakes to the south and west leave only the east.
+  reset();const wet=(x,z)=>x<40&&(z>43||x<-12);terrain.height=(x,z)=>wet(x,z)?74:80;terrain.water=(x,z)=>wet(x,z)?80:undefined;
+  for(let seed=0;seed<6;seed++)assert.equal(pick(seed).heading,"east");
+  // A hill rising behind the bunker carries the exit up onto it, within the ladder's reach.
+  reset();terrain.height=(x,z)=>z>44?88:80;const hill=pick(2);
+  if(hill.heading==="south")assert.equal(hill.level,88);
+  reset();assert.equal(pick(1,"rock_face").kind,"rock_face");
+});
+test("a cave the tunnel crosses is sealed around it",()=>{
+  reset();facilities.clear();
+  const f=planBunker({x:0,y:80,z:0},3,5,true,"test",{kind:"utility_shed",heading:"east",x:46,z:38,level:80,ground:"minecraft:grass_block"});
+  // A cave pocket beyond the mountain's skirts, right across the tunnel's path.
+  for(let x=40;x<=44;x++)for(let y=68;y<=78;y++)for(let z=33;z<=43;z++)blocks.set(`${x},${y},${z}`,{typeId:"minecraft:air",states:{}});
+  players.push(playerAt({x:13,y:81,z:-10}));build(f,players[0]);finishBuild();escapes(f);
+  for(let x=40;x<=44;x++){
+    for(let y=70;y<=76;y++)for(const z of [35,41])assert.notEqual(at(x,y,z).typeId,"minecraft:air",`Tunnel wall open to the cave at ${x},${y},${z}`);
+    for(let z=35;z<=41;z++)for(const y of [70,76])assert.notEqual(at(x,y,z).typeId,"minecraft:air",`Tunnel roof or floor open at ${x},${y},${z}`);
+    for(let y=72;y<=74;y++)assert.equal(at(x,y,38).typeId,"minecraft:air","The sealing filled the tunnel itself");
+  }
+});
+test("the secret tunnel is guarded by a keycard door, a laser grid and a junction turret",()=>{
+  const {f}=make(3,8,{kind:"hidden_hatch",heading:"west",x:-20,z:38,level:80,ground:"minecraft:grass_block"});
+  const door=f.doors.find(d=>d.id==="tunnel"),y=f.floors[1].y+1;
+  for(const r of door.readers)assert.equal(at(r.x,r.y,r.z).typeId,ns+"keycard_reader");
+  assert.equal(at(11,y+1,32).typeId,ns+"laser_emitter");assert.equal(at(15,y+1,32).typeId,ns+"laser_receiver");
+  // Someone without command clearance walking in from the exit trips the grid, and the door shuts behind it.
+  const intruder=playerAt({x:13.5,y,z:34});intruder.id="intruder";intruder.getComponent=()=>({container:{size:0,getItem(){}}});
+  players.length=0;players.push(intruder);
+  tickLasers();intruder.location={x:13.5,y,z:31};tickLasers();
+  assert.equal(f.state,"ALERT");assert.equal(door.open,false);
+  for(let n=0;n<40;n++)tickDoors();
+  assert.equal(flood(y,[13,34],{x0:-30,x1:30,z0:22,z1:50}).has("13,24"),false,"A closed tunnel door can be walked past");
+  // The junction turret only fires once the alarm is up, at hostiles only.
+  const turret=f.turrets.find(t=>t.zone==="tunnel"),entity=entities.find(e=>e.tags.includes(`sf:${f.id}:tunnel`));
+  assert.equal(entity.nameTag,"§7TUNNEL DEFENCE");assert.equal(at(Math.floor(turret.pos.x),turret.pos.y-1,Math.floor(turret.pos.z)).typeId,ns+"laser_turret_mount");
+  const zombie=dimension.spawnEntity("minecraft:zombie",{x:13.5,y,z:38.5}),cow=dimension.spawnEntity("minecraft:cow",{x:12.5,y,z:38.5});
+  setSecurity(f,"NORMAL");for(let i=0;i<30;i++){system.currentTick+=5;tickDefence();}
+  assert.equal(zombie.damage,undefined,"ALERT ONLY must hold fire in NORMAL");
+  setSecurity(f,"ALERT");for(let i=0;i<30;i++){system.currentTick+=5;tickDefence();}
+  assert.ok(zombie.damage>0);assert.equal(cow.damage,undefined);
+  // Self-destruct opens the way out.
+  armDestruct(f);assert.equal(door.open,true);
+});
+test("the rock-face fallback, and bunkers saved before remote exits, keep the hut behind the mountain",()=>{
+  for(const legacy of [false,true]){
+    reset();facilities.clear();
+    const f=planBunker({x:0,y:80,z:0},3,12,true,"test",{kind:"rock_face"});
+    if(legacy){delete f.exit;f.doors=f.doors.filter(d=>d.id!=="tunnel");f.lasers=f.lasers.filter(l=>l.a.z===l.b.z?false:true);f.lights.pop();}
+    assert.equal(rearExit(f),true);
+    players.push(playerAt({x:13,y:81,z:-10}));build(f,players[0]);finishBuild();
+    if(!legacy)escapes(f);
+    assert.ok(flood(f.floors[1].y+1,[13,13]).has("13,34"),"B1 escape tunnel blocked");
+    // The escape ladder lands players on a hut floor that leads to its exit.
+    const hut=f.origin.y;
+    for(let x=12;x<=14;x++)for(let z=33;z<=35;z++)if(x!==12||z!==34)
+      assert.notEqual(at(x,hut,z).typeId,"minecraft:air",`Escape hut floor open at ${x},${hut},${z}`);
+    assert.equal(at(12,hut,34).typeId,"minecraft:ladder","Escape ladder does not reach the hut");
+    // The hut is dug into the back of the mountain; its door opens south, out onto clear ground.
+    assert.ok(flood(hut+1,[13,34],{x0:10,x1:16,z0:32,z1:42}).has("13,42"),"Escape hut exit unreachable");
+    assert.equal(column(f.seed,13,40).open,true,"The hut's apron must stay open");
+  }
+  // Remote exits need no apron: the mountain closes over the back of the bunker.
+  assert.equal(column(1,13,40,false).open,false);
 });
 test("write inspectable first-floor voxel preview",()=>{
   const {f}=make(5,104729);

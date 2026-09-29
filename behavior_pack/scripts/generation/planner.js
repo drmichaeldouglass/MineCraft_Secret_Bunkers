@@ -1,6 +1,7 @@
 import { add } from "../core/types.js";
 import { random } from "../core/rules.js";
 import { MOUNTAIN, PEAK } from "./mountain.js";
+import { DEFAULT_SITE, EXITS, planTunnel, SITE } from "./tunnel.js";
 export const FLOOR_NAMES = ["Administration & Security", "Living Quarters", "Command", "Engineering & Mining", "High Security", "Hydroponics & Supply", "Research", "Deep Excavation"];
 /** What each floor is for. Every floor has six room slots: the fixed rooms always appear
  *  (the first in the north-west corner), and the rest are drawn from the pool without
@@ -25,7 +26,8 @@ export const MODULE = 9;
 export const FLOOR_STEP = 9;
 /** Grid column and row of the vertical core, and the command deck that carries self-destruct. */
 const CORE = 1, COMMAND_LEVEL = 2;
-export function planBunker(origin, levels, seed, defences, id = `sf_${seed >>> 0}`) {
+/** The escape site comes from the deployment survey; without one the tunnel runs to flat ground behind the mountain. */
+export function planBunker(origin, levels, seed, defences, id = `sf_${seed >>> 0}`, site = DEFAULT_SITE(origin.y)) {
     if (!Number.isInteger(levels) || levels < 3 || levels > 8)
         throw Error("Choose 3–8 underground floors.");
     if (![origin.x, origin.y, origin.z, seed].every(Number.isFinite))
@@ -39,7 +41,8 @@ export function planBunker(origin, levels, seed, defences, id = `sf_${seed >>> 0
         // Reserved space includes the mountain over the site and the demolition charges around it.
         bounds: { min: p(MOUNTAIN.x0, -levels * FLOOR_STEP, MOUNTAIN.z0), max: p(MOUNTAIN.x1, PEAK + 8, MOUNTAIN.z1) }, state: "NORMAL", phase: "building", buildStep: 0,
         doors: [], floors: [], lasers: [], lights: [], turrets: [], modules: [],
-        zones: { entrance: defences ? "ACTIVE" : "OFFLINE", command: defences ? "ALERT_ONLY" : "OFFLINE" },
+        zones: { entrance: defences ? "ACTIVE" : "OFFLINE", command: defences ? "ALERT_ONLY" : "OFFLINE",
+            ...(site.kind === "rock_face" ? {} : { tunnel: defences ? "ALERT_ONLY" : "OFFLINE" }) },
         lasersEnabled: true, consoles: [], charges: [],
     };
     f.modules.push({ template: "entrance", pos: p(6, 0, -4), floor: 0, role: "entrance" });
@@ -105,6 +108,20 @@ export function planBunker(origin, levels, seed, defences, id = `sf_${seed >>> 0
         f.charges.push(p(5, 3, z), p(21, 3, z));
     if (defences) {
         f.turrets.push({ id: "entrance_left", pos: p(8.5, 2, -2.5), zone: "entrance", enabled: true, damaged: false }, { id: "entrance_right", pos: p(18.5, 2, -2.5), zone: "entrance", enabled: true, damaged: false }, { id: "command", pos: p(23.5, commandY + 2, 13.5), zone: "command", enabled: true, damaged: false });
+    }
+    // The secret escape tunnel from B1 to its exit, guarded by a keycard door, a laser grid and,
+    // with defences, a laser turret at its junction.
+    const tunnel = planTunnel(origin, site, defences);
+    f.exit = tunnel.exit;
+    f.doors.push(...tunnel.doors);
+    f.lasers.push(...tunnel.lasers);
+    f.lights.push(...tunnel.lights);
+    if (tunnel.turret)
+        f.turrets.push(tunnel.turret);
+    if (site.kind !== "rock_face") {
+        const l = tunnel.exit.ladder, b = f.bounds;
+        b.min = { ...b.min, x: Math.min(b.min.x, l.x - SITE), z: Math.min(b.min.z, l.z - SITE) };
+        b.max = { x: Math.max(b.max.x, l.x + SITE), y: Math.max(b.max.y, l.y + EXITS[site.kind].height + 2), z: Math.max(b.max.z, l.z + SITE) };
     }
     return f;
 }

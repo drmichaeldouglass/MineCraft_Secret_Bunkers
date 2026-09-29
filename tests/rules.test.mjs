@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { clearance, isHostile, mayOpen, defenceActive, segmentDistance } from "../behavior_pack/scripts/core/rules.js";
 import fs from "node:fs";
 import { FLOOR_PROGRAMS, planBunker, ROOM_ROLES } from "../behavior_pack/scripts/generation/planner.js";
+import { chooseExit, exitCandidates, exitKind, EXITS, MIN_COVER, REMOTE, SITE, siteColumns } from "../behavior_pack/scripts/generation/tunnel.js";
+import { MOUNTAIN } from "../behavior_pack/scripts/generation/mountain.js";
 import { intersects } from "../behavior_pack/scripts/core/types.js";
 const ns="secretfacilities:";
 test("clearance hierarchy and Creative-only master card",()=>{
@@ -98,10 +100,12 @@ test("every generated fixture claims a distinct block",()=>{
       for(const reader of door.readers)claim(reader,`reader:${door.id}`);
     }
     for(const laser of f.lasers){
-      const flat=laser.a.y===laser.b.y;
-      claim(flat?{...laser.a,z:laser.a.z-1}:{...laser.a,y:laser.a.y-1},"emitter");
-      claim(flat?{...laser.b,z:laser.b.z+1}:{...laser.b,y:Math.ceil(laser.b.y)},"receiver");
+      // Horizontal beams run along z in the halls and along x across the tunnel.
+      const flat=laser.a.y===laser.b.y,alongX=laser.a.z===laser.b.z;
+      claim(!flat?{...laser.a,y:laser.a.y-1}:alongX?{...laser.a,x:laser.a.x-1}:{...laser.a,z:laser.a.z-1},"emitter");
+      claim(!flat?{...laser.b,y:Math.ceil(laser.b.y)}:alongX?{...laser.b,x:laser.b.x+1}:{...laser.b,z:laser.b.z+1},"receiver");
     }
+    for(const lamp of f.exit.lamps)claim(lamp,"tunnel lamp");
   }
 });
 test("seed repeatability and invalid depth guards",()=>{
@@ -116,4 +120,53 @@ test("every room the floor programs can place has north and south templates",()=
   assert.equal(ROOM_ROLES.length,19);
   for(const role of ROOM_ROLES)for(const side of ["north","south"])assert.ok(names.has(`${role}_${side}`),`${role}_${side} missing`);
   for(const name of ["bedroom","lounge","farm","mining"])assert.ok(ROOM_ROLES.includes(name));
+});
+test("secret tunnels: every direction reaches its exit, stays inside the reserved bounds and never enters the mountain",()=>{
+  const o={x:-32,y:80,z:10};
+  for(const c of exitCandidates())for(const kind of REMOTE){
+    const f=planBunker(o,4,c.rank,true,"t",{kind,heading:c.heading,x:c.x,z:c.z,level:84,ground:"minecraft:grass_block"}),e=f.exit;
+    assert.equal(e.kind,kind);assert.deepEqual([e.ladder.x-o.x,e.ladder.y,e.ladder.z-o.z],[c.x,84,c.z]);
+    for(const q of e.passages)for(const v of [q.lining.min,q.lining.max,q.interior.min,q.interior.max]){
+      assert.ok(v.x>=f.bounds.min.x&&v.x<=f.bounds.max.x&&v.z>=f.bounds.min.z&&v.z<=f.bounds.max.z,`${c.heading}: tunnel outside bounds`);
+      // Interiors sit inside their linings.
+      assert.ok(q.interior.min.x>=q.lining.min.x&&q.interior.max.z<=q.lining.max.z);
+    }
+    // The exit site and its levelled margin clear the mountain on every side.
+    const rx=e.ladder.x-o.x,rz=e.ladder.z-o.z;
+    assert.ok(rx-SITE>MOUNTAIN.x1||rx+SITE<MOUNTAIN.x0||rz-SITE>MOUNTAIN.z1,`${c.heading} ${c.rank}: exit site under the mountain`);
+    assert.ok(f.bounds.max.y>=84+EXITS[kind].height,"The exit's structure is outside the reserved bounds");
+    // The ladder ends at the tunnel's capped end, whatever the direction.
+    const last=e.passages[e.passages.length-1].interior;
+    assert.ok(e.ladder.x>=last.min.x&&e.ladder.x<=last.max.x&&e.ladder.z>=last.min.z&&e.ladder.z<=last.max.z,"The ladder is not in the tunnel");
+    assert.equal(f.turrets.filter(t=>t.zone==="tunnel").length,1);assert.equal(f.zones.tunnel,"ALERT_ONLY");
+    assert.ok(f.doors.some(d=>d.id==="tunnel"));
+  }
+  const back=planBunker(o,4,1,false,"t",{kind:"rock_face"});
+  assert.equal(back.exit.kind,"rock_face");assert.equal(back.zones.tunnel,undefined);
+  assert.ok(!back.turrets.some(t=>t.zone==="tunnel"),"No junction, no junction turret");
+});
+test("the exit follows the ground: trees, sand, rock and open land, and no site means the rock face",()=>{
+  const sample=(ground,canopy=false,floor=80)=>({floor,liquid:false,ground,canopy});
+  const flat=(make)=>siteColumns({x:0,z:0}).map(make);
+  assert.equal(exitKind(flat((_,i)=>sample("minecraft:grass_block",i%2===0)),1),"forest_cabin");
+  assert.equal(exitKind(flat(()=>sample("minecraft:sand")),1),"well");
+  assert.equal(exitKind(flat(()=>sample("minecraft:stone")),1),"mine_headframe");
+  const open=new Set();for(let seed=0;seed<40;seed++)open.add(exitKind(flat(()=>sample("minecraft:grass_block")),seed));
+  assert.deepEqual([...open].sort(),["hidden_hatch","utility_shed","well"]);
+  const surveys=(make,routeLow=80)=>exitCandidates().map(c=>({...c,samples:siteColumns(c).map(([x,z])=>make(c,x,z)),routeLow}));
+  // Only the east is dry, level and high enough.
+  const east=surveys(c=>c.heading==="east"?sample("minecraft:grass_block"):{...sample("minecraft:grass_block"),liquid:true});
+  for(let seed=0;seed<10;seed++)assert.equal(chooseExit(east,80,seed).heading,"east");
+  // Rough ground, a valley below the tunnel, a tunnel with too little cover, or unread ground are all passed over.
+  const rough=surveys((c,x)=>sample("minecraft:grass_block",false,80+(Math.abs(x-c.x)/2%2?6:-6)));
+  assert.equal(chooseExit(rough,80,1).kind,"rock_face");
+  assert.equal(chooseExit(surveys(()=>sample("minecraft:grass_block",false,80+MIN_COVER-1)),80,1).kind,"rock_face");
+  assert.equal(chooseExit(surveys(()=>sample("minecraft:grass_block"),80+MIN_COVER-1),80,1).kind,"rock_face");
+  assert.equal(chooseExit(surveys(()=>undefined),80,1).kind,"rock_face");
+  // Level ground a few blocks up is fine; the flattest site wins, and a chosen kind is honoured.
+  const good=surveys((c,x,z)=>sample("minecraft:grass_block",false,c.heading==="west"?85:80+((x+z)%4===0?2:0)));
+  const pick=chooseExit(good,80,3);assert.equal(pick.heading,"west");assert.equal(pick.level,85);assert.equal(pick.cut+pick.fill,0);
+  assert.equal(chooseExit(good,80,3,"forest_cabin").kind,"forest_cabin");
+  assert.equal(chooseExit(good,80,3,"rock_face").kind,"rock_face");
+  assert.deepEqual(chooseExit(good,80,3),chooseExit(good,80,3),"The choice is repeatable for a seed");
 });

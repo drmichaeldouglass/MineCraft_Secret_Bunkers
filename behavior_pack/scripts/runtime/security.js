@@ -4,6 +4,7 @@ import { distance, inside, NS } from "../core/types.js";
 import { facilities, mark, save } from "./store.js";
 import { beam, dim, fill, getClearance, lineClear, loaded, nearby, set, sound, tell } from "./world.js";
 import { demolish } from "./destruct.js";
+import { EXITS } from "../generation/tunnel.js";
 const moving = new Map();
 /** Two-pixel sub-steps the leaf travels; eight per block of door height, one per tick. */
 export const SUBSTEPS = 8;
@@ -316,7 +317,7 @@ export function tickAlarms() {
                 mark(f);
                 for (const p of world.getAllPlayers())
                     if (p.dimension.id === f.dimension && inside(p.location, f.bounds, 5))
-                        p.onScreenDisplay.setActionBar(`§cEVACUATE • ${f.countdown}s • rear B1 escape tunnel`);
+                        p.onScreenDisplay.setActionBar(`§cEVACUATE • ${f.countdown}s • B1 secret tunnel to the ${EXITS[f.exit?.kind ?? "rock_face"].label}`);
             }
             else if (demolish(f)) {
                 for (const t of f.turrets) {

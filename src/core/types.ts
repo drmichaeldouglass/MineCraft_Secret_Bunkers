@@ -10,6 +10,24 @@ export interface Floor { name: string; y: number; clearance: number; destination
 export interface Laser { a: Vec; b: Vec; response: "ALERT" | "LOCKDOWN" }
 export interface Turret { id: string; pos: Vec; zone: string; enabled: boolean; damaged: boolean }
 export interface Module { template: string; pos: Vec; floor: number; role: string }
+/** Surface structures a secret tunnel can come up in. rock_face is the door dug into the back of
+ *  the bunker's own mountain; the others stand on their own at a remote site. */
+export type ExitKind = "rock_face" | "utility_shed" | "forest_cabin" | "well" | "hidden_hatch" | "mine_headframe";
+export type Heading = "south" | "east" | "west";
+/** One carved section of tunnel: a rock lining around an open interior. */
+export interface Passage { lining: Bounds; interior: Bounds }
+export interface Exit {
+  kind: ExitKind; heading?: Heading;
+  /** Top of the escape ladder: its column, and y is the surface level the exit stands on. */
+  ladder: Vec;
+  /** Ladder facing_direction, away from the wall it hangs on. */
+  facing: number;
+  /** Natural surface block the exit site is levelled with. */
+  ground: string;
+  passages: Passage[];
+  /** Ceiling lamps along the tunnel. */
+  lamps: Vec[];
+}
 export interface Facility {
   schema: 1; id: string; type: "bunker"; dimension: string; seed: number;
   origin: Vec; bounds: Bounds; state: SecurityState; phase: "building" | "ready" | "failed";
@@ -22,6 +40,8 @@ export interface Facility {
   charges?: Vec[];
   /** Natural surface block the site is levelled with. Absent for facilities built before levelling. */
   ground?: string;
+  /** The secret escape tunnel's exit. Absent for facilities built with the original hut behind the mountain. */
+  exit?: Exit;
 }
 export const NS = "secretfacilities:";
 export const add = (a: Vec, b: Vec): Vec => ({ x: a.x + b.x, y: a.y + b.y, z: a.z + b.z });

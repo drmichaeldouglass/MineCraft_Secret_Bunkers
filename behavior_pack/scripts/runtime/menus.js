@@ -2,12 +2,18 @@ import { GameMode, ItemStack, system } from "@minecraft/server";
 import { ActionFormData, MessageFormData, ModalFormData } from "@minecraft/server-ui";
 import { distance, key, NS } from "../core/types.js";
 import { planBunker } from "../generation/planner.js";
+import { escapeRoute } from "../generation/tunnel.js";
 import { facilities, mark, save } from "./store.js";
-import { build, originAt } from "./generation.js";
+import { build, exitSite, originAt } from "./generation.js";
 import { abortDestruct, armDestruct, requestDoor, setSecurity, toggleDoor } from "./security.js";
 import { charges } from "./destruct.js";
 import { delay, dim, fade, findFacility, getClearance, report, shake, sound, tell } from "./world.js";
 const busy = new Set();
+/** Deployment choices for the secret tunnel's exit; automatic lets the terrain decide. */
+const EXIT_CHOICES = [[undefined, "Automatic • suits the terrain"], ["utility_shed", "Utility shed"],
+    ["forest_cabin", "Forest cabin"], ["well", "Old well"], ["hidden_hatch", "Hidden hatch"], ["mine_headframe", "Abandoned mine"],
+    ["rock_face", "Rock face behind the mountain"]];
+const EXIT_LABEL = Object.fromEntries(EXIT_CHOICES.map(([k, l]) => [k, l.toLowerCase()]));
 export function runMenu(player, work) {
     if (busy.has(player.id))
         return;
@@ -67,20 +73,24 @@ export async function deployment(player) {
     const settings = await new ModalFormData().title("BUNKER CONFIGURATION")
         .dropdown("Underground floors", ["3 • compact", "4 • regional", "5 • command", "6 • strategic", "7 • deep", "8 • maximum"], { defaultValueIndex: 2 })
         .toggle("Include automated laser defences", { defaultValue: true })
+        .dropdown("Secret escape tunnel exit", EXIT_CHOICES.map(([, label]) => label), { defaultValueIndex: 0 })
         .textField("Layout seed (optional integer)", "e.g. 104729").show(player);
     if (settings.canceled || !settings.formValues)
         return;
     creative(player);
     const levels = Number(settings.formValues[0]) + 3, defences = Boolean(settings.formValues[1]);
-    const raw = String(settings.formValues[2] ?? "").trim(), seed = raw ? Number(raw) : Math.floor(Math.random() * 2147483647);
+    const preference = EXIT_CHOICES[Number(settings.formValues[2])]?.[0];
+    const raw = String(settings.formValues[3] ?? "").trim(), seed = raw ? Number(raw) : Math.floor(Math.random() * 2147483647);
     if (!Number.isSafeInteger(seed))
         throw Error("The layout seed must be a whole number.");
     const site = originAt(player), origin = site.origin, start = player.location, id = `sf_${Date.now().toString(36)}_${Math.floor(Math.random() * 9999)}`;
-    const plan = planBunker(origin, levels, seed, defences, id);
+    const exit = exitSite(player.dimension, origin, seed, preference);
+    const plan = planBunker(origin, levels, seed, defences, id, exit);
     plan.ground = site.ground;
+    const fallback = preference && preference !== exit.kind ? `\nNo dry, level site nearby suits the ${EXIT_LABEL[preference]}; the tunnel comes up behind the mountain instead.` : "";
     const earthworks = site.cut || site.fill ? `\n\nUneven ground is levelled: cut up to ${site.cut} and filled up to ${site.fill} blocks.` : "";
     const confirm = await new MessageFormData().title("CONFIRM DEPLOYMENT")
-        .body(`${levels} underground floors • seed ${seed}\n\nEntrance: ${origin.x + 13}, ${origin.y + 1}, ${origin.z}\nReserved: ${plan.bounds.max.x - plan.bounds.min.x + 1} × ${plan.bounds.max.z - plan.bounds.min.z + 1} blocks\nLowest floor: Y ${plan.bounds.min.y}${earthworks}\n\nConstruction levels the site, replaces blocks inside the modules, entrance and escape route, and raises a mountain over it all. Stay nearby while it builds.`)
+        .body(`${levels} underground floors • seed ${seed}\n\nEntrance: ${origin.x + 13}, ${origin.y + 1}, ${origin.z}\nReserved: ${plan.bounds.max.x - plan.bounds.min.x + 1} × ${plan.bounds.max.z - plan.bounds.min.z + 1} blocks\nLowest floor: Y ${plan.bounds.min.y}\nEscape tunnel: ${escapeRoute(plan)}${fallback}${earthworks}\n\nConstruction levels the site, replaces blocks inside the modules, entrance and escape route, and raises a mountain over it all. Stay nearby while it builds.`)
         .button1("Cancel").button2("Build bunker").show(player);
     if (confirm.canceled || confirm.selection !== 1)
         return;
@@ -92,7 +102,7 @@ export async function deployment(player) {
 async function elevator(player, f, pos) {
     check(player, f, pos, 1);
     if (f.state === "DESTROYED")
-        throw Error("Elevators are offline. Use the emergency ladder or B1 escape tunnel.");
+        throw Error("Elevators are offline. Use the emergency ladder or the B1 secret tunnel.");
     if (f.state === "LOCKDOWN" && getClearance(player) < 4)
         throw Error("Elevators require command clearance during lockdown.");
     const current = f.floors.reduce((a, b) => Math.abs(a.y - player.location.y) < Math.abs(b.y - player.location.y) ? a : b);
@@ -216,7 +226,7 @@ async function destruct(player, f, pos) {
     if (armed.canceled || armed.selection !== 1)
         return;
     check(player, f, pos, 4);
-    const auth = await new MessageFormData().title("AUTHORIZE DESTRUCTION").body("Start a 90-second countdown?\n\nDoors open for evacuation. Turrets shut down for the final 10 seconds. At zero the charges fire floor by floor from the deepest level up: every room is gutted, the lobby caves in and the portal is sealed with rubble. Anyone still inside will not survive.\n\nEscape via the emergency ladder or the B1 rear tunnel to the hut behind the mountain.").button1("Disarm").button2("Start countdown").show(player);
+    const auth = await new MessageFormData().title("AUTHORIZE DESTRUCTION").body(`Start a 90-second countdown?\n\nDoors open for evacuation. Turrets shut down for the final 10 seconds. At zero the charges fire floor by floor from the deepest level up: every room is gutted, the lobby caves in and the portal is sealed with rubble. Anyone still inside will not survive.\n\nEscape via the emergency ladder or the B1 secret tunnel to the ${escapeRoute(f)}.`).button1("Disarm").button2("Start countdown").show(player);
     if (auth.canceled || auth.selection !== 1)
         return;
     check(player, f, pos, 4);
@@ -255,7 +265,7 @@ export async function debug(player) {
         tell(player, "No nearby registered facility. Use the deployment device first.");
         return;
     }
-    const form = new ActionFormData().title("FACILITY DEBUG SCANNER").body(`${f.id}\nSeed ${f.seed} • ${f.floors.length - 1} floors\n${f.phase} • ${f.state}\nDoors ${f.doors.length} • Turrets ${f.turrets.length}\nBounds: ${key(f.bounds.min)} to ${key(f.bounds.max)}`)
+    const form = new ActionFormData().title("FACILITY DEBUG SCANNER").body(`${f.id}\nSeed ${f.seed} • ${f.floors.length - 1} floors\n${f.phase} • ${f.state}\nDoors ${f.doors.length} • Turrets ${f.turrets.length}\nBounds: ${key(f.bounds.min)} to ${key(f.bounds.max)}\nEscape: ${escapeRoute(f)}`)
         .button("Reset security / lasers off").button("Test alert").button("Test lockdown").button("Open every door").button("Close every door").button("Disable all defences").button("Activate all defences");
     const response = await form.show(player);
     if (response.canceled)

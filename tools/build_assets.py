@@ -476,12 +476,16 @@ def nbt_payload(kind,value):
 ROOM_ROLES=sorted(["archive","barracks","bedroom","briefing","canteen","command","farm","generator","laboratory","lounge",
     "medical","mining","office","security","server","storage","utility","vault","workshop"])
 
+# A structure void cell places nothing, so the block already in the world stays (block index -1).
+VOID="structure_void"
+
 class Template:
-    def __init__(self,name,size=(9,7,9)):
-        self.name,self.size=name,size;self.blocks={};self.entities={}
+    def __init__(self,name,size=(9,7,9),folder="bunker"):
+        self.name,self.size,self.folder=name,size,folder;self.blocks={};self.entities={}
         self.fill((0,0,0),tuple(n-1 for n in size),"minecraft:air")
     def set(self,x,y,z,block,states=None):
         if not (0<=x<self.size[0] and 0<=y<self.size[1] and 0<=z<self.size[2]):raise ValueError((self.name,x,y,z))
+        if block==VOID:self.blocks[x,y,z]=(VOID,());return
         # Palette entries carry every state, as game-saved structures do.
         if states is None and block in ["blast_door","security_door","security_shutter"]:states={NS+"open":False,NS+"slide":0}
         if states is None and block=="emergency_light":states={NS+"active":False}
@@ -501,7 +505,8 @@ class Template:
         self.fill((1,0,1),(sx-2,0,sz-2),"industrial_floor")
         self.fill((1,sy-1,1),(sx-2,sy-1,sz-2),"bunker_ceiling_panel")
     def export(self):
-        palette=list(dict.fromkeys(self.blocks.values()));lookup={v:i for i,v in enumerate(palette)}
+        palette=[v for v in dict.fromkeys(self.blocks.values()) if v[0]!=VOID];lookup={v:i for i,v in enumerate(palette)}
+        lookup[VOID,()]=-1
         sx,sy,sz=self.size
         indices=[lookup[self.blocks[x,y,z]] for x in range(sx) for y in range(sy) for z in range(sz)]
         pals=[]
@@ -511,9 +516,9 @@ class Template:
               "structure":(10,{"block_indices":(9,(9,[(3,indices),(3,[-1]*len(indices))])),"entities":(9,(10,[])),
               "palette":(10,{"default":(10,{"block_palette":(9,(10,pals)),"block_position_data":(10,{
                   str((x*sy+y)*sz+z):(10,{"block_entity_data":(10,data)}) for (x,y,z),data in sorted(self.entities.items())})})})})}
-        path=BP/"structures/secretfacilities/bunker"/f"{self.name}.mcstructure";path.parent.mkdir(parents=True,exist_ok=True)
+        path=BP/"structures/secretfacilities"/self.folder/f"{self.name}.mcstructure";path.parent.mkdir(parents=True,exist_ok=True)
         path.write_bytes(b"\x0a\x00\x00"+nbt_payload(10,root))
-        return {"name":self.name,"size":list(self.size),"palette":[[n,dict(s)] for n,s in palette],"indices":indices}
+        return {"name":self.name,"folder":self.folder,"size":list(self.size),"palette":[[n,dict(s)] for n,s in palette],"indices":indices}
 
 # Room furniture is authored facing north (door in the south wall at z=8, far wall at z=0) and
 # mirrored for south-facing rooms. Interior: x 1..7, z 1..7. The aisle x 3..5 stays walkable from
@@ -725,6 +730,98 @@ def room(role,side):
     else:raise ValueError(role)
     return r.check()
 
+# Secret tunnel exits: 7 x 7 surface structures the escape ladder comes up through. Must match
+# EXITS in src/generation/tunnel.ts. The ladder column is the centre (3,3); layer y=0 is the ground
+# the exit is levelled to, and the runtime lays the ladder through it after placing the template.
+# Void cells keep the levelled ground and its matching surface block.
+EXIT_KINDS={"utility_shed":(5,0),"forest_cabin":(7,0),"well":(5,1),"hidden_hatch":(2,0),"mine_headframe":(7,0)}
+EXIT_WALKABLE=("minecraft:air","minecraft:rail","minecraft:red_carpet","minecraft:spruce_trapdoor",VOID)
+
+def exit_template(kind):
+    height,top=EXIT_KINDS[kind];t=Template(f"exit_{kind}",(7,height,7),"tunnel")
+    log=lambda axis:{"pillar_axis":axis}
+    stairs=lambda back:{"weirdo_direction":STAIR[back],"upside_down_bit":False}
+    t.fill((0,0,0),(6,0,6),VOID)
+    if kind=="utility_shed":  # A plain concrete service shed with a south door.
+        t.fill((0,0,0),(6,0,6),"reinforced_concrete");t.fill((1,0,1),(5,0,5),"industrial_floor");t.set(3,0,3,"minecraft:air")
+        for y in [1,2,3]:
+            for x in range(7):t.set(x,y,0,"concrete_panel");t.set(x,y,6,"concrete_panel")
+            for z in range(7):t.set(0,y,z,"concrete_panel");t.set(6,y,z,"concrete_panel")
+            for x,z in [(0,0),(6,0),(0,6),(6,6)]:t.set(x,y,z,"reinforced_concrete")
+        t.fill((0,4,0),(6,4,6),"steel_plate");t.set(3,4,3,"industrial_light")
+        t.fill((3,1,6),(3,2,6),"minecraft:air")
+        t.set(0,2,3,"security_glass");t.set(6,2,3,"security_glass")
+        t.fill((1,3,0),(5,3,0),"cable_tray");t.set(5,2,0,"utility_panel");t.set(3,3,0,"ventilation_grille")
+        t.set(5,1,1,"electrical_cabinet");t.set(1,1,1,"minecraft:barrel",{"facing_direction":1,"open_bit":False})
+    elif kind=="forest_cabin":  # A spruce trapper's cabin under a gable roof.
+        t.fill((0,0,1),(6,0,5),"minecraft:spruce_planks");t.set(3,0,3,"minecraft:air")
+        for y in [1,2,3]:
+            t.fill((0,y,1),(6,y,1),"minecraft:spruce_planks");t.fill((0,y,5),(6,y,5),"minecraft:spruce_planks")
+            t.fill((0,y,1),(0,y,5),"minecraft:spruce_planks");t.fill((6,y,1),(6,y,5),"minecraft:spruce_planks")
+            for x,z in [(0,1),(6,1),(0,5),(6,5)]:t.set(x,y,z,"minecraft:spruce_log",log("y"))
+        t.fill((3,1,5),(3,2,5),"minecraft:air")
+        for x,z in [(0,3),(6,3),(1,1),(5,1)]:t.set(x,2,z,"minecraft:glass_pane")
+        for y,(north,south) in zip([4,5,6],[(0,6),(1,5),(2,4)]):
+            t.fill((0,y,north+1),(6,y,south-1),"minecraft:spruce_planks")
+            t.fill((0,y,north),(6,y,north),"minecraft:spruce_stairs",stairs("south"))
+            t.fill((0,y,south),(6,y,south),"minecraft:spruce_stairs",stairs("north"))
+        t.fill((0,6,3),(6,6,3),"minecraft:spruce_slab")
+        t.set(1,1,2,"minecraft:crafting_table");t.set(5,1,2,"minecraft:barrel",{"facing_direction":1,"open_bit":False})
+        t.set(1,1,4,"minecraft:chest",{"minecraft:cardinal_direction":"east"});t.set(4,1,3,"minecraft:red_carpet")
+        t.set(2,3,3,"minecraft:lantern",{"hanging":True})
+    elif kind=="well":  # An old dry well; the ladder climbs its shaft to the rim.
+        t.fill((1,0,1),(5,0,5),"minecraft:cobblestone")
+        for x,z in [(1,1),(5,2),(2,5),(4,1)]:t.set(x,0,z,"minecraft:mossy_cobblestone")
+        t.set(3,0,3,"minecraft:air")
+        for x in range(2,5):
+            for z in range(2,5):
+                if (x,z)!=(3,3):t.set(x,1,z,"minecraft:mossy_stone_bricks" if (x+z)%2 else "minecraft:stone_bricks")
+        for x,z in [(2,2),(4,2),(2,4),(4,4)]:t.fill((x,2,z),(x,3,z),"minecraft:spruce_fence")
+        t.fill((2,4,2),(4,4,4),"minecraft:spruce_slab")
+    elif kind=="hidden_hatch":  # A trapdoor in the undergrowth, flush with the ground.
+        t.fill((0,1,0),(6,1,6),VOID)
+        for x,z in [(2,3),(3,2),(4,4),(2,4)]:t.set(x,0,z,"minecraft:coarse_dirt")
+        t.set(3,0,3,"minecraft:air")
+        t.set(3,1,3,"minecraft:spruce_trapdoor",{"direction":0,"open_bit":False,"upside_down_bit":False})
+        leaves={"persistent_bit":True,"update_bit":False}
+        for x,z in [(1,2),(1,3),(2,1),(5,5)]:t.set(x,1,z,"minecraft:oak_leaves",leaves)
+        for x,z in [(5,3),(5,4),(4,5)]:t.set(x,1,z,"minecraft:mossy_cobblestone")
+    elif kind=="mine_headframe":  # A timber headframe over an old mine shaft.
+        t.fill((1,0,1),(5,0,5),"minecraft:spruce_planks");t.set(3,0,3,"minecraft:air")
+        for x,z in [(1,1),(5,1),(1,5),(5,5)]:t.fill((x,1,z),(x,5,z),"minecraft:spruce_log",log("y"))
+        for z in [1,5]:t.fill((1,6,z),(5,6,z),"minecraft:spruce_log",log("x"))
+        for x in [1,5]:t.fill((x,6,2),(x,6,4),"minecraft:spruce_log",log("z"))
+        t.fill((2,6,3),(4,6,3),"minecraft:spruce_log",log("x"))
+        t.fill((3,4,3),(3,5,3),"minecraft:chain",log("y"))
+        t.set(2,5,1,"minecraft:lantern",{"hanging":True});t.set(4,5,5,"minecraft:lantern",{"hanging":True})
+        for z in [4,5,6]:t.set(3,1,z,"minecraft:rail",{"rail_direction":0})
+        for x,y,z in [(0,1,0),(1,1,0),(0,1,1),(0,2,0)]:t.set(x,y,z,"minecraft:gravel")
+        t.set(0,0,0,"minecraft:gravel");t.set(6,1,6,"minecraft:cobblestone")
+        t.set(5,1,3,"minecraft:barrel",{"facing_direction":1,"open_bit":False})
+        for x,z in [(2,5),(5,2)]:t.set(x,5,z,"minecraft:web")
+    else:raise ValueError(kind)
+    return check_exit(t,top)
+
+def check_exit(t,top):
+    """The ladder comes up through an open column into headroom, hangs on solid ground (or a void
+    cell the levelled ground fills) all the way up, and there is a way out of the footprint."""
+    walk=lambda x,y,z:not (0<=x<7 and 0<=y<t.size[1] and 0<=z<7) or t.blocks[x,y,z][0] in EXIT_WALKABLE
+    assert t.blocks[3,0,3][0]=="minecraft:air",(t.name,"shaft")
+    for y in range(top+1,top+3):assert walk(3,y,3),(t.name,"headroom",y)
+    for y in range(top+1):
+        for dx,dz in [(1,0),(-1,0),(0,1),(0,-1)]:
+            block=t.blocks[3+dx,y,3+dz][0]
+            assert block==VOID and y==0 or block not in EXIT_WALKABLE,(t.name,"ladder wall",y)
+    # Step off where the ladder ends: a well's rim stands a block above the ground around it.
+    feet=lambda x,z:top+1 if 2<=x<=4 and 2<=z<=4 else 1
+    seen={(3,3)};todo=[(3,3)]
+    while todo:
+        x,z=todo.pop()
+        if x in (0,6) or z in (0,6):return t
+        for a,b in [(x+1,z),(x-1,z),(x,z+1),(x,z-1)]:
+            if (a,b) not in seen and walk(a,feet(a,b),b) and walk(a,feet(a,b)+1,b):seen.add((a,b));todo.append((a,b))
+    raise AssertionError((t.name,"no way out"))
+
 def structures():
     templates=[]
     for role in ROOM_ROLES:
@@ -757,9 +854,10 @@ def structures():
     for x in [2,12]:t.set(x,1,1,"laser_turret_mount")
     for z in [8,12,16,20]:t.fill((6,7,z),(8,7,z),"industrial_light")
     templates.append(t)
+    for kind in EXIT_KINDS:templates.append(exit_template(kind))
     catalog=[t.export() for t in templates]
     write(ROOT/"tools/generated/template_voxels.json",catalog)
-    write(ROOT/"docs/module_catalog.json",[{"identifier":NS+"bunker/"+t["name"],"size":t["size"]} for t in catalog])
+    write(ROOT/"docs/module_catalog.json",[{"identifier":NS+t["folder"]+"/"+t["name"],"size":t["size"]} for t in catalog])
 
 def icon():
     im=Image.new("RGB",(128,128),(17,29,34));d=ImageDraw.Draw(im)
@@ -800,7 +898,7 @@ def asset_inventory():
         "## Audio", "", "Twelve original mono WAV assets are mapped through `resource_pack/sounds/sound_definitions.json`.", "",
         "`access_granted`, `access_denied`, `alarm_alert`, `alarm_lockdown`, `blast_door_movement`, `blast_door_warning`, `elevator_move`, `elevator_arrive`, `laser_turret_fire`, `warning_beep`, `destruction`, `missile_launch`.", "",
         "`warning_beep` is available for future countdown polish; the other sound events are wired to the shared systems. No third-party audio is included.", "",
-        "## Structures", "", "43 authored/generated binary templates: 19 furnished room roles (bedrooms, bunk rooms, lounges, mess halls, hydroponic farms, mining faces, workshops, labs and more) in north/south connector orientations, four hall/core modules and the surface entrance. Rooms use vanilla furniture with block entity data for bed colours. See `module_catalog.json`. Programmed overlays add doors, readers, controls, grids, shafts, escape route, turrets, the covering mountain and TNT demolition charges.", "",
+        "## Structures", "", f"{2*len(ROOM_ROLES)+5+len(EXIT_KINDS)} authored/generated binary templates: {len(ROOM_ROLES)} furnished room roles (bedrooms, bunk rooms, lounges, mess halls, hydroponic farms, mining faces, workshops, labs and more) in north/south connector orientations, four hall/core modules, the surface entrance, and {len(EXIT_KINDS)} secret tunnel exits under `secretfacilities:tunnel/` (utility shed, forest cabin, old well, hidden hatch and abandoned mine headframe). Rooms use vanilla furniture with block entity data for bed colours; exits use structure voids so the levelled ground around them stays in place. See `module_catalog.json`. Programmed overlays add doors, readers, controls, grids, shafts, the escape tunnel and its ladder shaft, turrets, the covering mountain and TNT demolition charges.", "",
         "## Other", "", "Both packs include an original 128×128 bunker icon and en_US names. Advanced control models, damaged turret models, directional animated doors, facility-specific palettes and cinematic particles are deferred."])
     (ROOT/"docs").mkdir(exist_ok=True)
     (ROOT/"docs/assets.md").write_text("\n".join(lines)+"\n")
@@ -813,6 +911,6 @@ def main():
     write(RP/"manifest.json",{"format_version":2,"header":{"name":"Secret Facilities RP","description":"Original industrial pixel art, turret model, effects and sounds","uuid":RP_UUID,"version":VERSION,"min_engine_version":[1,21,90]},
         "modules":[{"type":"resources","uuid":"071c689c-24f6-45d4-8aaa-4843be1664cf","version":VERSION}]})
     textures();turret();missile_turret();door_leaf();sounds();structures();icon();asset_inventory()
-    print(f"Built {len(BLOCKS)} blocks, {len(ITEMS)} items, {len(SPAWNABLE)} turret spawn eggs, {2*len(ROOM_ROLES)+5} structure templates, turrets, missile, particles and 12 sounds.")
+    print(f"Built {len(BLOCKS)} blocks, {len(ITEMS)} items, {len(SPAWNABLE)} turret spawn eggs, {2*len(ROOM_ROLES)+5+len(EXIT_KINDS)} structure templates, turrets, missile, particles and 12 sounds.")
 
 if __name__=="__main__":main()

@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased — Stage 14: secret tunnels
+
+- **The escape tunnel now leads somewhere secret.** The B1 tunnel no longer stops at a hut dug into the back of the bunker's mountain. It runs on under the mountain to a junction chamber, then south, east or west to a remote exit 37 to 55 blocks from the core, well clear of the mountain, and a ladder shaft climbs from the tunnel to the surface.
+- **Five exits that suit the ground.** A utility shed, a spruce forest cabin, an old dry well, a hidden hatch in the undergrowth and an abandoned mine headframe, each an authored 7×7 template. Deployment surveys nine candidate sites and picks the flattest dry one that keeps at least two blocks of rock over the tunnel. The exit type follows the ground it lands on: a cabin among trees, a well in sand, a mine on bare rock, and a shed, hatch or well on open land. The deployment menu can also force a particular exit. The chosen exit's type, direction, distance and coordinates are shown before you confirm, and again on the debug scanner and the self-destruct screens.
+- **Terrain-aware, with a safe fallback.** Exit sites are levelled with cut and fill of up to four blocks, using the local surface block. The tunnel is sealed in stone wherever it crosses a cave. Sites with water, unloaded chunks, rough ground, or ground too low to bury the tunnel are passed over. If no site works, or you choose it, the tunnel comes up at the original rock-face door behind the mountain, which the bunker's own earthworks always make possible. The mountain now closes over the back of the bunker unless that rock-face exit is used.
+- **The tunnel is guarded by the shared security systems.** A keycard door (level 1) just outside the B1 room, a two-beam laser grid that raises ALERT when someone without command clearance walks through, an emergency lamp in the junction that flashes with the alarms, and, when defences are enabled, a laser turret at the junction in a new `tunnel` defence zone (ALERT ONLY by default). No missile turret is ever placed underground.
+- **Self-destruct leaves the way out intact.** The junction turret shuts down with the rest at detonation, but its demolition blast is no longer set off inside the escape tunnel.
+- Bunkers saved before this change keep their hut behind the mountain and resume interrupted builds with exactly the original build steps.
+- Structure templates can now contain structure voids (block index −1), which keep the block already in the world. Tunnel exits use them so the levelled ground around them stays in place. The validator and the test harness understand them.
+- Horizontal laser grids can now run along x as well as z, which the tunnel's grid needs.
+- `tools/preview.py` also renders `docs/tunnel-exits.png`, an isometric view of the five exit templates.
+
 ## Unreleased — bug fixes from a third review
 
 - **Lockdown shutters did not seal the hall.** Each floor's shutter covered only the middle two of the corridor's five courses, leaving a one-block gap along the floor that small mobs (baby zombies, silverfish, endermites) walked under, and a two-block gap under the ceiling that a player could climb into with a couple of placed blocks. Shutters now fill the corridor from floor to ceiling and take 2 s to travel. Bunkers saved by earlier builds are grown to full height when the world loads.

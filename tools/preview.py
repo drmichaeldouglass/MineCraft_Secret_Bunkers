@@ -61,3 +61,41 @@ for i,name in enumerate(list(BLOCKS)[:20]):
 d.text((62,997),"Layout preview from the test harness, not an in-game screenshot. In-game import and rendering still need verification.",font=font(16),fill=(145,166,169))
 im.save(ROOT/"docs/bunker-preview.png")
 print("Rendered docs/bunker-preview.png")
+
+# Secret tunnel exits: an isometric view of each template's actual voxels.
+catalog={t["name"]:t for t in json.loads((ROOT/"tools/generated/template_voxels.json").read_text())}
+TIMBER={"spruce_planks":(115,85,52),"spruce_log":(72,52,32),"spruce_stairs":(96,70,42),"spruce_slab":(104,77,46),
+    "spruce_fence":(90,66,40),"spruce_trapdoor":(110,80,48),"glass_pane":(170,205,215),"oak_leaves":(62,120,48),
+    "mossy_cobblestone":(96,118,88),"stone_bricks":(128,128,124),"mossy_stone_bricks":(105,122,98),"coarse_dirt":(110,80,58),
+    "chain":(60,64,70),"web":(225,225,225),"red_carpet":(160,40,35),"ladder":(150,110,60)}
+exits=[n for n in catalog if n.startswith("exit_")]
+cell=11
+sheet=Image.new("RGB",(250*len(exits)+40,300),(14,24,30));draw=ImageDraw.Draw(sheet)
+def shade(c,k):return tuple(max(0,min(255,int(v*k))) for v in c)
+for n,name in enumerate(exits):
+    t=catalog[name];sx,sy,sz=t["size"];ox,oy=40+n*250+105,70+sy*cell
+    voxels={}
+    i=0
+    for x in range(sx):
+        for y in range(sy):
+            for z in range(sz):
+                index=t["indices"][i];i+=1
+                if index<0:continue
+                block=t["palette"][index][0].split(":")[-1]
+                if block=="air":continue
+                voxels[x,y,z]=BLOCKS.get(block,VANILLA.get(block,TIMBER.get(block,(117,130,123))))
+    # The levelled ground the exit stands in, under its void cells.
+    for x in range(-1,sx+1):
+        for z in range(-1,sz+1):
+            if (x,0,z) not in voxels:voxels[x,0,z]=(88,140,62) if x!=3 or z!=3 else (150,110,60)
+    for (x,y,z),c in sorted(voxels.items(),key=lambda v:(v[0][0]+v[0][2],v[0][1])):
+        px,py=ox+(x-z)*cell,oy+(x+z)*cell//2-y*cell
+        top=[(px,py),(px+cell,py+cell//2),(px,py+cell),(px-cell,py+cell//2)]
+        draw.polygon(top,fill=shade(c,1.1))
+        draw.polygon([(px-cell,py+cell//2),(px,py+cell),(px,py+2*cell),(px-cell,py+cell+cell//2)],fill=shade(c,0.8))
+        draw.polygon([(px,py+cell),(px+cell,py+cell//2),(px+cell,py+cell+cell//2),(px,py+2*cell)],fill=shade(c,0.6))
+    label=name[5:].replace("_"," ").upper()
+    draw.text((ox-draw.textbbox((0,0),label,font=font(15))[2]/2,258),label,font=font(15),fill=(223,231,217))
+draw.text((40,18),"SECRET TUNNEL EXITS  •  template voxels, levelled ground in green, ladder column in brown",font=font(16),fill=(152,174,177))
+sheet.save(ROOT/"docs/tunnel-exits.png")
+print("Rendered docs/tunnel-exits.png")

@@ -342,5 +342,45 @@
       9,
       22
     ]
+  },
+  {
+    "identifier": "secretfacilities:tunnel/exit_utility_shed",
+    "size": [
+      7,
+      5,
+      7
+    ]
+  },
+  {
+    "identifier": "secretfacilities:tunnel/exit_forest_cabin",
+    "size": [
+      7,
+      7,
+      7
+    ]
+  },
+  {
+    "identifier": "secretfacilities:tunnel/exit_well",
+    "size": [
+      7,
+      5,
+      7
+    ]
+  },
+  {
+    "identifier": "secretfacilities:tunnel/exit_hidden_hatch",
+    "size": [
+      7,
+      2,
+      7
+    ]
+  },
+  {
+    "identifier": "secretfacilities:tunnel/exit_mine_headframe",
+    "size": [
+      7,
+      7,
+      7
+    ]
   }
 ]

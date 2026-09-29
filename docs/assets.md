@@ -83,7 +83,7 @@ Twelve original mono WAV assets are mapped through `resource_pack/sounds/sound_d
 
 ## Structures
 
-43 authored/generated binary templates: 19 furnished room roles (bedrooms, bunk rooms, lounges, mess halls, hydroponic farms, mining faces, workshops, labs and more) in north/south connector orientations, four hall/core modules and the surface entrance. Rooms use vanilla furniture with block entity data for bed colours. See `module_catalog.json`. Programmed overlays add doors, readers, controls, grids, shafts, escape route, turrets, the covering mountain and TNT demolition charges.
+48 authored/generated binary templates: 19 furnished room roles (bedrooms, bunk rooms, lounges, mess halls, hydroponic farms, mining faces, workshops, labs and more) in north/south connector orientations, four hall/core modules, the surface entrance, and 5 secret tunnel exits under `secretfacilities:tunnel/` (utility shed, forest cabin, old well, hidden hatch and abandoned mine headframe). Rooms use vanilla furniture with block entity data for bed colours; exits use structure voids so the levelled ground around them stays in place. See `module_catalog.json`. Programmed overlays add doors, readers, controls, grids, shafts, the escape tunnel and its ladder shaft, turrets, the covering mountain and TNT demolition charges.
 
 ## Other
 

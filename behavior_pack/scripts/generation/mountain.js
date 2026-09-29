@@ -29,17 +29,20 @@ function noise(seed, x, z) {
 const approach = (z) => 7.5 + Math.max(0, -5 - z) * 0.6;
 /** Half-width of the open apron behind the escape hut's south-facing exit. */
 const apron = (z) => 3 + (z - 37) * 0.5;
-export function column(seed, x, z) {
+/** Whether a facility's escape tunnel comes up behind its mountain: every facility built before
+ *  remote exits, and any whose survey found no remote site. Only those keep the rear apron and hut. */
+export const rearExit = (f) => !f.exit || f.exit.kind === "rock_face";
+export function column(seed, x, z, rear = true) {
     const none = (open) => ({ top: 0, base: 1, open });
     if (!within(MOUNTAIN, x, z))
         return none(false);
     if (z <= -5 && Math.abs(x - 13) <= approach(z))
         return none(true);
-    if (z >= 37 && Math.abs(x - 13) <= apron(z))
+    if (rear && z >= 37 && Math.abs(x - 13) <= apron(z))
         return none(true);
     const d = Math.hypot((x - CX) / RX, (z - CZ) / RZ);
     let h = d >= 1 ? 0 : PEAK * Math.pow(1 - d * d, 1.4) + (noise(seed, x / 10, z / 10) * 7 + noise(seed + 7, x / 4, z / 4) * 2.5 - 4.75) * (1 - d);
-    const entrance = within(ENTRANCE, x, z), hut = within(HUT, x, z);
+    const entrance = within(ENTRANCE, x, z), hut = rear && within(HUT, x, z);
     if (entrance || (x >= ENTRANCE.x0 - 1 && x <= ENTRANCE.x1 + 1 && z >= -4 && z <= ENTRANCE.z1 + 1))
         h = Math.max(h, COVER);
     if (hut)
@@ -47,7 +50,7 @@ export function column(seed, x, z) {
     // Slope down into the open channels instead of standing over them as sheer walls.
     if (z <= -5)
         h = Math.min(h, 1 + (Math.abs(x - 13) - approach(z)) * 1.4);
-    if (z >= 37)
+    if (rear && z >= 37)
         h = Math.min(h, 1 + (Math.abs(x - 13) - apron(z)) * 1.2);
     const top = h < 1 ? 0 : Math.round(h);
     if (!top)

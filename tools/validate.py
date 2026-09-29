@@ -77,7 +77,8 @@ def main():
         assert len(indices)==2 and indices[0]==expected["indices"]
         assert all(i==-1 for i in indices[1])
         assert len(indices[0])==data["size"][0]*data["size"][1]*data["size"][2]
-        assert all(0<=i<len(palette) for i in indices[0])
+        # -1 is a structure void: the cell places nothing and keeps the block already there.
+        assert all(-1<=i<len(palette) for i in indices[0])
         for block in palette:
             assert block["name"].startswith("minecraft:") or block["name"] in ids
     # Block geometry with no cubes breaks the client's chunk meshing, so every model must draw something.
