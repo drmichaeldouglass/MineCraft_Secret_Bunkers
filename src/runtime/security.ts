@@ -6,6 +6,7 @@ import { dim, fill, getClearance, lineClear, loaded, nearby, set, sound, tell, t
 import { allowed } from "./defence.js";
 import { demolish } from "./destruct.js";
 import { EXITS } from "../generation/tunnel.js";
+import { FLOOR_STEP } from "../generation/planner.js";
 
 interface DoorJob { f:Facility; door:Door; progress:number; target:number; repaint:boolean; started:boolean; leaf?:string; motion?:number; hidden?:boolean }
 const moving=new Map<string,DoorJob>();
@@ -89,7 +90,14 @@ export function registerDoorEvents():void {
     try{if(entity.typeId===LEAF&&![...moving.values()].some(j=>j.leaf===entity.id))entity.remove();}catch{/* Already gone. */}
   });
 }
+/** Once demolition has begun, a door whose blocks were blown out or buried in rubble is gone for good:
+ *  moving it would paint door blocks back over the ruin. A door that survived, like the tunnel's, still works. */
+function intact(f:Facility,door:Door):boolean {
+  if(f.destructionStep===undefined)return true;
+  try{return dim(f).getBlock(door.min)?.typeId===NS+idFor(door);}catch{return false;}
+}
 export function requestDoor(f:Facility,door:Door,open:boolean):void {
+  if(!intact(f,door))return;
   const key=`${f.id}:${door.id}`,running=moving.get(key);
   // Reversing mid-travel resumes from where the leaf actually is.
   const progress=running?running.progress:(door.open?travel(door):0);
@@ -122,6 +130,8 @@ export function tickDoors():void {
     const {f,door}=job,d=dim(f);
     if(writes>=32)break;
     if(!nearby(f)||!loaded(d,door.min)||!loaded(d,door.max))continue;
+    // A door caught mid-travel by the demolition stays as the blast left it.
+    if(!intact(f,door)){clearLeaves(d,f,door);moving.delete(key);continue;}
     const height=door.max.y-door.min.y+1;
     if(job.repaint){
       if(usesLeaf(door)){
@@ -183,9 +193,11 @@ const SENSOR_RANGE=24;
 export const BEAM_DAMAGE=3;
 /** Heights above a mob's feet tested against the beams: low enough for a silverfish, high enough for a zombie. */
 const BODY=[0.1,0.6,1.1,1.6];
-/** Hostile mobs near a grid, found once per grid per tick however many beams it has. */
-function mobsNear(d:Dimension,laser:Laser,cache:Map<string,Entity[]>):Entity[] {
-  const key=`${laser.a.x},${laser.a.z},${laser.b.x},${laser.b.z}`;
+/** Hostile mobs near a grid, found once per grid per tick however many beams it has. Every floor has
+ *  grids at the same x and z, so the key also carries the floor the beam is on. */
+function mobsNear(f:Facility,d:Dimension,laser:Laser,cache:Map<string,Entity[]>):Entity[] {
+  const floor=Math.floor((laser.a.y-f.origin.y)/FLOOR_STEP);
+  const key=`${floor},${laser.a.x},${laser.a.z},${laser.b.x},${laser.b.z}`;
   let mobs=cache.get(key);
   if(!mobs){
     const mid={x:(laser.a.x+laser.b.x)/2,y:(laser.a.y+laser.b.y)/2,z:(laser.a.z+laser.b.z)/2};
@@ -232,7 +244,7 @@ export function tickLasers():void {
       if(!loaded(d,laser.a)||!loaded(d,laser.b))continue;
       // Every sensor tick redraws the beam; each drawing outlasts the gap to the next, so it holds steady.
       tripwire(d,laser.a,laser.b);
-      burn(d,laser,mobsNear(d,laser,mobs),burned);
+      burn(d,laser,mobsNear(f,d,laser,mobs),burned);
       const obstruction=!lineClear(d,laser.a,laser.b);
       const crossed=watched.some(p=>{
         const last=previous.get(p.id),current=p.location;

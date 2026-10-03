@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased: review fixes
+
+- **Estate windows no longer grow on reload.** The upgrade that makes old bunker hall shutters floor-to-ceiling also caught the estate's two-course window shutters. On every reload it stretched them to five courses and painted shutter over the housing above each window and the air above and below it. The upgrade now touches only the bunker's hall shutters. Estates already damaged are repaired when the world loads: each window is shrunk back to two courses, and its housing and the air around it are put back once a player comes near enough for their chunks to load.
+- **Tripwires burn hostile mobs on every floor.** The mobs near each grid were cached by the grid's x and z, which every floor shares, so only the first floor checked (usually B1) burned anything. The cache is now kept per floor.
+- **The ruin stays sealed.** Anyone can open or shut doors during a self-destruct countdown. A door shut then was opened again when the facility was destroyed, which painted open door blocks over the rubble sealing the portal and back into blown-out doorways. Once demolition has begun, a door whose blocks were blown out or buried no longer moves. A door that survives, like the tunnel's, still works as the way out.
+
 ## Unreleased — horizontal tripwires that burn, and controls set into the walls
 
 - **Tripwires are horizontal.** Each floor's east hall had a single vertical beam from the floor up to a receiver hanging under the ceiling. Both halls now have a grid of three horizontal beams, at ankle, waist and chest height (0.4, 1.4 and 2.4 blocks above the floor), from an emitter set into one wall to a receiver in the other. The west grid still raises LOCKDOWN from B3 down; the east grid raises ALERT.

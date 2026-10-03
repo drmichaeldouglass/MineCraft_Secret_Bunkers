@@ -196,6 +196,41 @@ test("older saves with two-course shutters are grown to full height on load",()=
     assert.deepEqual([shutter.min.y,shutter.max.y],[floor.y+1,floor.y+5]);
   }
 });
+test("estate window shutters keep their two courses through a reload",()=>{
+  const {f}=makeEstate(3);
+  const windows=f.doors.filter(d=>d.id.startsWith("window_")),sizes=JSON.stringify(windows.map(d=>[d.min,d.max]));
+  const w=windows[0],above=at(w.min.x,w.max.y+1,w.min.z).typeId;
+  assert.equal(above,ns+"security_shutter_housing");
+  save(f);facilities.clear();load();
+  const loaded=facilities.get(f.id);
+  assert.equal(JSON.stringify(loaded.doors.filter(d=>d.id.startsWith("window_")).map(d=>[d.min,d.max])),sizes,"A window shutter changed size on load");
+  restoreDoors(loaded);for(let n=0;n<400;n++)tickDoors();
+  assert.equal(at(w.min.x,w.max.y+1,w.min.z).typeId,above,"The repaint on load covered the shutter housing");
+  assert.equal(at(w.min.x,w.min.y-1,w.min.z).typeId,"minecraft:air","The repaint on load hung shutter below the window");
+});
+test("estate windows grown by the old shutter upgrade are shrunk and their housings put back",()=>{
+  const {f}=makeEstate(3);
+  // Recreate the damage: each window grown to five courses and repainted as open shutter.
+  const windows=f.doors.filter(d=>d.id.startsWith("window_")),sizes=JSON.stringify(windows.map(d=>[d.min,d.max]));
+  for(const d of windows){
+    d.min={...d.min,y:d.min.y-1};d.max={...d.max,y:d.max.y+2};
+    for(let x=d.min.x;x<=d.max.x;x++)for(let y=d.min.y;y<=d.max.y;y++)blocks.set(`${x},${y},${d.min.z}`,{typeId:ns+"security_shutter",states:{[ns+"open"]:true,[ns+"slide"]:0}});
+  }
+  save(f);facilities.clear();load();
+  const loaded=facilities.get(f.id);
+  assert.equal(JSON.stringify(loaded.doors.filter(d=>d.id.startsWith("window_")).map(d=>[d.min,d.max])),sizes);
+  // The courses are put back once a player is near enough for their chunks to be loaded.
+  restoreDoors(loaded);for(let n=0;n<400;n++)tickDoors();tickLasers();
+  assert.equal(loaded.retrofit,undefined,"The repair should finish once its chunks are loaded");
+  for(const d of loaded.doors.filter(d=>d.id.startsWith("window_")))for(let x=d.min.x;x<=d.max.x;x++){
+    assert.equal(at(x,d.min.y-1,d.min.z).typeId,"minecraft:air");
+    assert.equal(at(x,d.max.y+1,d.min.z).typeId,ns+"security_shutter_housing");
+    assert.equal(at(x,d.max.y+2,d.min.z).typeId,"minecraft:air");
+    for(let y=d.min.y;y<=d.max.y;y++)assert.equal(at(x,y,d.min.z).typeId,ns+"security_shutter");
+  }
+  // The repair is saved and does not run again.
+  save(loaded);facilities.clear();load();assert.equal(facilities.get(f.id).retrofit,undefined);
+});
 test("door obstruction delays closure without trapping entities",()=>{
   const {f}=make(),door=f.doors.find(d=>d.kind==="security");
   entities.push({id:"obstruction",typeId:"minecraft:cow",location:{...door.min},tags:[],isValid:true});
@@ -352,6 +387,27 @@ test("self-destruct fires the charges and brings the whole bunker down",()=>{
   assert.ok(junction.damaged&&!junction.enabled);
   const inTunnel=v=>f.exit.passages.slice(1).some(({interior:b})=>v.x>=b.min.x-2&&v.x<=b.max.x+3&&v.y>=b.min.y-2&&v.y<=b.max.y+3&&v.z>=b.min.z-2&&v.z<=b.max.z+3);
   assert.ok(!explosions.some(x=>inTunnel(x.location)),"An explosion went off in the escape tunnel");
+});
+test("a door closed during the countdown is not rebuilt over the ruin",()=>{
+  const {f}=make(3);armDestruct(f);for(let n=0;n<400;n++)tickDoors();
+  // Doors open for anyone during the countdown, so they can also be shut again.
+  const main=f.doors.find(d=>d.id==="main"),room=f.doors.find(d=>d.id==="b1_0_0"),tunnel=f.doors.find(d=>d.id==="tunnel");
+  for(const door of [main,room,tunnel])requestDoor(f,door,false);
+  for(let n=0;n<400;n++)tickDoors();
+  assert.ok(!main.open&&!room.open&&!tunnel.open);
+  f.countdown=1;
+  for(let i=0;i<40&&f.state!=="DESTROYED";i++){system.currentTick+=10;tickAlarms();}
+  assert.equal(f.state,"DESTROYED");
+  for(let n=0;n<600;n++)tickDoors();
+  assert.equal(at(13,81,0).typeId,"minecraft:cobblestone","The portal's rubble was painted over with blast door");
+  assert.equal(flood(81,[13,-2],{x0:6,x1:20,z0:-4,z1:17}).has("13,13"),false,"The collapsed portal can be walked through");
+  assert.equal(at(room.min.x,room.min.y,room.min.z).typeId,"minecraft:air","A blown-out room door was rebuilt");
+  assert.equal(entities.filter(e=>e.typeId===LEAF).length,0);
+  // The tunnel door survived the blast and is still the way out.
+  assert.equal(at(tunnel.min.x,tunnel.min.y,tunnel.min.z).typeId,ns+"security_door");
+  requestDoor(f,tunnel,true);for(let n=0;n<400;n++)tickDoors();
+  assert.ok(tunnel.open);assert.equal(at(tunnel.min.x,tunnel.min.y,tunnel.min.z).states[ns+"open"],true);
+  escapes(f,[13,27]);
 });
 test("turret target selection, cooldown, line-of-sight and disabled state",()=>{
   const {f}=make(3),turret=f.turrets[0],source=turret.pos;
@@ -667,6 +723,14 @@ test("hostile mobs crossing a live tripwire are burned; players and passive mobs
   f.lasersEnabled=false;tickLasers();assert.equal(zombie.damage,4*BEAM_DAMAGE,"Disabled grids must not burn");
   f.lasersEnabled=true;players.length=0;players.push(playerAt({x:13.5,y,z:13.5+60}));tickLasers();
   assert.equal(zombie.damage,4*BEAM_DAMAGE,"Grids far from every player stay idle");
+});
+test("tripwires burn hostile mobs on every floor, not only the first grid checked",()=>{
+  const {f}=make(4);
+  // A player on B2 is within range of the grids on B1, B2 and B3, which share their x and z.
+  players.length=0;players.push(playerAt({x:13.5,y:f.floors[2].y+1,z:13.5}));
+  const mobs=f.floors.slice(1,4).map(floor=>dimension.spawnEntity("minecraft:zombie",{x:4.5,y:floor.y+1,z:13.5}));
+  tickLasers();
+  mobs.forEach((mob,i)=>assert.equal(mob.damage,BEAM_DAMAGE,`The B${i+1} grid did not burn the zombie standing in it`));
 });
 test("bunkers saved with the old vertical beam are upgraded to horizontal grids when loaded",()=>{
   const {f}=make(3),y=f.floors[1].y,set=(x,yy,z,typeId)=>blocks.set(`${x},${yy},${z}`,{typeId,states:{}});

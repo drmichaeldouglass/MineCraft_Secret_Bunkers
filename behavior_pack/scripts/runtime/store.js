@@ -40,6 +40,23 @@ export function levelGrids(f) {
     }
     return true;
 }
+/** The hall shutter upgrade once grew estate window shutters too, from two courses to five, and the
+ *  door repaint on load then painted shutter over the air below each window and the housing and air
+ *  above it. Shrink them back, and queue those three courses to be put back where shutter still stands. */
+export function shrinkWindows(f) {
+    const grown = f.doors.filter(d => d.kind === "shutter" && d.id.startsWith("window_") && d.max.y - d.min.y === 4);
+    if (!grown.length)
+        return false;
+    f.retrofit ?? (f.retrofit = []);
+    for (const door of grown) {
+        door.min = { ...door.min, y: door.min.y + 1 };
+        door.max = { ...door.max, y: door.max.y - 2 };
+        for (let x = door.min.x; x <= door.max.x; x++)
+            for (const [dy, block] of [[-1, "minecraft:air"], [2, NS + "security_shutter_housing"], [3, "minecraft:air"]])
+                f.retrofit.push({ pos: { x, y: door.min.y + dy, z: door.min.z }, block, only: NS + "security_shutter" });
+    }
+    return true;
+}
 export function load() {
     const ids = JSON.parse(String(world.getDynamicProperty(INDEX) ?? "[]"));
     for (const id of ids) {
@@ -60,12 +77,14 @@ export function load() {
             if (f.phase === "building")
                 f.phase = "failed";
             // Shutters saved by earlier builds covered only the middle two of the hall's five courses. Growing
-            // them to floor and ceiling is safe: the door repaint on load fills the new courses.
+            // them to floor and ceiling is safe: the door repaint on load fills the new courses. Only the
+            // bunker's hall shutters: an estate window shutter is two courses tall by design.
             for (const door of f.doors)
-                if (door.kind === "shutter" && door.max.y - door.min.y === 1) {
+                if (door.kind === "shutter" && door.id.startsWith("shutter_") && door.max.y - door.min.y === 1) {
                     door.min = { ...door.min, y: door.min.y - 1 };
                     door.max = { ...door.max, y: door.max.y + 2 };
                 }
+            shrinkWindows(f);
             levelGrids(f);
             facilities.set(id, f);
         }
