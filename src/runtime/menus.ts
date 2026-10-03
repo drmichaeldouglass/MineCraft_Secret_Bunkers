@@ -39,7 +39,7 @@ export function giveKit(player:Player):void {
 export async function deployment(player:Player):Promise<void> {
   creative(player);
   const f=findFacility(player);
-  const form=new ActionFormData().title("SECRET FACILITIES").body("Command bunker and fortified estate • 0.2.0 alpha\n\nDeploy on dry land. A facility replaces blocks across its site. Use a test world or a backup.\n\nOther facility archetypes are planned for later stages.")
+  const form=new ActionFormData().title("SECRET FACILITIES").body("Command bunker and fortified estate • 0.2.1 alpha\n\nDeploy on dry land. A facility replaces blocks across its site. Use a test world or a backup.\n\nOther facility archetypes are planned for later stages.")
     .button("Deploy command bunker").button("Deploy fortified estate").button("Get development kit");
   if(f?.phase==="failed")form.button("Resume interrupted construction");
   const answer=await form.show(player);if(answer.canceled)return;creative(player);
@@ -61,7 +61,7 @@ async function configure(player:Player,type:FacilityType):Promise<void> {
   const preference=choices[Number(settings.formValues[2])]?.[0];
   const raw=String(settings.formValues[3]??"").trim(),seed=raw?Number(raw):Math.floor(Math.random()*2147483647);
   if(!Number.isSafeInteger(seed))throw Error("The layout seed must be a whole number.");
-  const site=estate?estateOriginAt(player):originAt(player),origin=site.origin,start=player.location,id=`sf_${Date.now().toString(36)}_${Math.floor(Math.random()*9999)}`;
+  const site=estate?estateOriginAt(player):originAt(player),origin=site.origin,start={...player.location},id=`sf_${Date.now().toString(36)}_${Math.floor(Math.random()*9999)}`;
   const exit=exitSite(player.dimension,origin,seed,preference,type);
   const plan=estate?planEstate(origin,levels,seed,defences,id,exit):planBunker(origin,levels,seed,defences,id,exit);plan.ground=site.ground;
   const fallback=preference&&preference!==plan.exit?.kind?`\nNo dry, level site nearby suits the ${EXIT_LABEL[preference]}; the tunnel comes up ${estate?"in a well in the back garden":"behind the mountain"} instead.`:"";
@@ -74,6 +74,7 @@ async function configure(player:Player,type:FacilityType):Promise<void> {
     .body(`${estate?"Fortified estate • ":""}${levels} underground floors • seed ${seed}\n\n${where}\nReserved: ${plan.bounds.max.x-plan.bounds.min.x+1} × ${plan.bounds.max.z-plan.bounds.min.z+1} blocks\nLowest floor: Y ${plan.bounds.min.y}\nEscape tunnel: ${escapeRoute(plan)}${fallback}${earthworks}\n\nConstruction ${what} Stay nearby while it builds.`)
     .button1("Cancel").button2(estate?"Build estate":"Build bunker").show(player);
   if(confirm.canceled||confirm.selection!==1)return;creative(player);
+  if(!player.isValid||player.dimension.id!==plan.dimension)throw Error("Return to the confirmed site in its original dimension. Deploy again here.");
   if(distance(player.location,start)>16)throw Error("You moved away from the confirmed site. Deploy again here.");
   build(plan,player);
 }
@@ -165,9 +166,10 @@ export async function interact(player:Player,pos:Vec):Promise<void> {
 }
 export async function debug(player:Player):Promise<void> {
   creative(player);const f=findFacility(player);if(!f){tell(player,"No nearby registered facility. Use the deployment device first.");return;}
+  const start={...player.location};
   const form=new ActionFormData().title("FACILITY DEBUG SCANNER").body(`${f.id}\nSeed ${f.seed} • ${f.floors.length-1} floors\n${f.phase} • ${f.state}\nDoors ${f.doors.length} • Turrets ${f.turrets.length}\nBounds: ${key(f.bounds.min)} to ${key(f.bounds.max)}\nEscape: ${escapeRoute(f)}`)
     .button("Reset security / lasers off").button("Test alert").button("Test lockdown").button("Open every door").button("Close every door").button("Disable all defences").button("Activate all defences");
-  const response=await form.show(player);if(response.canceled)return;creative(player);check(player,f,player.location,0);
+  const response=await form.show(player);if(response.canceled)return;creative(player);check(player,f,start,0);
   if(f.state==="DESTROYED"||f.state==="SELF_DESTRUCT")throw Error("Use the self-destruct console during a countdown. Destroyed facilities cannot be reset.");
   switch(response.selection){
     case 0:f.lasersEnabled=false;setSecurity(f,"NORMAL");break;

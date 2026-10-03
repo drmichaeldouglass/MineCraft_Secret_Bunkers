@@ -25,7 +25,7 @@ export const dimension={
   getBlock(p){
     const loc={x:Math.floor(p.x),y:Math.floor(p.y),z:Math.floor(p.z)},entry=blockAt(loc.x,loc.y,loc.z);
     return {location:loc,typeId:entry.typeId,isAir:entry.typeId==="minecraft:air",isLiquid:entry.typeId==="minecraft:water",
-      permutation:{getState(name){return entry.states?.[name];}},
+      permutation:{getState(name){return entry.states?.[name];},getAllStates(){return {...entry.states};}},
       setPermutation(value){blocks.set(xyz(p),value);}};
   },
   fillBlocks(volume,block,options){

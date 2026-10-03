@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.1 (2026-10-03)
+
+- Deployment confirmation and interrupted-build resumption reject players who changed dimensions before construction starts.
+- Debug scanner actions recheck distance from the location where the menu was opened.
+- On reload, an occupied doorway waits to close instead of repainting solid door blocks around its occupant. Applies to security doors, blast doors and shutters.
+- Emergency light state checks use the Script API custom-state accessor supported by the pinned TypeScript definitions, fixing a clean-install build error.
+- Added four regression tests that reproduced the behaviour failures before their fixes. `npm test` compiles and runs the full suite; `python3 tools/validate.py` checks generated assets. In-game testing is still required.
+
 ## 0.2.0 (2026-10-03)
 
 Everything since 0.1.0: the fortified estate, secret tunnels to remote exits, themed rooms under a mountain, a real self-destruct, horizontal tripwires, the armoury and several rounds of bug fixes.

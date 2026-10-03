@@ -167,6 +167,10 @@ export function tickDoors() {
         }
         const height = door.max.y - door.min.y + 1;
         if (job.repaint) {
+            // Saved open is the requested endpoint, not the position of an interrupted slide.
+            // Restore an occupied closed doorway as open, then let the normal closure wait for it to clear.
+            if (job.progress === 0 && job.target === 0 && occupied(d, door))
+                job.progress = travel(door);
             if (usesLeaf(door)) {
                 // A leaf left over from a slide interrupted by a reload or unload.
                 clearLeaves(d, f, door);
@@ -381,7 +385,7 @@ export function tickAlarms() {
             try {
                 const block = d.getBlock(pos);
                 // Re-applying an identical permutation still costs a block update and a relight for every nearby player.
-                if (block?.typeId === NS + "emergency_light" && block.permutation.getState(NS + "active") !== lit)
+                if (block?.typeId === NS + "emergency_light" && block.permutation.getAllStates()[NS + "active"] !== lit)
                     set(d, pos, "emergency_light", { [NS + "active"]: lit });
             }
             catch { /* Unloaded lamps are reconciled when active again. */ }

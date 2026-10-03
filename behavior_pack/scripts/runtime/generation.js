@@ -341,6 +341,8 @@ function grounds(f) {
 export function build(f, player) {
     if (player.getGameMode() !== GameMode.Creative)
         throw Error("Deployment is Creative-only.");
+    if (!player.isValid || player.dimension.id !== f.dimension)
+        throw Error("Return to the facility dimension before starting construction.");
     if (active.has(f.id))
         throw Error("This facility is already being built.");
     if (facilities.size >= 16 && !facilities.has(f.id))

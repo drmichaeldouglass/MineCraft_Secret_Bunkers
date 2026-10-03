@@ -267,6 +267,7 @@ function grounds(f:Facility):Operation[] {
 }
 export function build(f:Facility,player:Player):void {
   if(player.getGameMode()!==GameMode.Creative)throw Error("Deployment is Creative-only.");
+  if(!player.isValid||player.dimension.id!==f.dimension)throw Error("Return to the facility dimension before starting construction.");
   if(active.has(f.id))throw Error("This facility is already being built.");
   if(facilities.size>=16&&!facilities.has(f.id))throw Error("This alpha supports at most 16 registered facilities per world.");
   for(const other of facilities.values())if(other.id!==f.id && other.dimension===f.dimension && intersects(f.bounds,other.bounds,8))throw Error("Another facility overlaps this site. Move farther away.");
