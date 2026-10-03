@@ -1,13 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { blockAt, blocks, dimension, entities, explosions, finishBuild, particles, playerAt, players, properties, reset, sounds, system, terrain } from "./mock-server.mjs";
+import { blockAt, blocks, commands, dimension, entities, explosions, finishBuild, particles, playerAt, players, properties, reset, sounds, system, terrain } from "./mock-server.mjs";
+import { ARMOURY_DOOR, MATERIALS, PIECES, planArmoury, SLOTS, standTag, TRIMS } from "../behavior_pack/scripts/generation/armoury.js";
 import { planBunker } from "../behavior_pack/scripts/generation/planner.js";
 import { facilities, levelGrids, load, mark, save } from "../behavior_pack/scripts/runtime/store.js";
 import { build, estateOriginAt, exitSite, FORECOURT, MAX_CUT, MAX_FILL, originAt } from "../behavior_pack/scripts/runtime/generation.js";
 import { COMPOUND, ESTATE_PAD, planEstate, TOWERS, WALL_HEIGHT } from "../behavior_pack/scripts/generation/estate.js";
 import { armDestruct, abortDestruct, BEAM_DAMAGE, ease, LEAF, requestDoor, restoreDoors, setSecurity, slid, SUBSTEPS, tickAlarms, tickDoors, tickLasers, travel } from "../behavior_pack/scripts/runtime/security.js";
-import { column, MOUNTAIN, rearExit } from "../behavior_pack/scripts/generation/mountain.js";
+import { ARMOURY, column, MOUNTAIN, rearExit } from "../behavior_pack/scripts/generation/mountain.js";
 import { EXITS, REMOTE, SITE } from "../behavior_pack/scripts/generation/tunnel.js";
 import { tickDefence } from "../behavior_pack/scripts/runtime/defence.js";
 import { MISSILE, tickMissiles, tickPlaced } from "../behavior_pack/scripts/runtime/placed.js";
@@ -100,14 +101,14 @@ test("uneven sites are levelled instead of refused, within limits",()=>{
   assert.equal(f.phase,"ready");assert.notEqual(f.exit.kind,"rock_face","A gentle hillside has room for a remote exit");
   escapes(f);
   const o=f.origin,rel=(x,y,z)=>blockAt(o.x+x,o.y+y,o.z+z).typeId;
-  // Structures that stand above the pad: entrance and ladder shaft.
-  const built=(x,z)=>(x>=6&&x<=20&&z>=-4&&z<=17)||(x>=15&&x<=16&&z===16);
+  // Structures that stand above the pad: entrance, armoury and ladder shaft.
+  const built=(x,z)=>(x>=6&&x<=20&&z>=-4&&z<=17)||(x>=ARMOURY.x0&&x<=ARMOURY.x1&&z>=ARMOURY.z0&&z<=ARMOURY.z1)||(x>=15&&x<=16&&z===16);
   const tunnel=(x,z)=>f.exit.passages.some(({lining:b})=>o.x+x>=b.min.x&&o.x+x<=b.max.x&&o.z+z>=b.min.z&&o.z+z<=b.max.z);
   for(let x=-2;x<=28;x++)for(let z=-6;z<=39;z++){
     if(built(x,z))continue;
     assert.notEqual(rel(x,0,z),"minecraft:air",`No pad surface at ${x},${z}`);
     // The old hill is gone: what stands on the pad now is the mountain, solid to its surface.
-    const top=column(f.seed,x,z,rearExit(f)).top;
+    const top=column(f.seed,x,z,rearExit(f),true).top;
     for(let y=1;y<=top;y++)assert.notEqual(rel(x,y,z),"minecraft:air",`Hollow in the mountain at ${x},${y},${z}`);
     for(let y=top+1;y<=top+MAX_CUT;y++)assert.equal(rel(x,y,z),"minecraft:air",`Hill left standing at ${x},${y},${z}`);
     // Beside the rooms and escape tunnel, nothing under the pad may be left hollow.
@@ -306,6 +307,68 @@ test("a blast door reversed mid-slide turns back from where its leaves are",()=>
   for(let x=door.min.x;x<=door.max.x;x++)
     assert.deepEqual(at(x,door.min.y,door.min.z).states,{[ns+"open"]:false,[ns+"slide"]:0});
 });
+const STANDS=()=>entities.filter(e=>e.typeId==="minecraft:armor_stand");
+/** The deal each stand was given: slot to loot table, read back from the commands the build ran. */
+function deals(f){
+  return f.armoury.map((_,i)=>Object.fromEntries(commands.filter(c=>c.includes(`tag=${standTag(f.id,i)}]`)).map(c=>{
+    const m=c.match(/^loot replace entity @e\[type=armor_stand,tag=\S+\] (\S+) 0 loot "([^"]+)"$/);assert.ok(m,`Malformed deal: ${c}`);return [m[1],m[2]];
+  })));
+}
+test("the armoury: a room of armour stands off the lobby, each in an enchanted, trimmed suit with a matching sword",()=>{
+  const {f}=make(3),o=f.origin,rel=(x,y,z)=>blockAt(o.x+x,o.y+y,o.z+z).typeId;
+  // Twelve stands, each on the armoury floor in open air, turned to face the aisle.
+  const stands=STANDS();assert.equal(stands.length,12);assert.equal(f.armoury.length,12);
+  f.armoury.forEach((stand,i)=>{
+    const e=stands.find(e=>e.tags.includes(standTag(f.id,i)));assert.ok(e,`Stand ${i} was not placed`);
+    const x=Math.floor(e.location.x)-o.x,y=Math.floor(e.location.y)-o.y,z=Math.floor(e.location.z)-o.z;
+    assert.ok(x>=21&&x<=27&&z>=3&&z<=17&&y===1,`Stand ${i} is outside the armoury at ${x},${y},${z}`);
+    assert.equal(rel(x,0,z),ns+"diamond_plate_floor");assert.equal(rel(x,1,z),"minecraft:air");assert.equal(rel(x,2,z),"minecraft:air");
+    assert.equal(e.rotation.y,x===27?90:-90,`Stand ${i} faces the wall`);
+  });
+  // The armoury is reached on foot from the lobby, through the doorway in its east wall, and its aisle runs the length of the room.
+  const reach=flood(o.y+1,[13,13],{x0:0,x1:28,z0:-4,z1:20});
+  for(let z=ARMOURY_DOOR.z0;z<=ARMOURY_DOOR.z1;z++)for(let y=1;y<=ARMOURY_DOOR.height;y++)assert.equal(rel(20,y,z),"minecraft:air");
+  for(const [x,z] of [[24,3],[24,17],[26,10]])assert.ok(reach.has(`${o.x+x},${o.z+z}`),`The armoury aisle is not reachable at ${x},${z}`);
+  // Each stand is dealt a full suit and a sword, all in one metal, the armour all in one trim.
+  const dealt=deals(f);
+  dealt.forEach((deal,i)=>{
+    const stand=f.armoury[i],trim=TRIMS[stand.trim];
+    assert.deepEqual(Object.keys(deal).sort(),Object.values(SLOTS).sort(),`Stand ${i} is missing a piece`);
+    for(const piece of [...PIECES,"sword"]){
+      const table=deal[SLOTS[piece]],path=new URL(`../behavior_pack/loot_tables/${table}.json`,import.meta.url);
+      assert.ok(fs.existsSync(path),`No loot table ${table}`);
+      const entry=JSON.parse(fs.readFileSync(path,"utf8")).pools[0].entries[0];
+      const prefix={gold:"golden",diamond:"diamond",netherite:"netherite"}[stand.material];
+      assert.equal(entry.name,`minecraft:${prefix}_${piece}`,`Stand ${i} got the wrong ${piece}`);
+      const fn=name=>entry.functions.find(x=>x.function===name);
+      assert.deepEqual(fn("enchant_with_levels"),{function:"enchant_with_levels",treasure:false,levels:{min:30,max:39}},`${table} is not enchanted`);
+      if(piece==="sword")assert.equal(fn("set_armor_trim"),undefined);
+      else assert.deepEqual(fn("set_armor_trim"),{function:"set_armor_trim",material:trim.material,pattern:trim.pattern},`${table} has the wrong trim`);
+    }
+  });
+  // Four suits of each metal, and no two suits in the same trim.
+  for(const metal of MATERIALS)assert.equal(f.armoury.filter(s=>s.material===metal).length,4,metal);
+  assert.equal(new Set(f.armoury.map(s=>s.trim)).size,12);
+  // Every bunker deals its own armoury, and the same seed deals the same one.
+  const deal=seed=>JSON.stringify(planArmoury(o,seed).map(s=>[s.material,s.trim]));
+  assert.equal(deal(10),deal(10));assert.notEqual(deal(10),deal(11));
+  // A resumed build keeps the stands it has rather than dealing a second set.
+  const before=commands.length;f.phase="failed";f.buildStep=0;build(f,players[0]);finishBuild();
+  assert.equal(STANDS().length,12);assert.equal(commands.length,before,"A resumed build dealt the suits again");
+  // Rock covers the room, which stays open beneath it.
+  for(let x=20;x<=29;x++)for(let z=1;z<=19;z++){
+    const top=column(f.seed,x,z,rearExit(f),true).top;assert.ok(top>=ARMOURY.roof+4,`Thin cover over the armoury at ${x},${z}`);
+    for(let y=ARMOURY.roof+1;y<=top;y++)assert.notEqual(rel(x,y,z),"minecraft:air",`Hole in the mountain over the armoury at ${x},${y},${z}`);
+  }
+  for(let y=1;y<=5;y++)assert.equal(rel(24,y,10),y===1?"minecraft:red_carpet":"minecraft:air","The armoury was filled in by the mountain");
+});
+test("a bunker saved before the armoury keeps a solid mountain where the room would be",()=>{
+  reset();facilities.clear();
+  const f=planBunker({x:0,y:80,z:0},3,10,true,"old");delete f.armoury;f.modules=f.modules.filter(m=>m.role!=="armoury");
+  const p=playerAt({x:13,y:81,z:-10});players.push(p);build(f,p);finishBuild();
+  assert.equal(STANDS().length,0);assert.equal(commands.length,0);
+  for(let y=1;y<=5;y++)assert.notEqual(blockAt(24,80+y,10).typeId,"minecraft:air",`Hollow left in the mountain at 24,${y},10`);
+});
 test("self-destruct fires the charges and brings the whole bunker down",()=>{
   const {f}=make(3);armDestruct(f);assert.equal(f.countdown,90);assert.ok(f.doors.every(d=>d.open));
   assert.equal(abortDestruct(f),true);armDestruct(f);f.countdown=10;assert.equal(abortDestruct(f),false);
@@ -314,7 +377,7 @@ test("self-destruct fires the charges and brings the whole bunker down",()=>{
   const count=id=>[...blocks].filter(([k,b])=>{const [x,,z]=k.split(",").map(Number);return b.typeId===ns+id&&x>=0&&x<=26&&z>=-4&&z<=26;}).length;
   const fittings=["keycard_reader","elevator_panel","security_console","self_destruct_console","server_rack","industrial_light","blast_door","security_door"];
   const before=Object.fromEntries(fittings.map(id=>[id,count(id)]));
-  assert.ok(Object.values(before).every(n=>n>0));
+  assert.ok(Object.values(before).every(n=>n>0));assert.equal(STANDS().length,12);
   // A charge a player dug out before the countdown ended does not go off.
   const defused=f.charges[0];blocks.set(`${defused.x},${defused.y},${defused.z}`,{typeId:"minecraft:stone",states:{}});
   // Floors fall one per second, deepest first, while the lobby survives until last.
@@ -345,6 +408,9 @@ test("self-destruct fires the charges and brings the whole bunker down",()=>{
   // The portal passage is filled with rubble, sealing the ruin, and the defences are gone.
   assert.equal(flood(81,[13,-2],{x0:6,x1:20,z0:-4,z1:17}).has("13,13"),false,"The collapsed portal can still be walked through");
   assert.equal(entities.filter(e=>e.typeId===ns+"laser_turret"&&!e.tags.includes(`sf:${f.id}:tunnel`)||e.typeId===LEAF).length,0);
+  // The armoury is gutted too, and its stands go with their suits.
+  assert.equal(STANDS().length,0,"Armour stands survived the demolition");
+  assert.equal(at(24,86,10)?.typeId,ns+"damaged_panel","The armoury ceiling should be scorched");
   // The secret tunnel and its exit are the way out and come through intact, with no blast in them;
   // the junction turret is left standing but shut down for good.
   escapes(f,[13,27]);

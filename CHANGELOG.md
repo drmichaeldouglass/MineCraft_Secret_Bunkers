@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased: the armoury
+
+- **An armoury off the surface lobby.** A doorway in the lobby's east wall opens into a steel-backed hall with a red runner down its aisle and twelve armour stands, eight along the far wall and two either side of the doorway, each turned to face the aisle.
+- **A suit on every stand.** Each stand wears a full suit of gold, diamond or netherite armour and holds a sword of the same metal: four suits of each metal. Every piece and every sword is enchanted as if from a fully powered enchanting table (levels 30 to 39, no treasure enchantments, so no curses), so each suit has its own mix. All four pieces of a suit share one armour trim, and no two suits share one. The metals and trims are shuffled by the bunker's seed and the enchantments are rolled as the bunker is built, so every bunker's armoury is different.
+- **How the suits are dealt.** The Script API cannot trim armour, but loot tables can. 147 generated loot tables under `loot_tables/secretfacilities/armoury/` (each metal's four pieces in each of twelve trims, and each metal's sword) trim and enchant one piece each, and the build deals them onto the stands with `/loot replace entity`. A resumed build leaves stands it already dressed alone. A piece the game refuses to deal is logged and left off rather than stopping the build.
+- The mountain keeps rock at least four blocks thick over the armoury roof. The portal's demolition charges on the east side move out to the armoury's outer wall. The self-destruct guts the armoury with the lobby and removes its stands and their suits.
+- Bunkers built before the armoury keep their mountain solid where the room would be.
+
 ## Unreleased — horizontal tripwires that burn, and controls set into the walls
 
 - **Tripwires are horizontal.** Each floor's east hall had a single vertical beam from the floor up to a receiver hanging under the ceiling. Both halls now have a grid of three horizontal beams, at ankle, waist and chest height (0.4, 1.4 and 2.4 blocks above the floor), from an emitter set into one wall to a receiver in the other. The west grid still raises LOCKDOWN from B3 down; the east grid raises ALERT.

@@ -33,11 +33,12 @@ If the kit command is unavailable, use `/give @s secretfacilities:facility_deplo
 
 ## Included
 
-- A 27-block-square modular command bunker with 3–8 underground floors, and 56 binary `.mcstructure` templates in all.
+- A 27-block-square modular command bunker with 3–8 underground floors, and 57 binary `.mcstructure` templates in all.
 - A **fortified estate**: a secure two-storey mansion in a walled, fenced and floodlit compound, with a gatehouse, blast-door gate, four watchtowers, a garage, a helipad, gardens and a generator house. Beneath it is a 3–5 floor bunker, reached by the lift in its grand hall. Window and garage shutters close in a lockdown, and nine laser turrets guard the gate, walls, roof, command deck and tunnel.
 - Floors with a purpose — living quarters, command, engineering & mining, hydroponics, research — furnished from 19 room types with working vanilla blocks: bunk rooms and bedrooms with real beds, lounges, mess halls, hydroponic farms with growing crops, live mining faces full of ore, workshops, labs, infirmaries, data centres, strongrooms and supply depots.
 - The whole site buried under a seeded mountain, with an open, overhung portal and approach cut.
 - Automatic cut-and-fill site levelling and solid rock encasement, so no floor surfaces through a hillside.
+- An armoury off the surface lobby: twelve armour stands, each in a full suit of gold, diamond or netherite armour with a matching sword. Every piece is freshly enchanted, each suit wears its own trim, and a new set is dealt for every bunker.
 - A five-block-wide entrance blast door that splits down the middle and slides apart sideways, room security doors, readers, alarm shutters, and emergency lights.
 - Four clearance levels and a Creative-only master card.
 - Multi-floor elevator transfer pads, a continuous emergency ladder, and a secret B1 escape tunnel. It runs under the mountain to a remote, terrain-matched exit: a utility shed, forest cabin, old well, hidden hatch or abandoned mine headframe. A keycard door, a laser grid and a junction turret guard it.

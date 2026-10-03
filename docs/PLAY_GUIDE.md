@@ -56,6 +56,10 @@ Each floor has a cyan elevator pad in the central lobby. Stand on it, interact w
 
 The emergency ladder is on the east side of the lobby; it runs between every floor and the surface.
 
+### Armoury
+
+A doorway in the east wall of the surface lobby leads to the armoury, a steel-backed hall of twelve armour stands: eight along the far wall and two either side of the doorway. Each stand wears a full suit of gold, diamond or netherite armour and holds a sword of the same metal, four suits of each metal. Every piece of armour and every sword is enchanted as if from a fully powered enchanting table, without curses, so each suit has its own mix of enchantments. All four pieces of a suit share one armour trim, and no two suits share a trim. The suits are dealt when the bunker is built, so every bunker's armoury is different. Take what you need: the armour comes off the stands like any other.
+
 ### The secret tunnel
 
 B1 also has a secret escape tunnel. Enter the room immediately south of the central lobby and continue through its rear wall. The tunnel passes a keycard door (green card or better) and a laser grid, reaches a small junction chamber under the back of the mountain, then runs south, east or west to a ladder shaft. The ladder climbs to a remote exit 37 to 55 blocks from the core, clear of the mountain, so the way out cannot be seen from the bunker.
@@ -133,13 +137,13 @@ The missile turret will not fire at anything closer than 10 blocks, so a mob tha
 
 ## Self-destruct
 
-The bunker is built with demolition charges: real TNT blocks sealed in the rock one block outside its walls, twelve around each floor and four against the surface lobby. The B3 self-destruct console needs a black or Creative master card, shows how many charges are still in place, and has separate arming and authorization confirmations. On authorization:
+The bunker is built with demolition charges: real TNT blocks sealed in the rock one block outside its walls, twelve around each floor and four against the surface lobby and armoury. The B3 self-destruct console needs a black or Creative master card, shows how many charges are still in place, and has separate arming and authorization confirmations. On authorization:
 
 1. The 90-second countdown starts and all doors/shutters open for evacuation.
 2. Defences continue according to their configured modes until ten seconds remain.
 3. Defences stop firing for the final ten seconds. The abort window closes.
 4. At zero the floors go one per second, deepest first. On each floor the charges explode and blast breaches through the walls beside them; every room and hall is gutted — shell scorched to damaged panels, doors, lights, consoles and machinery blown out, cavities torn through the walls, part of the ceiling brought down in gravel, rubble and fires left behind — and every room takes a real explosion.
-5. Last, the surface lobby caves in, the portal passage fills with rubble and the turrets are destroyed.
+5. Last, the surface lobby caves in, the portal passage fills with rubble and the turrets are destroyed. The armoury is gutted with it, and any armour still on its stands is lost.
 6. The facility becomes permanently DESTROYED.
 
 The explosions are real: they damage and knock back anyone still inside, so evacuate. They do not break blocks themselves (the demolition is scripted), so the ruin does not shower the area with item drops. Containers and furniture caught in the blasts are lost. The B1 secret tunnel and its exit are left standing as the way out; the junction turret shuts down, but no demolition blast goes off in the tunnel. A charge dug out before zero is simply missing from the blast. Countdown and demolition pause while no player is near the facility and are saved approximately every two seconds.

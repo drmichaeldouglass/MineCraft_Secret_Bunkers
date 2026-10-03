@@ -1013,6 +1013,41 @@ def estate_buildings():
     t.fill((0,1,0),(2,6,2),"light_reinforced_concrete");t.fill((0,4,0),(2,4,2),"concrete_warning_stripe");out.append(t)
     return out
 
+# The armoury beside the surface lobby. Must match ARMOURY in src/generation/mountain.ts and the
+# lists in src/generation/armoury.ts: the template spans x 21-28, z 2-18 from the facility origin,
+# and its west side is the lobby's own east wall, where the doorway is cut at z 9-11.
+ARMOURY_SIZE=(8,7,17)
+ARMOUR_METALS={"gold":"golden","diamond":"diamond","netherite":"netherite"}
+ARMOUR_PIECES=["helmet","chestplate","leggings","boots"]
+ARMOUR_TRIMS=[("sentry","lapis"),("dune","redstone"),("coast","emerald"),("wild","copper"),("ward","quartz"),("eye","amethyst"),
+    ("vex","iron"),("tide","lapis"),("snout","redstone"),("rib","amethyst"),("spire","emerald"),("silence","quartz")]
+ARMOUR_ENCHANT={"function":"enchant_with_levels","treasure":False,"levels":{"min":30,"max":39}}
+
+def armoury():
+    t=Template("armoury",ARMOURY_SIZE);sx,sy,sz=ARMOURY_SIZE
+    t.fill((0,0,0),(sx-1,sy-1,sz-1),"reinforced_concrete")
+    t.fill((0,1,1),(sx-2,sy-2,sz-2),"minecraft:air")
+    t.fill((0,0,1),(sx-2,0,sz-2),"diamond_plate_floor")
+    t.fill((0,sy-1,1),(sx-2,sy-1,sz-2),"bunker_ceiling_panel")
+    # Steel behind the east row, and a runner down the aisle with a spur to the doorway.
+    t.fill((sx-1,1,1),(sx-1,sy-2,sz-2),"steel_wall")
+    t.fill((2,1,1),(4,1,sz-2),"minecraft:red_carpet");t.fill((0,1,7),(1,1,9),"minecraft:red_carpet")
+    for z in [2,6,10,14]:t.set(3,sy-1,z,"industrial_light")
+    return t
+
+def loot_tables():
+    """One table per piece of every suit the armoury can deal: each metal's four pieces in each trim,
+    and each metal's sword. Every piece is enchanted afresh whenever it is dealt."""
+    folder=BP/"loot_tables/secretfacilities/armoury"
+    for old in folder.glob("*.json"):old.unlink()
+    item=lambda name,functions:{"pools":[{"rolls":1,"entries":[{"type":"item","name":name,"weight":1,"functions":functions}]}]}
+    for metal,prefix in ARMOUR_METALS.items():
+        write(folder/f"{metal}_sword.json",item(f"minecraft:{prefix}_sword",[ARMOUR_ENCHANT]))
+        for pattern,material in ARMOUR_TRIMS:
+            for piece in ARMOUR_PIECES:
+                write(folder/f"{metal}_{pattern}_{piece}.json",item(f"minecraft:{prefix}_{piece}",
+                    [{"function":"set_armor_trim","material":material,"pattern":pattern},ARMOUR_ENCHANT]))
+
 def structures():
     templates=[]
     for role in ROOM_ROLES:
@@ -1045,7 +1080,10 @@ def structures():
     t.fill((9,1,18),(9,7,18),"steel_plate");t.set(9,2,18,"elevator_panel")
     for x in [2,12]:t.set(x,1,1,"laser_turret_mount")
     for z in [8,12,16,20]:t.fill((6,7,z),(8,7,z),"industrial_light")
+    # The doorway through the lobby's east wall into the armoury.
+    t.fill((14,1,13),(14,3,15),"minecraft:air")
     templates.append(t)
+    templates.append(armoury())
     for kind in EXIT_KINDS:templates.append(exit_template(kind))
     templates.append(mansion());templates.extend(estate_buildings())
     catalog=[t.export() for t in templates]
@@ -1091,7 +1129,7 @@ def asset_inventory():
         "## Audio", "", "Twelve original mono WAV assets are mapped through `resource_pack/sounds/sound_definitions.json`.", "",
         "`access_granted`, `access_denied`, `alarm_alert`, `alarm_lockdown`, `blast_door_movement`, `blast_door_warning`, `elevator_move`, `elevator_arrive`, `laser_turret_fire`, `warning_beep`, `destruction`, `missile_launch`.", "",
         "`warning_beep` is available for future countdown polish; the other sound events are wired to the shared systems. No third-party audio is included.", "",
-        "## Structures", "", f"{2*len(ROOM_ROLES)+5+len(EXIT_KINDS)+ESTATE_TEMPLATES} authored/generated binary templates: {len(ROOM_ROLES)} furnished room roles (bedrooms, bunk rooms, lounges, mess halls, hydroponic farms, mining faces, workshops, labs and more) in north/south connector orientations, four hall/core modules, the surface entrance, and {len(EXIT_KINDS)} secret tunnel exits under `secretfacilities:tunnel/` (utility shed, forest cabin, old well, hidden hatch and abandoned mine headframe). The fortified estate adds {ESTATE_TEMPLATES} under `secretfacilities:estate/`: a two-storey mansion over the estate's bunker (grand hall with the lift and emergency ladder, dining room, kitchen, library, a study that is the defence control room, four bedrooms and a gallery), a gatehouse, a three-bay garage, a helipad, a fountain, a generator house, a corner watchtower and a gate pillar. Rooms use vanilla furniture with block entity data for bed colours; exits use structure voids so the levelled ground around them stays in place. See `module_catalog.json`. Programmed overlays add doors, readers, controls, grids, shafts, the escape tunnel and its ladder shaft, turrets, the covering mountain and TNT demolition charges.", "",
+        "## Structures", "", f"{2*len(ROOM_ROLES)+6+len(EXIT_KINDS)+ESTATE_TEMPLATES} authored/generated binary templates: {len(ROOM_ROLES)} furnished room roles (bedrooms, bunk rooms, lounges, mess halls, hydroponic farms, mining faces, workshops, labs and more) in north/south connector orientations, four hall/core modules, the surface entrance and its armoury, and {len(EXIT_KINDS)} secret tunnel exits under `secretfacilities:tunnel/` (utility shed, forest cabin, old well, hidden hatch and abandoned mine headframe). The fortified estate adds {ESTATE_TEMPLATES} under `secretfacilities:estate/`: a two-storey mansion over the estate's bunker (grand hall with the lift and emergency ladder, dining room, kitchen, library, a study that is the defence control room, four bedrooms and a gallery), a gatehouse, a three-bay garage, a helipad, a fountain, a generator house, a corner watchtower and a gate pillar. Rooms use vanilla furniture with block entity data for bed colours; exits use structure voids so the levelled ground around them stays in place. See `module_catalog.json`. Programmed overlays add doors, readers, controls, grids, shafts, the escape tunnel and its ladder shaft, turrets, the covering mountain and TNT demolition charges.", "",
         "## Other", "", "Both packs include an original 128×128 bunker icon and en_US names. Advanced control models, damaged turret models, directional animated doors, facility-specific palettes and cinematic particles are deferred."])
     (ROOT/"docs").mkdir(exist_ok=True)
     (ROOT/"docs/assets.md").write_text("\n".join(lines)+"\n")
@@ -1103,7 +1141,7 @@ def main():
         "dependencies":[{"uuid":RP_UUID,"version":VERSION},{"module_name":"@minecraft/server","version":"2.0.0"},{"module_name":"@minecraft/server-ui","version":"2.0.0"}]})
     write(RP/"manifest.json",{"format_version":2,"header":{"name":"Secret Facilities RP","description":"Original industrial pixel art, turret model, effects and sounds","uuid":RP_UUID,"version":VERSION,"min_engine_version":[1,21,90]},
         "modules":[{"type":"resources","uuid":"071c689c-24f6-45d4-8aaa-4843be1664cf","version":VERSION}]})
-    textures();turret();missile_turret();door_leaf();sounds();structures();icon();asset_inventory()
-    print(f"Built {len(BLOCKS)} blocks, {len(ITEMS)} items, {len(SPAWNABLE)} turret spawn eggs, {2*len(ROOM_ROLES)+5+len(EXIT_KINDS)+ESTATE_TEMPLATES} structure templates, turrets, missile, particles and 12 sounds.")
+    textures();turret();missile_turret();door_leaf();sounds();structures();loot_tables();icon();asset_inventory()
+    print(f"Built {len(BLOCKS)} blocks, {len(ITEMS)} items, {len(SPAWNABLE)} turret spawn eggs, {2*len(ROOM_ROLES)+6+len(EXIT_KINDS)+ESTATE_TEMPLATES} structure templates, turrets, missile, particles and 12 sounds.")
 
 if __name__=="__main__":main()

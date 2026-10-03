@@ -10,6 +10,8 @@ export const MOUNTAIN: Box = { x0: -12, x1: 38, z0: -12, z1: 42 };
 /** Surface structures the mountain is laid over rather than through. */
 export const ENTRANCE = { x0: 6, x1: 20, z0: -4, z1: 17, roof: 8 };
 export const HUT = { x0: 11, x1: 15, z0: 32, z1: 36, roof: 4 };
+/** The armoury beside the surface lobby, its east wall on the edge of the levelled pad. */
+export const ARMOURY = { x0: 21, x1: 28, z0: 2, z1: 18, roof: 6 };
 /** Lowest a skirt fill reaches below the pad, so slopes never overhang a dip. */
 export const SKIRT_DEPTH = 12;
 export const PEAK = 24;
@@ -45,7 +47,9 @@ export interface Column {
 /** Whether a facility's escape tunnel comes up behind its mountain: every facility built before
  *  remote exits, and any whose survey found no remote site. Only those keep the rear apron and hut. */
 export const rearExit = (f: { exit?: { kind: string } }): boolean => !f.exit || f.exit.kind === "rock_face";
-export function column(seed: number, x: number, z: number, rear = true): Column {
+/** Only bunkers planned with an armoury have the room to keep clear; an older bunker resuming its
+ *  build must not have a hollow left in its mountain where it has no room. */
+export function column(seed: number, x: number, z: number, rear = true, armoury = false): Column {
   const none = (open: boolean): Column => ({ top: 0, base: 1, open });
   if (!within(MOUNTAIN, x, z)) return none(false);
   if (z <= -5 && Math.abs(x-13) <= approach(z)) return none(true);
@@ -55,11 +59,13 @@ export function column(seed: number, x: number, z: number, rear = true): Column 
   const entrance = within(ENTRANCE, x, z), hut = rear && within(HUT, x, z);
   if (entrance || (x >= ENTRANCE.x0-1 && x <= ENTRANCE.x1+1 && z >= -4 && z <= ENTRANCE.z1+1)) h = Math.max(h, COVER);
   if (hut) h = Math.max(h, HUT.roof+2);
+  const store = armoury && within(ARMOURY, x, z);
+  if (armoury && x >= ARMOURY.x0-1 && x <= ARMOURY.x1+1 && z >= ARMOURY.z0-1 && z <= ARMOURY.z1+1) h = Math.max(h, ARMOURY.roof+4);
   // Slope down into the open channels instead of standing over them as sheer walls.
   if (z <= -5) h = Math.min(h, 1+(Math.abs(x-13)-approach(z))*1.4);
   if (rear && z >= 37) h = Math.min(h, 1+(Math.abs(x-13)-apron(z))*1.2);
   const top = h < 1 ? 0 : Math.round(h);
   if (!top) return none(false);
   // The earthworks already made the pad solid; only skirts beyond it are filled from below.
-  return { top, base: entrance ? ENTRANCE.roof+1 : hut ? HUT.roof+1 : within(PAD, x, z) ? 1 : -SKIRT_DEPTH, open: false };
+  return { top, base: entrance ? ENTRANCE.roof+1 : store ? ARMOURY.roof+1 : hut ? HUT.roof+1 : within(PAD, x, z) ? 1 : -SKIRT_DEPTH, open: false };
 }

@@ -4,6 +4,7 @@ import { FLOOR_STEP, MODULE } from "../generation/planner.js";
 import { column, MOUNTAIN, PAD, PEAK, rearExit } from "../generation/mountain.js";
 import { chooseExit, EXIT_FILL, exitCandidates, EXITS, routeColumns, SITE, siteColumns } from "../generation/tunnel.js";
 import { COMPOUND, DRIVE, ESTATE_PAD, ESTATE_SEARCH, WALL_HEIGHT } from "../generation/estate.js";
+import { itemFor, lootTable, PIECES, SLOTS, standTag } from "../generation/armoury.js";
 import { facilities, levelGrids, mark, save } from "./store.js";
 import { dim, fill, loaded, report, set, tell } from "./world.js";
 const active = new Set();
@@ -206,7 +207,7 @@ function mountain(f) {
         return [];
     const d = dim(f), o = f.origin, [top, under] = padMaterial(f.ground ?? "minecraft:grass_block"), ops = [];
     const core = under === "minecraft:dirt" ? "minecraft:stone" : under, edge = { ignoreChunkBoundErrors: true };
-    const only = { ...edge, blockFilter: { includeTypes: COVERABLE } }, rear = rearExit(f), passages = rear ? [] : f.exit.passages;
+    const only = { ...edge, blockFilter: { includeTypes: COVERABLE } }, rear = rearExit(f), passages = rear ? [] : f.exit.passages, store = f.armoury !== undefined;
     const fillColumn = (x, z, a, b, block) => {
         if (b >= a)
             d.fillBlocks(new BlockVolume({ x: o.x + x, y: o.y + a, z: o.z + z }, { x: o.x + x, y: o.y + b, z: o.z + z }), block, only);
@@ -222,7 +223,7 @@ function mountain(f) {
     for (let z = MOUNTAIN.z0; z <= MOUNTAIN.z1; z++)
         ops.push(() => {
             for (let x = MOUNTAIN.x0; x <= MOUNTAIN.x1; x++) {
-                const c = column(f.seed, x, z, rear);
+                const c = column(f.seed, x, z, rear, store);
                 if (c.open) {
                     // Keep the approach and the hut's apron open at pad level, whatever the terrain beyond does.
                     d.fillBlocks(new BlockVolume({ x: o.x + x, y: o.y + 1, z: o.z + z }, { x: o.x + x, y: o.y + CLEAR_HEIGHT, z: o.z + z }), "minecraft:air", edge);
@@ -234,7 +235,7 @@ function mountain(f) {
                 if (!c.top)
                     continue;
                 // Steep faces and the summit are bare rock; gentler slopes carry the local soil.
-                const slope = Math.max(...[[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dz]) => Math.abs(c.top - column(f.seed, x + dx, z + dz, rear).top)));
+                const slope = Math.max(...[[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dz]) => Math.abs(c.top - column(f.seed, x + dx, z + dz, rear, store).top)));
                 const rock = (x * 7 + z * 13 + f.seed) % 5 === 0 ? "minecraft:andesite" : core;
                 const surface = c.top >= PEAK - 2 ? "minecraft:snow" : slope >= 3 ? rock : top;
                 lay(x, z, c.base, c.top - 4, core);
@@ -243,6 +244,30 @@ function mountain(f) {
             }
         });
     return ops;
+}
+export const STAND = "minecraft:armor_stand";
+/** The armoury's stands, one per operation. Each suit is dealt piece by piece from the loot table for
+ *  its metal, trim and slot: the tables trim the armour, and enchant every piece and the sword with
+ *  a fresh roll. A stand already standing is from an interrupted build and keeps the suit it has. */
+function armoury(f) {
+    const d = dim(f);
+    return (f.armoury ?? []).map((stand, i) => () => {
+        const tag = standTag(f.id, i);
+        if (d.getEntities({ type: STAND, tags: [tag] }).length)
+            return;
+        const e = d.spawnEntity(STAND, stand.pos);
+        e.setRotation({ x: 0, y: stand.yaw });
+        e.addTag(tag);
+        for (const piece of [...PIECES, "sword"]) {
+            // A refused deal leaves that slot bare rather than abandoning the whole build.
+            try {
+                d.runCommand(`loot replace entity @e[type=armor_stand,tag=${tag}] ${SLOTS[piece]} 0 loot "${lootTable(stand, piece)}"`);
+            }
+            catch (error) {
+                console.warn(`[Secret Facilities] Could not deal ${itemFor(stand.material, piece)} to armour stand ${i}: ${error}`);
+            }
+        }
+    });
 }
 /** Vanilla TNT sealed in the rock just outside the walls, and floodlights marking the portal. */
 function charges(f) {
@@ -346,7 +371,7 @@ export function build(f, player) {
             throw Error(PAUSED);
         world.structureManager.place(NS + (m.template.includes("/") ? m.template : "bunker/" + m.template), d, m.pos, { includeEntities: false });
     }));
-    ops.push(...installations(f), ...mountain(f), ...charges(f));
+    ops.push(...installations(f), ...armoury(f), ...mountain(f), ...charges(f));
     const task = system.runInterval(() => {
         try {
             if (f.buildStep >= ops.length) {

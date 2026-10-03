@@ -1,7 +1,8 @@
 import { add, type Facility, type Vec } from "../core/types.js";
 import { random } from "../core/rules.js";
-import { MOUNTAIN, PEAK } from "./mountain.js";
+import { ARMOURY, MOUNTAIN, PEAK } from "./mountain.js";
 import { DEFAULT_SITE, EXITS, planTunnel, SITE, type ExitSite } from "./tunnel.js";
+import { planArmoury } from "./armoury.js";
 export const FLOOR_NAMES = ["Administration & Security", "Living Quarters", "Command", "Engineering & Mining", "High Security", "Hydroponics & Supply", "Research", "Deep Excavation"];
 /** What each floor is for. Every floor has six room slots: the fixed rooms always appear
  *  (the first in the north-west corner), and the rest are drawn from the pool without
@@ -54,9 +55,13 @@ export function planBunker(origin: Vec, levels: number, seed: number, defences: 
   // passage's side wall facing in.
   f.doors.push({id:"main",min:p(11,1,0),max:p(15,4,0),clearance:1,open:false,kind:"blast",readers:[p(18,2,0),p(19,2,2)]});
   f.lights.push(p(9,4,0),p(17,4,0));
+  // The armoury opens off the lobby's east side; its suits are dealt when the bunker is built.
+  f.modules.push({template:"armoury",pos:p(ARMOURY.x0,0,ARMOURY.z0),floor:0,role:"armoury",
+    size:{x:ARMOURY.x1-ARMOURY.x0+1,y:ARMOURY.roof+1,z:ARMOURY.z1-ARMOURY.z0+1}});
+  f.armoury=planArmoury(origin,seed);
   underground(f,levels,rng);
-  // Charges packed against the surface lobby's side walls bring the portal down.
-  for(const z of [4,12])f.charges!.push(p(5,3,z),p(21,3,z));
+  // Charges packed against the surface lobby's west wall and the armoury's east wall bring the portal down.
+  for(const z of [4,12])f.charges!.push(p(5,3,z),p(ARMOURY.x1+1,3,z));
   if(defences) {
     f.turrets.push({id:"entrance_left",pos:p(8.5,2,-2.5),zone:"entrance",enabled:true,damaged:false},
       {id:"entrance_right",pos:p(18.5,2,-2.5),zone:"entrance",enabled:true,damaged:false},
