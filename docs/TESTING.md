@@ -81,3 +81,9 @@ Record game version, content-log messages, seed, world coordinates and action se
 - Open deployment confirmation, teleport to another dimension at the same coordinates, then confirm. Construction must be rejected. Return to the Overworld and confirm a new deployment normally.
 - Open the debug scanner, move more than eight blocks from its opening location, then select a change. It must be rejected. Verify a selection made nearby still works.
 - Close a security door, blast door or shutter with an entity obstructing the doorway, save and reload, and confirm it stays passable until the entity moves away. Confirm it then closes and an unoccupied closed door remains closed on reload.
+
+## 0.2.2 manual regression checks
+
+- With the default simulation distance (4 chunks), deploy a fortified estate. The action bar may show "Loading the site…" briefly; the confirmation must then appear. While it is open, `/tickingarea list` shows two areas named after the facility.
+- Cancel the confirmation and confirm `/tickingarea list` no longer shows them. Deploy again, build, and confirm they are removed once the estate is ready.
+- Interrupt an estate build (leave the world), reload, and resume with the deployment device. Construction must continue without pausing.

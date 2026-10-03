@@ -2,9 +2,9 @@
 
 A Minecraft **Bedrock Edition** add-on built from `Secret_Facilities_Plan.md`.
 
-**Release: 0.2.1 alpha — command bunker and fortified estate.** This is an importable implementation of the first two facilities, not the complete eleven-facility Version 1.0. Automated checks pass; Minecraft import, rendering, sound, controller/mobile interaction, and multiplayer behavior have **not** been tested in a running game.
+**Release: 0.2.2 alpha — command bunker and fortified estate.** This is an importable implementation of the first two facilities, not the complete eleven-facility Version 1.0. Automated checks pass; Minecraft import, rendering, sound, controller/mobile interaction, and multiplayer behavior have **not** been tested in a running game.
 
-[Download the add-on](dist/Secret_Facilities_0.2.1.mcaddon) · [Installation and controls](docs/PLAY_GUIDE.md) · [Test checklist](docs/TESTING.md) · [Implementation status](docs/STATUS.md)
+[Download the add-on](dist/Secret_Facilities_0.2.2.mcaddon) · [Installation and controls](docs/PLAY_GUIDE.md) · [Test checklist](docs/TESTING.md) · [Implementation status](docs/STATUS.md)
 
 ![Generated bunker floor plans](docs/bunker-preview.png)
 
@@ -16,7 +16,7 @@ The previews are rendered from the actual assembled block data and template voxe
 
 ## Install and start
 
-1. Open `dist/Secret_Facilities_0.2.1.mcaddon` with Minecraft Bedrock **1.21.90 or later**. Import both packs.
+1. Open `dist/Secret_Facilities_0.2.2.mcaddon` with Minecraft Bedrock **1.21.90 or later**. Import both packs.
 2. Create a Creative test world with cheats enabled. Activate **Secret Facilities BP** and **Secret Facilities RP**. No experimental toggles are intended to be required.
 3. Find **Facility Deployment Device** in the Creative inventory, or run:
 

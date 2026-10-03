@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.2 (2026-10-03)
+
+- **The fortified estate can be deployed again.** Its survey reads ground up to about 65 blocks from where you stand, and its escape tunnel search reaches further still. With the default simulation distance those chunks were never loaded, so deployment always stopped with "The site is not fully loaded yet" however long you waited. Deployment now holds the whole site loaded with two temporary ticking areas (the levelled pad, and the exit sites with their tunnel routes), waits up to 15 seconds for them to load, then surveys. They stay in place through construction, so a long build no longer pauses when distant chunks unload, and are removed when the build finishes, fails or is cancelled. Resuming an interrupted build holds the site the same way. The command bunker uses the same mechanism.
+- If the world already has its maximum of 10 ticking areas, deployment falls back to simulation distance as before. The "not loaded" message now says so and points to `/tickingarea list`.
+- Added a regression test that the ticking areas stay within the game's 100-chunk limit, cover every column the survey reads, and are removed when construction ends.
+
 ## 0.2.1 (2026-10-03)
 
 - Deployment confirmation and interrupted-build resumption reject players who changed dimensions before construction starts.

@@ -2,12 +2,12 @@
   "format_version": 2,
   "header": {
     "name": "Secret Facilities BP",
-    "description": "Procedural command bunker and shared security systems \u00b7 0.2.1 alpha",
+    "description": "Procedural command bunker and shared security systems \u00b7 0.2.2 alpha",
     "uuid": "9475140d-6c47-4789-994e-ebcad89c09c9",
     "version": [
       0,
       2,
-      1
+      2
     ],
     "min_engine_version": [
       1,
@@ -22,7 +22,7 @@
       "version": [
         0,
         2,
-        1
+        2
       ]
     },
     {
@@ -33,7 +33,7 @@
       "version": [
         0,
         2,
-        1
+        2
       ]
     }
   ],
@@ -43,7 +43,7 @@
       "version": [
         0,
         2,
-        1
+        2
       ]
     },
     {

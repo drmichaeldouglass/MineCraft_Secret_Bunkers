@@ -2,11 +2,11 @@ import { BlockVolume, GameMode, system, world } from "@minecraft/server";
 import { add, intersects, NS } from "../core/types.js";
 import { FLOOR_STEP, MODULE } from "../generation/planner.js";
 import { column, MOUNTAIN, PAD, PEAK, rearExit } from "../generation/mountain.js";
-import { chooseExit, EXIT_FILL, exitCandidates, EXITS, routeColumns, SITE, siteColumns } from "../generation/tunnel.js";
+import { chooseExit, EXIT_FILL, exitCandidates, EXITS, JUNCTION, routeColumns, SITE, siteColumns } from "../generation/tunnel.js";
 import { COMPOUND, DRIVE, ESTATE_PAD, ESTATE_SEARCH, WALL_HEIGHT } from "../generation/estate.js";
 import { itemFor, lootTable, PIECES, SLOTS, standTag } from "../generation/armoury.js";
 import { facilities, levelGrids, mark, save } from "./store.js";
-import { dim, fill, loaded, report, set, tell } from "./world.js";
+import { delay, dim, fill, loaded, report, set, tell } from "./world.js";
 const active = new Set();
 const PAUSED = "Build paused because its chunks unloaded. Return here and use Resume in the deployment device.";
 /** The ground a facility levels: the bunker's pad, or the estate's compound and its margin. */
@@ -338,6 +338,62 @@ function grounds(f) {
         });
     return ops;
 }
+/** The ground a deployment surveys and builds on, relative to its origin: the levelled pad, then
+ *  every remote exit site and the tunnel routes to them. Each is held as its own ticking area,
+ *  since one box round both would pass the game's 100-chunk limit for an estate. */
+function siteAreas(type) {
+    const exits = exitCandidates(type === "estate" ? ESTATE_SEARCH : undefined), xs = exits.map(c => c.x), zs = exits.map(c => c.z);
+    return [type === "estate" ? ESTATE_PAD : PAD, { x0: Math.min(JUNCTION.x, ...xs) - SITE, x1: Math.max(JUNCTION.x, ...xs) + SITE,
+            z0: Math.min(JUNCTION.z, ...zs) - SITE, z1: Math.max(JUNCTION.z, ...zs) + SITE }];
+}
+const LOAD_TICKS = 300;
+/** Keep a deployment's whole site loaded with ticking areas, then wait until it is. Without them
+ *  the far side of an estate lies beyond the default simulation distance and never loads, so the
+ *  survey could never finish. Returns whether everything loaded in time. */
+export async function holdSite(d, id, type, origin, player) {
+    const areas = siteAreas(type).map(b => ({ x0: origin.x + b.x0, x1: origin.x + b.x1, z0: origin.z + b.z0, z1: origin.z + b.z1 }));
+    areas.forEach((b, i) => {
+        try {
+            d.runCommand(`tickingarea add ${b.x0} 0 ${b.z0} ${b.x1} 0 ${b.z1} ${id}_${i} true`);
+        }
+        catch { /* Already held, or the world's ticking areas are used up: simulation distance must do. */ }
+    });
+    // One block in every chunk the areas touch.
+    const probes = [];
+    for (const b of areas)
+        for (let x = b.x0; x <= b.x1 + 15; x += 16)
+            for (let z = b.z0; z <= b.z1 + 15; z += 16)
+                probes.push({ x: Math.min(x, b.x1), y: 0, z: Math.min(z, b.z1) });
+    for (let waited = 0;; waited += 10) {
+        if (probes.every(p => loaded(d, p)))
+            return true;
+        if (waited >= LOAD_TICKS)
+            return false;
+        if (waited === 0 && player?.isValid)
+            player.onScreenDisplay.setActionBar("Loading the site…");
+        await delay(10);
+    }
+}
+/** Let the site's chunks unload again once a deployment is built, abandoned or cancelled. */
+export function releaseSite(d, id) {
+    for (let i = 0; i < 2; i++)
+        try {
+            d.runCommand(`tickingarea remove ${id}_${i}`);
+        }
+        catch { /* Never added. */ }
+}
+/** Start or resume construction on a site already held by holdSite, releasing it if the build
+ *  cannot start. A build already under way keeps its site. */
+export function startBuild(f, player) {
+    try {
+        build(f, player);
+    }
+    catch (error) {
+        if (!active.has(f.id))
+            releaseSite(dim(f), f.id);
+        throw error;
+    }
+}
 export function build(f, player) {
     if (player.getGameMode() !== GameMode.Creative)
         throw Error("Deployment is Creative-only.");
@@ -382,6 +438,7 @@ export function build(f, player) {
                 save(f);
                 active.delete(f.id);
                 system.clearRun(task);
+                releaseSite(d, f.id);
                 // Messaging a departed player throws; a finished build must not fall into the failure path.
                 if (player.isValid)
                     tell(player, f.type === "estate" ? `§aEstate ready: ${f.id}. The gate faces north (−Z); use its reader with a keycard, then the reader at the mansion's front door.`
@@ -402,6 +459,7 @@ export function build(f, player) {
             save(f);
             active.delete(f.id);
             system.clearRun(task);
+            releaseSite(d, f.id);
             report(error, player);
         }
     }, 2);
@@ -468,13 +526,19 @@ function survey(d, origin, columns, what = "bunker") {
             liquid = Math.max(liquid, column.liquid);
     }
     if (unknown > 2)
-        throw Error("The site is not fully loaded yet. Stand in the middle of it, wait a moment, then try again.");
+        throw Error("Part of the site has not loaded. Wait a moment and try again; if it keeps happening, raise simulation distance or remove unused ticking areas (/tickingarea list).");
     if (high - low > MAX_CUT + MAX_FILL)
         throw Error(`This site rises and falls ${high - low} blocks across the footprint. The ${what} can level up to ${MAX_CUT + MAX_FILL}; try gentler ground.`);
     const level = Math.min(Math.max(origin.y, high - MAX_CUT), low + MAX_FILL);
     if (liquid > level)
         throw Error("Water or lava on this site sits above ground level and would flood the entrance. Move away from it.");
     return { level, cut: Math.max(0, high - level), fill: Math.max(0, level - low) };
+}
+/** Where the origin of a facility deployed from here falls across the ground, before the survey
+ *  settles its level: a bunker's entrance ten blocks ahead, an estate's forecourt underfoot. */
+export function siteAnchor(player, type) {
+    const x = Math.floor(player.location.x), z = Math.floor(player.location.z);
+    return type === "estate" ? { x: x - FORECOURT.x, z: z - FORECOURT.z } : { x: x - 13, z: z + 10 };
 }
 export function originAt(player) {
     if (player.dimension.id !== "minecraft:overworld")
