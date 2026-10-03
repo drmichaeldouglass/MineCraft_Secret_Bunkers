@@ -6,6 +6,9 @@ Run the asset builder before tests. Tests compile real TypeScript against the pi
 
 The suite covers:
 
+- Deployment confirmation and resume reject a change of dimension; debug actions reject movement away from the scanner's opening location.
+- Reloading a door whose closure was blocked by an occupant leaves the doorway passable until the occupant clears it, for security doors, blast doors and shutters.
+
 - Clearance hierarchy and Creative-only master cards.
 - Lockdown and evacuation access rules.
 - Friendly/neutral exclusion and hostile target eligibility.
@@ -71,3 +74,10 @@ Enable the content log and perform these checks in a disposable Creative world w
 - [ ] Profile several nearby bunkers, idle facilities and repeated unload/reload cycles; check particle/audio budgets.
 
 Record game version, content-log messages, seed, world coordinates and action sequence for any failure. Automated checks alone cannot certify this release as production-ready.
+
+
+## 0.2.1 manual regression checks
+
+- Open deployment confirmation, teleport to another dimension at the same coordinates, then confirm. Construction must be rejected. Return to the Overworld and confirm a new deployment normally.
+- Open the debug scanner, move more than eight blocks from its opening location, then select a change. It must be rejected. Verify a selection made nearby still works.
+- Close a security door, blast door or shutter with an entity obstructing the doorway, save and reload, and confirm it stays passable until the entity moves away. Confirm it then closes and an unoccupied closed door remains closed on reload.

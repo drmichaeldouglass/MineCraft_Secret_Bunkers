@@ -2,7 +2,7 @@
 
 ## Release boundary
 
-The source plan explicitly prioritizes a smaller reliable bunker and staged shared systems before all eleven facility archetypes. Version 0.2.0 implements the command bunker and the fortified estate with simplified art and animation. It is not a claim that every acceptance criterion in the 59-section specification is complete.
+The source plan explicitly prioritizes a smaller reliable bunker and staged shared systems before all eleven facility archetypes. Version 0.2.1 implements the command bunker and the fortified estate with simplified art and animation. It is not a claim that every acceptance criterion in the 59-section specification is complete.
 
 | Area | Current implementation | Remaining work |
 |---|---|---|
@@ -38,3 +38,4 @@ Rooms are furnished with working vanilla beds, containers, workstations, crops a
 4. Verify the Fortified Estate (Stage 15) in game, then add missile turrets to large estates.
 5. Add natural generation after templates and site selection are stable.
 6. Expand through the other facility stages in the supplied plan.
+
