@@ -1,6 +1,6 @@
 # Asset inventory
 
-Original generated assets shipped in 0.1.0. All visual/audio entries still require in-game acceptance.
+Original generated assets shipped in 0.2.0. All visual/audio entries still require in-game acceptance.
 
 | Identifier | Type | Implementation / use | Texture | Model | Animation | Sound |
 |---|---|---|---|---|---|---|

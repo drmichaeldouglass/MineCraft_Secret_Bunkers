@@ -2,7 +2,7 @@
 
 ## Release boundary
 
-The source plan explicitly prioritizes a smaller reliable bunker and staged shared systems before all eleven facility archetypes. Version 0.1.0 implements the command-bunker foundation with simplified art and animation. It is not a claim that every acceptance criterion in the 59-section specification is complete.
+The source plan explicitly prioritizes a smaller reliable bunker and staged shared systems before all eleven facility archetypes. Version 0.2.0 implements the command bunker and the fortified estate with simplified art and animation. It is not a claim that every acceptance criterion in the 59-section specification is complete.
 
 | Area | Current implementation | Remaining work |
 |---|---|---|

@@ -50,7 +50,7 @@ world.afterEvents.worldLoad.subscribe(() => {
         else
             dirty.delete(id);
     } }), 40);
-    console.warn("[Secret Facilities] 0.1.0 loaded. Creative inventory → Facility Deployment Device. /scriptevent secretfacilities:kit supplies a kit.");
+    console.warn("[Secret Facilities] 0.2.0 loaded. Creative inventory → Facility Deployment Device. /scriptevent secretfacilities:kit supplies a kit.");
 });
 system.afterEvents.scriptEventReceive.subscribe(event => {
     if (event.id !== NS + "kit")

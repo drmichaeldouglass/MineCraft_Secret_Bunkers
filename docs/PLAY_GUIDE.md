@@ -2,7 +2,7 @@
 
 ## First launch
 
-Open `dist/Secret_Facilities_0.1.0.mcaddon` using Minecraft Bedrock 1.21.90+. Both packs must be activated on the world. The behavior pack declares its resource-pack dependency.
+Open `dist/Secret_Facilities_0.2.0.mcaddon` using Minecraft Bedrock 1.21.90+. Both packs must be activated on the world. The behavior pack declares its resource-pack dependency.
 
 Use a Creative test world with cheats enabled. The device and scanner deliberately refuse Survival use. Normal keycards, readers, consoles, elevators and alarms are available in Survival after deployment.
 
