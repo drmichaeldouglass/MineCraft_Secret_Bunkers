@@ -5,7 +5,7 @@ import { planBunker } from "../generation/planner.js";
 import { planEstate } from "../generation/estate.js";
 import { escapeRoute } from "../generation/tunnel.js";
 import { facilities, mark, save } from "./store.js";
-import { build, estateOriginAt, exitSite, originAt } from "./generation.js";
+import { estateOriginAt, exitSite, holdSite, originAt, releaseSite, siteAnchor, startBuild } from "./generation.js";
 import { abortDestruct, armDestruct, requestDoor, setSecurity, toggleDoor } from "./security.js";
 import { charges } from "./destruct.js";
 import { delay, dim, fade, findFacility, getClearance, report, shake, sound, tell } from "./world.js";
@@ -53,7 +53,7 @@ export function giveKit(player) {
 export async function deployment(player) {
     creative(player);
     const f = findFacility(player);
-    const form = new ActionFormData().title("SECRET FACILITIES").body("Command bunker and fortified estate • 0.2.1 alpha\n\nDeploy on dry land. A facility replaces blocks across its site. Use a test world or a backup.\n\nOther facility archetypes are planned for later stages.")
+    const form = new ActionFormData().title("SECRET FACILITIES").body("Command bunker and fortified estate • 0.2.2 alpha\n\nDeploy on dry land. A facility replaces blocks across its site. Use a test world or a backup.\n\nOther facility archetypes are planned for later stages.")
         .button("Deploy command bunker").button("Deploy fortified estate").button("Get development kit");
     if (f?.phase === "failed")
         form.button("Resume interrupted construction");
@@ -66,7 +66,8 @@ export async function deployment(player) {
         return;
     }
     if (answer.selection === 3 && f) {
-        build(f, player);
+        await holdSite(dim(f), f.id, f.type, f.origin, player);
+        startBuild(f, player);
         return;
     }
     if (answer.selection === 0 || answer.selection === 1)
@@ -89,7 +90,24 @@ async function configure(player, type) {
     const raw = String(settings.formValues[3] ?? "").trim(), seed = raw ? Number(raw) : Math.floor(Math.random() * 2147483647);
     if (!Number.isSafeInteger(seed))
         throw Error("The layout seed must be a whole number.");
-    const site = estate ? estateOriginAt(player) : originAt(player), origin = site.origin, start = { ...player.location }, id = `sf_${Date.now().toString(36)}_${Math.floor(Math.random() * 9999)}`;
+    if (player.dimension.id !== "minecraft:overworld")
+        throw Error("Choose an Overworld surface site.");
+    const id = `sf_${Date.now().toString(36)}_${Math.floor(Math.random() * 9999)}`, d = player.dimension;
+    // The site is held loaded from the survey until construction ends; every other way out lets it go.
+    await holdSite(d, id, type, siteAnchor(player, type), player);
+    let started = false;
+    try {
+        started = await survey(player, type, id, seed, levels, defences, preference);
+    }
+    finally {
+        if (!started)
+            releaseSite(d, id);
+    }
+}
+/** Survey the held site, confirm the plan with the player and start construction. Returns whether it started. */
+async function survey(player, type, id, seed, levels, defences, preference) {
+    const estate = type === "estate";
+    const site = estate ? estateOriginAt(player) : originAt(player), origin = site.origin, start = { ...player.location };
     const exit = exitSite(player.dimension, origin, seed, preference, type);
     const plan = estate ? planEstate(origin, levels, seed, defences, id, exit) : planBunker(origin, levels, seed, defences, id, exit);
     plan.ground = site.ground;
@@ -103,13 +121,14 @@ async function configure(player, type) {
         .body(`${estate ? "Fortified estate • " : ""}${levels} underground floors • seed ${seed}\n\n${where}\nReserved: ${plan.bounds.max.x - plan.bounds.min.x + 1} × ${plan.bounds.max.z - plan.bounds.min.z + 1} blocks\nLowest floor: Y ${plan.bounds.min.y}\nEscape tunnel: ${escapeRoute(plan)}${fallback}${earthworks}\n\nConstruction ${what} Stay nearby while it builds.`)
         .button1("Cancel").button2(estate ? "Build estate" : "Build bunker").show(player);
     if (confirm.canceled || confirm.selection !== 1)
-        return;
+        return false;
     creative(player);
     if (!player.isValid || player.dimension.id !== plan.dimension)
         throw Error("Return to the confirmed site in its original dimension. Deploy again here.");
     if (distance(player.location, start) > 16)
         throw Error("You moved away from the confirmed site. Deploy again here.");
-    build(plan, player);
+    startBuild(plan, player);
+    return true;
 }
 async function elevator(player, f, pos) {
     check(player, f, pos, 1);

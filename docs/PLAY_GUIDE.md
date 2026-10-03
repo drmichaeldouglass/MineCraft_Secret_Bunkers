@@ -2,7 +2,7 @@
 
 ## First launch
 
-Open `dist/Secret_Facilities_0.2.1.mcaddon` using Minecraft Bedrock 1.21.90+. Both packs must be activated on the world. The behavior pack declares its resource-pack dependency.
+Open `dist/Secret_Facilities_0.2.2.mcaddon` using Minecraft Bedrock 1.21.90+. Both packs must be activated on the world. The behavior pack declares its resource-pack dependency.
 
 Use a Creative test world with cheats enabled. The device and scanner deliberately refuse Survival use. Normal keycards, readers, consoles, elevators and alarms are available in Survival after deployment.
 
@@ -162,6 +162,7 @@ The Creative-only scanner displays facility ID, seed, bounds, floors and system 
 | Device does nothing | Confirm Creative mode, both packs, and game version; inspect the content log for script errors |
 | No registered facility | Stand within six blocks of its reserved bounds; manually placed consoles are unlinked |
 | Build paused | Return to the original site; increase simulation distance if necessary; resume with the deployment device |
+| "Part of the site has not loaded" | Deployment holds the site with two temporary ticking areas named after the facility. A world allows 10; remove unused ones (`/tickingarea list`, `/tickingarea remove <name>`) or raise simulation distance, then deploy again |
 | Access seems unrestricted | Remove black/master cards from all inventory slots before testing lower cards |
 | Repeated alarms after reset | Disable grids or clear their beams before returning to NORMAL |
 | Elevator fails | Stand on the cyan pad; clear the destination pad; use the ladder if a floor is unloaded |

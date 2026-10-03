@@ -5,11 +5,11 @@ import { blockAt, blocks, commands, dimension, entities, explosions, finishBuild
 import { ARMOURY_DOOR, MATERIALS, PIECES, planArmoury, SLOTS, standTag, TRIMS } from "../behavior_pack/scripts/generation/armoury.js";
 import { planBunker } from "../behavior_pack/scripts/generation/planner.js";
 import { facilities, levelGrids, load, mark, save } from "../behavior_pack/scripts/runtime/store.js";
-import { build, estateOriginAt, exitSite, FORECOURT, MAX_CUT, MAX_FILL, originAt } from "../behavior_pack/scripts/runtime/generation.js";
-import { COMPOUND, ESTATE_PAD, planEstate, TOWERS, WALL_HEIGHT } from "../behavior_pack/scripts/generation/estate.js";
+import { build, estateOriginAt, exitSite, FORECOURT, holdSite, MAX_CUT, MAX_FILL, originAt, siteAnchor } from "../behavior_pack/scripts/runtime/generation.js";
+import { COMPOUND, ESTATE_PAD, ESTATE_SEARCH, planEstate, TOWERS, WALL_HEIGHT } from "../behavior_pack/scripts/generation/estate.js";
 import { armDestruct, abortDestruct, BEAM_DAMAGE, ease, LEAF, requestDoor, restoreDoors, setSecurity, slid, SUBSTEPS, tickAlarms, tickDoors, tickLasers, travel } from "../behavior_pack/scripts/runtime/security.js";
-import { ARMOURY, column, MOUNTAIN, rearExit } from "../behavior_pack/scripts/generation/mountain.js";
-import { EXITS, REMOTE, SITE } from "../behavior_pack/scripts/generation/tunnel.js";
+import { ARMOURY, column, MOUNTAIN, PAD, rearExit } from "../behavior_pack/scripts/generation/mountain.js";
+import { exitCandidates, EXITS, REMOTE, routeColumns, SITE, siteColumns } from "../behavior_pack/scripts/generation/tunnel.js";
 import { tickDefence } from "../behavior_pack/scripts/runtime/defence.js";
 import { MISSILE, tickMissiles, tickPlaced } from "../behavior_pack/scripts/runtime/placed.js";
 const ns="secretfacilities:",at=(x,y,z)=>blocks.get(`${x},${y},${z}`);
@@ -343,6 +343,8 @@ test("a blast door reversed mid-slide turns back from where its leaves are",()=>
     assert.deepEqual(at(x,door.min.y,door.min.z).states,{[ns+"open"]:false,[ns+"slide"]:0});
 });
 const STANDS=()=>entities.filter(e=>e.typeId==="minecraft:armor_stand");
+/** Commands the build ran other than holding and releasing its site's ticking areas. */
+const dealing=()=>commands.filter(c=>!c.startsWith("tickingarea"));
 /** The deal each stand was given: slot to loot table, read back from the commands the build ran. */
 function deals(f){
   return f.armoury.map((_,i)=>Object.fromEntries(commands.filter(c=>c.includes(`tag=${standTag(f.id,i)}]`)).map(c=>{
@@ -388,8 +390,8 @@ test("the armoury: a room of armour stands off the lobby, each in an enchanted, 
   const deal=seed=>JSON.stringify(planArmoury(o,seed).map(s=>[s.material,s.trim]));
   assert.equal(deal(10),deal(10));assert.notEqual(deal(10),deal(11));
   // A resumed build keeps the stands it has rather than dealing a second set.
-  const before=commands.length;f.phase="failed";f.buildStep=0;build(f,players[0]);finishBuild();
-  assert.equal(STANDS().length,12);assert.equal(commands.length,before,"A resumed build dealt the suits again");
+  const before=dealing().length;f.phase="failed";f.buildStep=0;build(f,players[0]);finishBuild();
+  assert.equal(STANDS().length,12);assert.equal(dealing().length,before,"A resumed build dealt the suits again");
   // Rock covers the room, which stays open beneath it.
   for(let x=20;x<=29;x++)for(let z=1;z<=19;z++){
     const top=column(f.seed,x,z,rearExit(f),true).top;assert.ok(top>=ARMOURY.roof+4,`Thin cover over the armoury at ${x},${z}`);
@@ -401,7 +403,7 @@ test("a bunker saved before the armoury keeps a solid mountain where the room wo
   reset();facilities.clear();
   const f=planBunker({x:0,y:80,z:0},3,10,true,"old");delete f.armoury;f.modules=f.modules.filter(m=>m.role!=="armoury");
   const p=playerAt({x:13,y:81,z:-10});players.push(p);build(f,p);finishBuild();
-  assert.equal(STANDS().length,0);assert.equal(commands.length,0);
+  assert.equal(STANDS().length,0);assert.equal(dealing().length,0);
   for(let y=1;y<=5;y++)assert.notEqual(blockAt(24,80+y,10).typeId,"minecraft:air",`Hollow left in the mountain at 24,${y},10`);
 });
 test("self-destruct fires the charges and brings the whole bunker down",()=>{
@@ -722,6 +724,29 @@ test("estate self-destruct guts and burns the mansion, seals its lift, and leave
   assert.equal(blockAt(0,83,COMPOUND.z1).typeId,ns+"light_reinforced_concrete","The perimeter wall should stand");
   assert.equal(entities.filter(e=>e.typeId===ns+"laser_turret").length,1,"Only the tunnel's shut-down turret remains");
   escapes(f,[13,27]);
+});
+test("a deployment holds its whole site loaded with ticking areas until construction ends",async()=>{
+  for(const type of ["estate","bunker"]){
+    reset();facilities.clear();
+    const p=playerAt({x:200.5,y:81,z:300.5});players.push(p);
+    assert.equal(await holdSite(dimension,"held",type,siteAnchor(p,type),p),true);
+    const adds=commands.filter(c=>c.startsWith("tickingarea add"));assert.equal(adds.length,2,type);
+    // The game refuses a ticking area over 100 chunks.
+    const boxes=adds.map(c=>c.split(" ").slice(2,8).map(Number));
+    for(const [x0,,z0,x1,,z1] of boxes){
+      const chunks=(Math.floor(x1/16)-Math.floor(x0/16)+1)*(Math.floor(z1/16)-Math.floor(z0/16)+1);
+      assert.ok(chunks<=100,`${type} ticking area spans ${chunks} chunks`);
+    }
+    // Everything the survey reads lies inside them: the whole pad, and every exit site and route.
+    const s=type==="estate"?estateOriginAt(p):originAt(p),o=s.origin,pad=type==="estate"?ESTATE_PAD:PAD;
+    const held=(x,z)=>boxes.some(([x0,,z0,x1,,z1])=>x>=x0&&x<=x1&&z>=z0&&z<=z1);
+    for(const [x,z] of [[pad.x0,pad.z0],[pad.x1,pad.z1]])assert.ok(held(o.x+x,o.z+z),`${type} pad corner ${x},${z} is not held`);
+    for(const c of exitCandidates(type==="estate"?ESTATE_SEARCH:undefined))for(const [x,z] of [...siteColumns(c),...routeColumns(c)])
+      assert.ok(held(o.x+x,o.z+z),`${type} exit survey column ${x},${z} is not held`);
+    // A finished build lets the site go.
+    const f=type==="estate"?planEstate(o,3,5,false,"held"):planBunker(o,3,5,false,"held");f.ground=s.ground;build(f,p);finishBuild();
+    assert.deepEqual(commands.filter(c=>c.startsWith("tickingarea remove")),["tickingarea remove held_0","tickingarea remove held_1"]);
+  }
 });
 test("estates are surveyed across the whole compound, and without a remote site the tunnel comes up in the garden",()=>{
   reset();facilities.clear();

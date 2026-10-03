@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 BP, RP = ROOT / "behavior_pack", ROOT / "resource_pack"
 NS = "secretfacilities:"
 # Pack version. Must match "version" in package.json, which names the packaged add-on.
-VERSION = [0, 2, 1]
+VERSION = [0, 2, 2]
 # Door frames per block of travel. Must match SUBSTEPS in src/runtime/security.ts.
 DOOR_SUBSTEPS = 8
 DOOR_PX = 16 // DOOR_SUBSTEPS
@@ -1102,7 +1102,7 @@ def icon():
     for pack in [BP,RP]:save(im,pack/"pack_icon.png")
 
 def asset_inventory():
-    lines=["# Asset inventory", "", "Original generated assets shipped in 0.2.1. All visual/audio entries still require in-game acceptance.", "",
+    lines=["# Asset inventory", "", "Original generated assets shipped in 0.2.2. All visual/audio entries still require in-game acceptance.", "",
            "| Identifier | Type | Implementation / use | Texture | Model | Animation | Sound |",
            "|---|---|---|---|---|---|---|"]
     for name in BLOCKS:
@@ -1136,7 +1136,7 @@ def asset_inventory():
     (ROOT/"docs/assets.md").write_text("\n".join(lines)+"\n")
 
 def main():
-    write(BP/"manifest.json",{"format_version":2,"header":{"name":"Secret Facilities BP","description":"Procedural command bunker and shared security systems · 0.2.1 alpha","uuid":BP_UUID,"version":VERSION,"min_engine_version":[1,21,90]},
+    write(BP/"manifest.json",{"format_version":2,"header":{"name":"Secret Facilities BP","description":"Procedural command bunker and shared security systems · 0.2.2 alpha","uuid":BP_UUID,"version":VERSION,"min_engine_version":[1,21,90]},
         "modules":[{"type":"data","uuid":"f0641e5f-71aa-4fe1-a0c0-c7e532c9e5b8","version":VERSION},
                    {"type":"script","language":"javascript","uuid":"c577c5f3-e17b-4e46-bdf9-3f6900947862","entry":"scripts/main.js","version":VERSION}],
         "dependencies":[{"uuid":RP_UUID,"version":VERSION},{"module_name":"@minecraft/server","version":"2.0.0"},{"module_name":"@minecraft/server-ui","version":"2.0.0"}]})
