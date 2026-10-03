@@ -2,9 +2,9 @@
 
 A Minecraft **Bedrock Edition** add-on built from `Secret_Facilities_Plan.md`.
 
-**Release: 0.1.0 alpha — command bunker and fortified estate.** This is an importable implementation of the first two facilities, not the complete eleven-facility Version 1.0. Automated checks pass; Minecraft import, rendering, sound, controller/mobile interaction, and multiplayer behavior have **not** been tested in a running game.
+**Release: 0.2.0 alpha — command bunker and fortified estate.** This is an importable implementation of the first two facilities, not the complete eleven-facility Version 1.0. Automated checks pass; Minecraft import, rendering, sound, controller/mobile interaction, and multiplayer behavior have **not** been tested in a running game.
 
-[Download the add-on](dist/Secret_Facilities_0.1.0.mcaddon) · [Installation and controls](docs/PLAY_GUIDE.md) · [Test checklist](docs/TESTING.md) · [Implementation status](docs/STATUS.md)
+[Download the add-on](dist/Secret_Facilities_0.2.0.mcaddon) · [Installation and controls](docs/PLAY_GUIDE.md) · [Test checklist](docs/TESTING.md) · [Implementation status](docs/STATUS.md)
 
 ![Generated bunker floor plans](docs/bunker-preview.png)
 
@@ -16,7 +16,7 @@ The previews are rendered from the actual assembled block data and template voxe
 
 ## Install and start
 
-1. Open `dist/Secret_Facilities_0.1.0.mcaddon` with Minecraft Bedrock **1.21.90 or later**. Import both packs.
+1. Open `dist/Secret_Facilities_0.2.0.mcaddon` with Minecraft Bedrock **1.21.90 or later**. Import both packs.
 2. Create a Creative test world with cheats enabled. Activate **Secret Facilities BP** and **Secret Facilities RP**. No experimental toggles are intended to be required.
 3. Find **Facility Deployment Device** in the Creative inventory, or run:
 
@@ -33,11 +33,12 @@ If the kit command is unavailable, use `/give @s secretfacilities:facility_deplo
 
 ## Included
 
-- A 27-block-square modular command bunker with 3–8 underground floors, and 56 binary `.mcstructure` templates in all.
+- A 27-block-square modular command bunker with 3–8 underground floors, and 57 binary `.mcstructure` templates in all.
 - A **fortified estate**: a secure two-storey mansion in a walled, fenced and floodlit compound, with a gatehouse, blast-door gate, four watchtowers, a garage, a helipad, gardens and a generator house. Beneath it is a 3–5 floor bunker, reached by the lift in its grand hall. Window and garage shutters close in a lockdown, and nine laser turrets guard the gate, walls, roof, command deck and tunnel.
 - Floors with a purpose — living quarters, command, engineering & mining, hydroponics, research — furnished from 19 room types with working vanilla blocks: bunk rooms and bedrooms with real beds, lounges, mess halls, hydroponic farms with growing crops, live mining faces full of ore, workshops, labs, infirmaries, data centres, strongrooms and supply depots.
 - The whole site buried under a seeded mountain, with an open, overhung portal and approach cut.
 - Automatic cut-and-fill site levelling and solid rock encasement, so no floor surfaces through a hillside.
+- An armoury off the surface lobby: twelve armour stands, each in a full suit of gold, diamond or netherite armour with a matching sword. Every piece is freshly enchanted, each suit wears its own trim, and a new set is dealt for every bunker.
 - A five-block-wide entrance blast door that splits down the middle and slides apart sideways, room security doors, readers, alarm shutters, and emergency lights.
 - Four clearance levels and a Creative-only master card.
 - Multi-floor elevator transfer pads, a continuous emergency ladder, and a secret B1 escape tunnel. It runs under the mountain to a remote, terrain-matched exit: a utility shed, forest cabin, old well, hidden hatch or abandoned mine headframe. A keycard door, a laser grid and a junction turret guard it.

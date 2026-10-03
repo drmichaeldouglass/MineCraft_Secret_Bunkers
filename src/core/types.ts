@@ -47,6 +47,9 @@ export interface Facility {
   /** Blocks still to change to bring a facility built by an earlier version up to date, set as their
    *  chunks load. A change with 'only' is made only if that block is still there. */
   retrofit?: { pos: Vec; block: string; only?: string }[];
+  /** Armour stands in the bunker's armoury and the suits dealt to them. Absent for estates and for
+   *  bunkers built before the armoury. */
+  armoury?: { pos: Vec; yaw: number; material: "gold" | "diamond" | "netherite"; trim: number }[];
 }
 export const NS = "secretfacilities:";
 export const add = (a: Vec, b: Vec): Vec => ({ x: a.x + b.x, y: a.y + b.y, z: a.z + b.z });

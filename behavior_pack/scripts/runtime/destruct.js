@@ -2,6 +2,8 @@ import { BlockVolume, world } from "@minecraft/server";
 import { random } from "../core/rules.js";
 import { add, inside, NS } from "../core/types.js";
 import { FLOOR_STEP } from "../generation/planner.js";
+import { ARMOURY } from "../generation/mountain.js";
+import { standTag } from "../generation/armoury.js";
 import { mark } from "./store.js";
 import { dim, loaded, set, shake, sound } from "./world.js";
 /** Walls, floors and ceilings: scorched and cracked rather than removed, so the ruin still stands. */
@@ -103,6 +105,22 @@ function wreckSurface(f, d, rng) {
         volume(d, p(x, 1, z), p(x + range(rng, 0, 1), range(rng, 1, 3), z + range(rng, 0, 1)), RUBBLE[range(rng, 0, RUBBLE.length - 1)], ["minecraft:air"]);
     }
     volume(d, p(12, 6, 11), p(14, 7, 14), "minecraft:gravel");
+    // The armoury is gutted with the lobby. Its stands go with their suits rather than scattering them through the rubble.
+    if (f.armoury) {
+        f.armoury.forEach((_, i) => { for (const e of d.getEntities({ type: "minecraft:armor_stand", tags: [standTag(f.id, i)] }))
+            try {
+                e.remove();
+            }
+            catch { /* Gone. */ } });
+        const a = p(ARMOURY.x0, 0, ARMOURY.z0), b = p(ARMOURY.x1, ARMOURY.roof, ARMOURY.z1);
+        volume(d, a, b, NS + "damaged_panel", STRUCTURE);
+        volume(d, a, b, "minecraft:air", EQUIPMENT);
+        for (let i = 0; i < 4; i++) {
+            const x = range(rng, ARMOURY.x0, ARMOURY.x1 - 2), z = range(rng, ARMOURY.z0 + 1, ARMOURY.z1 - 2);
+            volume(d, p(x, 1, z), p(x + range(rng, 0, 1), range(rng, 1, 2), z + range(rng, 0, 1)), RUBBLE[range(rng, 0, RUBBLE.length - 1)], ["minecraft:air"]);
+        }
+        explode(d, p(24.5, 2, 10.5), 4);
+    }
     for (const door of f.doors)
         for (const e of d.getEntities({ type: NS + "blast_door_leaf", tags: [`sf_door:${f.id}:${door.id}`] }))
             try {

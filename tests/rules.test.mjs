@@ -47,7 +47,7 @@ test("beam intersection handles horizontal, vertical and degenerate segments",()
 test("600 layouts: required rooms, non-overlap, floor alignment, bounds, unique IDs",()=>{
   for(let levels=3;levels<=8;levels++)for(let seed=0;seed<100;seed++){
     const f=planBunker({x:-32,y:80,z:10},levels,seed,true);
-    assert.equal(f.modules.length,levels*9+1);assert.equal(f.floors.length,levels+1);
+    assert.equal(f.modules.length,levels*9+2);assert.equal(f.floors.length,levels+1);
     assert.equal(new Set(f.doors.map(d=>d.id)).size,f.doors.length);
     assert.equal(new Set(f.turrets.map(t=>t.id)).size,f.turrets.length);
     for(let floor=1;floor<=levels;floor++){
@@ -71,7 +71,7 @@ test("600 layouts: required rooms, non-overlap, floor alignment, bounds, unique 
     assert.equal(f.charges.length,levels*12-1+4);
     for(const c of f.charges){
       const x=c.x+32,z=c.z-10;
-      assert.ok(c.y>80?(x===5||x===21):(x===-1||x===27||z===-1||z===27),`charge inside the walls at ${JSON.stringify(c)}`);
+      assert.ok(c.y>80?(x===5||x===29):(x===-1||x===27||z===-1||z===27),`charge inside the walls at ${JSON.stringify(c)}`);
     }
     for(const door of f.doors)for(const pos of [door.min,door.max,...door.readers,...f.charges]){
       assert.ok(pos.x>=f.bounds.min.x&&pos.x<=f.bounds.max.x);

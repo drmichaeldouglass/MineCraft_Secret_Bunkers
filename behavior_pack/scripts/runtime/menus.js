@@ -53,7 +53,7 @@ export function giveKit(player) {
 export async function deployment(player) {
     creative(player);
     const f = findFacility(player);
-    const form = new ActionFormData().title("SECRET FACILITIES").body("Command bunker and fortified estate • 0.1.0 alpha\n\nDeploy on dry land. A facility replaces blocks across its site. Use a test world or a backup.\n\nOther facility archetypes are planned for later stages.")
+    const form = new ActionFormData().title("SECRET FACILITIES").body("Command bunker and fortified estate • 0.2.0 alpha\n\nDeploy on dry land. A facility replaces blocks across its site. Use a test world or a backup.\n\nOther facility archetypes are planned for later stages.")
         .button("Deploy command bunker").button("Deploy fortified estate").button("Get development kit");
     if (f?.phase === "failed")
         form.button("Resume interrupted construction");

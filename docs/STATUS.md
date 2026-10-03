@@ -2,7 +2,7 @@
 
 ## Release boundary
 
-The source plan explicitly prioritizes a smaller reliable bunker and staged shared systems before all eleven facility archetypes. Version 0.1.0 implements the command-bunker foundation with simplified art and animation. It is not a claim that every acceptance criterion in the 59-section specification is complete.
+The source plan explicitly prioritizes a smaller reliable bunker and staged shared systems before all eleven facility archetypes. Version 0.2.0 implements the command bunker and the fortified estate with simplified art and animation. It is not a claim that every acceptance criterion in the 59-section specification is complete.
 
 | Area | Current implementation | Remaining work |
 |---|---|---|
@@ -10,7 +10,7 @@ The source plan explicitly prioritizes a smaller reliable bunker and staged shar
 | Palette | 47 custom textured blocks, light state, seven items | Bespoke geometry for consoles, pipes, panels and readers; facility-specific palettes |
 | Modular construction | 48 binary templates, including five tunnel exits that use structure voids; 19 furnished room roles with working vanilla furniture; 9×7×9 rooms and halls on a 3×3 grid; 9-block floor spacing | Separate corner/T/cross/stair exports, large room families |
 | Bunker generation | 3–8 floors; guaranteed connected hall and core; each floor has a purpose with fixed rooms and a seeded pool | More varied topology; site preview; rollback/removal tooling |
-| Terrain entrance | Surveyed site levelled by cut-and-fill earthworks, then buried under a seeded mountain with an overhung portal and open approach; five-wide split blast door; solid rock encasement around every slab | Arbitrary rotations; trees and biome dressing on the mountain |
+| Terrain entrance | Surveyed site levelled by cut-and-fill earthworks, then buried under a seeded mountain with an overhung portal and open approach; five-wide split blast door; armoury of twelve armour stands in enchanted, trimmed suits dealt per bunker; solid rock encasement around every slab | Arbitrary rotations; trees and biome dressing on the mountain |
 | Doors | Stateful multi-block doors; entrance blast door whose two leaves part at a seam and slide sideways; 2-pixel, per-tick slide for room doors and shutters; reader clearance, obstruction handling | Articulated locking assemblies, distinct open/close sound layers |
 | Elevators | Clearance-controlled transfer pads with a rumbling ride, per-deck callouts, fade transfer, safe destination checks, emergency ladder | Cabin doors, physical shaft travel, freight variants |
 | Security | Horizontal three-beam grids across every hall, drawn as steady glowing lines, that raise the alarm on players and burn hostile mobs; alert/lockdown, sirens, flush ceiling alarm lamps, shutters; readers, consoles and lift panels set into walls and control columns | Local-response configuration UI; alarm/status console texture permutations |

@@ -1,6 +1,6 @@
 # Asset inventory
 
-Original generated assets shipped in 0.1.0. All visual/audio entries still require in-game acceptance.
+Original generated assets shipped in 0.2.0. All visual/audio entries still require in-game acceptance.
 
 | Identifier | Type | Implementation / use | Texture | Model | Animation | Sound |
 |---|---|---|---|---|---|---|
@@ -83,7 +83,7 @@ Twelve original mono WAV assets are mapped through `resource_pack/sounds/sound_d
 
 ## Structures
 
-56 authored/generated binary templates: 19 furnished room roles (bedrooms, bunk rooms, lounges, mess halls, hydroponic farms, mining faces, workshops, labs and more) in north/south connector orientations, four hall/core modules, the surface entrance, and 5 secret tunnel exits under `secretfacilities:tunnel/` (utility shed, forest cabin, old well, hidden hatch and abandoned mine headframe). The fortified estate adds 8 under `secretfacilities:estate/`: a two-storey mansion over the estate's bunker (grand hall with the lift and emergency ladder, dining room, kitchen, library, a study that is the defence control room, four bedrooms and a gallery), a gatehouse, a three-bay garage, a helipad, a fountain, a generator house, a corner watchtower and a gate pillar. Rooms use vanilla furniture with block entity data for bed colours; exits use structure voids so the levelled ground around them stays in place. See `module_catalog.json`. Programmed overlays add doors, readers, controls, grids, shafts, the escape tunnel and its ladder shaft, turrets, the covering mountain and TNT demolition charges.
+57 authored/generated binary templates: 19 furnished room roles (bedrooms, bunk rooms, lounges, mess halls, hydroponic farms, mining faces, workshops, labs and more) in north/south connector orientations, four hall/core modules, the surface entrance and its armoury, and 5 secret tunnel exits under `secretfacilities:tunnel/` (utility shed, forest cabin, old well, hidden hatch and abandoned mine headframe). The fortified estate adds 8 under `secretfacilities:estate/`: a two-storey mansion over the estate's bunker (grand hall with the lift and emergency ladder, dining room, kitchen, library, a study that is the defence control room, four bedrooms and a gallery), a gatehouse, a three-bay garage, a helipad, a fountain, a generator house, a corner watchtower and a gate pillar. Rooms use vanilla furniture with block entity data for bed colours; exits use structure voids so the levelled ground around them stays in place. See `module_catalog.json`. Programmed overlays add doors, readers, controls, grids, shafts, the escape tunnel and its ladder shaft, turrets, the covering mountain and TNT demolition charges.
 
 ## Other
 

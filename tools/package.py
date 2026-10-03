@@ -15,13 +15,19 @@ def archive(entries):
     return buffer.getvalue()
 def main():
     out=ROOT/"dist";out.mkdir(exist_ok=True)
+    # The add-on is named for the version in package.json, and both packs must declare the same one.
+    version=json.loads((ROOT/"package.json").read_text())["version"]
     packs=[]
     for folder,label in [("behavior_pack","Behavior"),("resource_pack","Resources")]:
         root=ROOT/folder
         assert (root/"manifest.json").exists()
+        declared=json.loads((root/"manifest.json").read_text())["header"]["version"]
+        assert declared==[int(n) for n in version.split(".")],f"{folder} manifest is {declared}, package.json is {version}"
         data=archive([(p.relative_to(root).as_posix(),p.read_bytes()) for p in root.rglob("*") if p.is_file() and not p.name.startswith(".")])
         name=f"Secret_Facilities_{label}.mcpack";(out/name).write_bytes(data);packs.append((name,data))
-    name="Secret_Facilities_0.1.0.mcaddon";data=archive(packs);(out/name).write_bytes(data)
+    # An older version's add-on is removed rather than left beside the new one.
+    for old in out.glob("Secret_Facilities_*.mcaddon"):old.unlink()
+    name=f"Secret_Facilities_{version}.mcaddon";data=archive(packs);(out/name).write_bytes(data)
     with zipfile.ZipFile(io.BytesIO(data)) as outer:
         assert outer.testzip() is None
         for pack in outer.namelist():

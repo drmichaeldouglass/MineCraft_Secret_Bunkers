@@ -1,6 +1,24 @@
 # Changelog
 
-## Unreleased — horizontal tripwires that burn, and controls set into the walls
+## 0.2.0 (2026-10-03)
+
+Everything since 0.1.0: the fortified estate, secret tunnels to remote exits, themed rooms under a mountain, a real self-destruct, horizontal tripwires, the armoury and several rounds of bug fixes.
+
+### The armoury
+
+- **An armoury off the surface lobby.** A doorway in the lobby's east wall opens into a steel-backed hall with a red runner down its aisle and twelve armour stands, eight along the far wall and two either side of the doorway, each turned to face the aisle.
+- **A suit on every stand.** Each stand wears a full suit of gold, diamond or netherite armour and holds a sword of the same metal: four suits of each metal. Every piece and every sword is enchanted as if from a fully powered enchanting table (levels 30 to 39, no treasure enchantments, so no curses), so each suit has its own mix. All four pieces of a suit share one armour trim, and no two suits share one. The metals and trims are shuffled by the bunker's seed and the enchantments are rolled as the bunker is built, so every bunker's armoury is different.
+- **How the suits are dealt.** The Script API cannot trim armour, but loot tables can. 147 generated loot tables under `loot_tables/secretfacilities/armoury/` (each metal's four pieces in each of twelve trims, and each metal's sword) trim and enchant one piece each, and the build deals them onto the stands with `/loot replace entity`. A resumed build leaves stands it already dressed alone. A piece the game refuses to deal is logged and left off rather than stopping the build.
+- The mountain keeps rock at least four blocks thick over the armoury roof. The portal's demolition charges on the east side move out to the armoury's outer wall. The self-destruct guts the armoury with the lobby and removes its stands and their suits.
+- Bunkers built before the armoury keep their mountain solid where the room would be.
+
+### Review fixes
+
+- **Estate windows no longer grow on reload.** The upgrade that makes old bunker hall shutters floor-to-ceiling also caught the estate's two-course window shutters. On every reload it stretched them to five courses and painted shutter over the housing above each window and the air above and below it. The upgrade now touches only the bunker's hall shutters. Estates already damaged are repaired when the world loads: each window is shrunk back to two courses, and its housing and the air around it are put back once a player comes near enough for their chunks to load.
+- **Tripwires burn hostile mobs on every floor.** The mobs near each grid were cached by the grid's x and z, which every floor shares, so only the first floor checked (usually B1) burned anything. The cache is now kept per floor.
+- **The ruin stays sealed.** Anyone can open or shut doors during a self-destruct countdown. A door shut then was opened again when the facility was destroyed, which painted open door blocks over the rubble sealing the portal and back into blown-out doorways. Once demolition has begun, a door whose blocks were blown out or buried no longer moves. A door that survives, like the tunnel's, still works as the way out.
+
+### Horizontal tripwires that burn, and controls set into the walls
 
 - **Tripwires are horizontal.** Each floor's east hall had a single vertical beam from the floor up to a receiver hanging under the ceiling. Both halls now have a grid of three horizontal beams, at ankle, waist and chest height (0.4, 1.4 and 2.4 blocks above the floor), from an emitter set into one wall to a receiver in the other. The west grid still raises LOCKDOWN from B3 down; the east grid raises ALERT.
 - **Beams you can see.** A beam was a few faint dots drawn every three-quarters of a second. Each beam is now one thin, steady, glowing red line from emitter to receiver, redrawn every quarter second while a player is within 24 blocks.
@@ -15,7 +33,7 @@
 - **Existing bunkers are upgraded too.** A bunker saved with the old vertical beams gets the new horizontal grids when the world loads. The floor emitter is paved over, the hanging receiver is removed, and the new emitters and receivers are set into the hall walls as soon as a player comes near enough for their chunks to load. An unfinished build is upgraded when it finishes, and a destroyed bunker is left alone.
 - Readers, consoles and panels in facilities already built keep the positions they were saved with, so they go on working where they are. New deployments use the new positions.
 
-## Unreleased — Stage 15: fortified estate
+### Stage 15: fortified estate
 
 - **A second facility: the fortified estate.** The deployment device now offers **Deploy fortified estate** next to the command bunker. It builds a secure mansion inside a walled compound, with a bunker underneath, a secret escape tunnel and automated defences.
 - **The compound.** A 75 × 81 block site levelled like the bunker's pad and enclosed by a five-block reinforced concrete wall topped with an iron security fence and floodlights. Inside are a watchtower in each corner, a gatehouse beside the gate, a three-bay garage, a helipad, a fountain, flower beds, hedges along the driveway, and a generator house and garden behind the mansion.
@@ -28,7 +46,7 @@
 - Shared systems generalised for more than one facility type: the underground floors, the secret tunnel and the survey are shared code. Exit sites can be kept clear of a facility's footprint, and exterior turret zones share the long range.
 - `tools/preview.py` also renders `docs/estate-preview.png`, a site plan of an assembled estate with the mansion template beside it.
 
-## Unreleased — Stage 14: secret tunnels
+### Stage 14: secret tunnels
 
 - **The escape tunnel now leads somewhere secret.** The B1 tunnel no longer stops at a hut dug into the back of the bunker's mountain. It runs on under the mountain to a junction chamber, then south, east or west to a remote exit 37 to 55 blocks from the core, well clear of the mountain, and a ladder shaft climbs from the tunnel to the surface.
 - **Five exits that suit the ground.** A utility shed, a spruce forest cabin, an old dry well, a hidden hatch in the undergrowth and an abandoned mine headframe, each an authored 7×7 template. Deployment surveys nine candidate sites and picks the flattest dry one that keeps at least two blocks of rock over the tunnel. The exit type follows the ground it lands on: a cabin among trees, a well in sand, a mine on bare rock, and a shed, hatch or well on open land. The deployment menu can also force a particular exit. The chosen exit's type, direction, distance and coordinates are shown before you confirm, and again on the debug scanner and the self-destruct screens.
@@ -40,14 +58,14 @@
 - Horizontal laser grids can now run along x as well as z, which the tunnel's grid needs.
 - `tools/preview.py` also renders `docs/tunnel-exits.png`, an isometric view of the five exit templates.
 
-## Unreleased — bug fixes from a third review
+### Bug fixes from a third review
 
 - **Lockdown shutters did not seal the hall.** Each floor's shutter covered only the middle two of the corridor's five courses, leaving a one-block gap along the floor that small mobs (baby zombies, silverfish, endermites) walked under, and a two-block gap under the ceiling that a player could climb into with a couple of placed blocks. Shutters now fill the corridor from floor to ceiling and take 2 s to travel. Bunkers saved by earlier builds are grown to full height when the world loads.
 - **A dropped item could hold a door open for minutes.** Door closure waited for any entity in the doorway, including dropped items, experience orbs and spent arrows. A mob shot down by the entrance turrets in front of the blast door could stop it closing until its drops despawned. Closing doors now ignore loose items and projectiles and only wait for mobs and players.
 - **Teleporting could trip a laser grid.** The tripwire check joins each player's last and current positions so a fast walk between sensor ticks is still caught. After a `/tp`, a respawn or a dimension change, that line could run straight through a beam the player never went near. A jump longer than 8 blocks, or into another dimension, is now treated as a teleport and only the new position is checked.
 - Test harness: leftover door jobs from one test no longer carry over into the next and change its timing.
 
-## Unreleased — themed rooms, a hidden mountain site and a real self-destruct
+### Themed rooms, a hidden mountain site and a real self-destruct
 
 - **Rooms have specific jobs.** Every floor now has a purpose, with fixed rooms that always appear and a seeded pool for the rest: B1 Administration & Security, B2 Living Quarters, B3 Command, B4 Engineering & Mining, B5 High Security, B6 Hydroponics & Supply, B7 Research and B8 Deep Excavation. There are 19 room types, furnished with working vanilla blocks instead of construction-block props: bunk rooms and officers' bedrooms with real (coloured) beds, lounges, mess halls with a galley, hydroponic farms with irrigated crops under grow lights, mining faces of live ore-bearing rock with a railed drift and smelters, workshops, power plants with a caged reactor core, infirmaries, laboratories, command and data centres, briefing rooms, security offices with a holding cell, archives, strongrooms, water treatment and supply depots. The asset builder checks every room keeps its aisle and reader spot clear.
 - **The bunker is hidden under a mountain.** After the fittings go in, a seeded mountain about 24 blocks high is heaped over the whole site. The portal becomes a cave mouth under an overhanging brow, marked by two floodlights and reached along an open cut in the north face. Beyond the levelled pad the slopes only fill air and water, so they drape over the surrounding terrain. The escape hut is dug into the back of the mountain and its door now faces south, out onto clear ground; its ladder moved to the west wall.
@@ -56,9 +74,9 @@
 - **Turret shots are a solid glowing beam.** Each shot is now a single additive, full-bright particle emitter that fills the line from muzzle to target with a white-hot core, a red body and a soft halo, fading over a third of a second, plus a flash and a spray of sparks on impact. Tripwire grids keep their faint dotted beam.
 - The deployment's reserved bounds now include the mountain; the loaded-area check still covers only the levelled pad.
 
-## Unreleased — bug fixes
+### Bug fixes
 
-### From in-game testing
+#### From in-game testing
 
 - **You could see through walls.** Large parts of the bunker and the surrounding terrain stopped rendering, leaving an x-ray view of room interiors with sky showing through. Open doors and shutters used a block geometry with no cubes, which breaks the client's chunk meshing, and partially open door frames used the `opaque` render method, which tells the client the block fills its whole cube so neighbouring faces were hidden. Open doors are now a fully transparent cube, partial frames use `alpha_test`, and the validator rejects both mistakes.
 - **Floors surfaced through hillsides.** The generator anchored the whole footprint to the topmost block of a single column, so on sloping ground the "underground" levels broke out of the hillside and you looked straight into them, with fog and water where the terrain should have been. Deployment now surveys the whole footprint and refuses sites that are wet or vary by more than five blocks, and every underground slab is encased in solid rock before the modules are carved into it.
@@ -71,7 +89,7 @@
 
 - **Finding a site was too hard.** Deployment refused any footprint whose ground varied by more than five blocks. Uneven ground is now levelled into a flat pad instead: hills are cut away and dips, caves, water and lava under the pad are backfilled with earth that matches the local surface. Sites are refused only if they rise and fall more than 24 blocks, or if water or lava stands above the pad where it would flood the entrance. The confirmation screen shows how much will be cut and filled.
 
-### Found by review
+#### Found by review
 
 - Fixed the self-destruct console sharing a block with B3's security console, which made the entire self-destruct sequence unreachable: the console opened the security menu instead, and confirming "arm" silently raised an alert.
 - Fixed a finished build being recorded as `failed` when the builder disconnected before the completion message could be delivered.
@@ -82,7 +100,7 @@
 - `tools/package.py` now writes archive entries with forward slashes on every host OS.
 - Added a planner regression test asserting that every generated fixture claims a distinct block.
 
-### Found by second review
+#### Found by second review
 
 - **The emergency ladder shaft was a fatal drop.** Installation cleared a two-wide column through every floor but only the east half held the ladder, leaving an open hole beside it in the surface lobby and on each deck, straight down to the deepest floor. Only the ladder column now passes through the floors.
 - **The escape hut had no floor.** The B1 tunnel ladder rose through an open 3×3 shaft, so the hut's exit was two blocks of empty air away from the top of the ladder and players fell back down the shaft. The hut now has a floor with a single ladder opening.
@@ -91,7 +109,7 @@
 - Structure palettes now list every block state (door `slide`, slab `vertical_half`), as game-saved structures do, instead of relying on the game to fill in missing states.
 - Added regression tests for the ladder floor openings, the escape hut floor and exit, and the hut survey.
 
-### Smoother doors
+#### Smoother doors
 
 - **The entrance blast door now slides smoothly.** While it moves, a `blast_door_leaf` entity draws the leaf and the player's client eases it toward the scripted position every frame, instead of the door stepping with block updates. The door blocks still provide collision and clear course by course as the leaf passes, the leaf is hidden inside the wall once raised, and it is removed when the slide ends. Obstruction still holds a closing door, and a leaf stranded by a reload is cleaned up.
 - **Room doors and shutters move in 2-pixel steps every tick**, instead of quarter-block steps every other tick. Travel times are unchanged: 1.2 s for doors and 0.8 s for shutters (the blast door takes 1.6 s).

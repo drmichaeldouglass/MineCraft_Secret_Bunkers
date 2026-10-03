@@ -344,6 +344,14 @@
     ]
   },
   {
+    "identifier": "secretfacilities:bunker/armoury",
+    "size": [
+      8,
+      7,
+      17
+    ]
+  },
+  {
     "identifier": "secretfacilities:tunnel/exit_utility_shed",
     "size": [
       7,

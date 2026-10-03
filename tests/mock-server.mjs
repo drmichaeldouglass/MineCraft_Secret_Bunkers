@@ -2,7 +2,7 @@ import fs from "node:fs";
 const catalog=JSON.parse(fs.readFileSync(new URL("../tools/generated/template_voxels.json",import.meta.url),"utf8"));
 const templates=new Map(catalog.map(t=>[`secretfacilities:${t.folder}/${t.name}`,t]));
 const xyz=p=>`${Math.floor(p.x)},${Math.floor(p.y)},${Math.floor(p.z)}`;
-export const blocks=new Map(),properties=new Map(),players=[],entities=[],tasks=new Map(),explosions=[],particles=[],sounds=[];
+export const blocks=new Map(),properties=new Map(),players=[],entities=[],tasks=new Map(),explosions=[],particles=[],sounds=[],commands=[];
 // Terrain profile the site survey reads. Flat by default; tests override it to model slopes,
 // standing water (the water surface y, or undefined for a dry column), the surface block, and
 // trees: a four-block trunk under a leaf crown.
@@ -45,6 +45,7 @@ export const dimension={
     remove(){this.isValid=false;entities.splice(entities.indexOf(this),1);}};entities.push(e);return e;},
   spawnParticle(id,location,vars){particles.push({id,location,vars:vars?.values});},playSound(id,location,options){sounds.push({id,location,options});},spawnItem(){},getBlockFromRay(){return undefined;},
   createExplosion(location,radius,options){explosions.push({location,radius,options});return true;},
+  runCommand(command){commands.push(command);return {successCount:1};},
 };
 const signal={subscribe(){}};
 export const world={getDimension(){return dimension;},getAllPlayers(){return players;},getEntity(id){return entities.find(e=>e.id===id);},
@@ -67,4 +68,4 @@ export function playerAt(location){return {id:"player1",typeId:"minecraft:player
   camera:{fade(){}},
   getComponent(){return {container:{size:1,getItem(){return {typeId:"secretfacilities:keycard_master"};}}};}};}
 export function finishBuild(){for(let i=0;i<1500&&tasks.size;i++){for(const work of [...tasks.values()])work();system.currentTick+=2;}if(tasks.size)throw Error("Build did not finish");}
-export function reset(){blocks.clear();properties.clear();players.length=0;entities.length=0;tasks.clear();explosions.length=0;particles.length=0;sounds.length=0;system.currentTick=0;terrain.height=()=>80;terrain.water=()=>undefined;terrain.top=()=>"minecraft:grass_block";terrain.tree=()=>false;}
+export function reset(){blocks.clear();properties.clear();players.length=0;entities.length=0;tasks.clear();explosions.length=0;particles.length=0;sounds.length=0;commands.length=0;system.currentTick=0;terrain.height=()=>80;terrain.water=()=>undefined;terrain.top=()=>"minecraft:grass_block";terrain.tree=()=>false;}
