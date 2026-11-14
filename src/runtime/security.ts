@@ -1,4 +1,4 @@
-import { EntityDamageCause, system, world, type Dimension, type Entity, type Player } from "@minecraft/server";
+import { EntityDamageCause, GameMode, system, world, type Dimension, type Entity, type Player } from "@minecraft/server";
 import { defenceActive, mayOpen, segmentDistance } from "../core/rules.js";
 import { add, distance, inside, NS, type Door, type Facility, type Laser, type SecurityState, type Vec } from "../core/types.js";
 import { facilities, mark, save } from "./store.js";
@@ -103,7 +103,9 @@ export function requestDoor(f:Facility,door:Door,open:boolean):void {
   const progress=running?running.progress:(door.open?travel(door):0);
   door.open=open;mark(f);
   moving.set(key,{f,door,progress,target:open?travel(door):0,repaint:false,started:false,leaf:running?.leaf,motion:running?.motion,hidden:running?.hidden});
-  if(door.kind==="blast")sound(f,"blast_door_warning",door.min);
+  // A door already where it is asked to be does not move, so it gives no warning: an alert must not
+  // sound the entrance's klaxon over a blast door that was shut all along.
+  if(door.kind==="blast"&&progress!==(open?travel(door):0))sound(f,"blast_door_warning",door.min);
 }
 export function restoreDoors(f:Facility):void {
   for(const door of f.doors){const at=door.open?travel(door):0;
@@ -118,11 +120,13 @@ export function toggleDoor(player:Player,f:Facility,door:Door):void {
 /** Loose things a closing door may shut on; the game pushes them out of the block. Counting them
  *  let one dropped item or spent arrow in a doorway hold the door open until it despawned. */
 const DEBRIS=new Set([LEAF,"minecraft:item","minecraft:xp_orb","minecraft:arrow","minecraft:thrown_trident","minecraft:snowball","minecraft:egg"]);
+/** A spectator has no body: they drift through doors and beams alike, so neither notices them. */
+const spectating=(e:Entity):boolean => e.typeId==="minecraft:player"&&(e as Player).getGameMode()===GameMode.Spectator;
 function occupied(d:Dimension,door:Door):boolean {
   const a=door.min,b=door.max;
   const c={x:(a.x+b.x+1)/2,y:(a.y+b.y+1)/2,z:(a.z+b.z+1)/2};
   const reach=Math.hypot(b.x-a.x,b.y-a.y,b.z-a.z)/2+4;
-  return d.getEntities({location:c,maxDistance:reach}).some(e=>!DEBRIS.has(e.typeId)&&inside(e.location,{min:{x:a.x-0.7,y:a.y-1.9,z:a.z-0.7},max:{x:b.x+1.7,y:b.y+1,z:b.z+1.7}}));
+  return d.getEntities({location:c,maxDistance:reach}).some(e=>!DEBRIS.has(e.typeId)&&!spectating(e)&&inside(e.location,{min:{x:a.x-0.7,y:a.y-1.9,z:a.z-0.7},max:{x:b.x+1.7,y:b.y+1,z:b.z+1.7}}));
 }
 export function tickDoors():void {
   let writes=0;
@@ -241,7 +245,7 @@ export function tickLasers():void {
     if(f.phase!=="ready"||!f.lasersEnabled||f.state==="DESTROYED"||f.state==="SELF_DESTRUCT"||!nearby(f))continue;
     const d=dim(f),local=players.filter(p=>p.dimension.id===f.dimension&&inside(p.location,f.bounds,SENSOR_RANGE));
     // Reading clearance scans a whole inventory; do it once per tick, not once per beam.
-    const watched=local.filter(p=>getClearance(p)<4),mobs=new Map<string,Entity[]>();
+    const watched=local.filter(p=>!spectating(p)&&getClearance(p)<4),mobs=new Map<string,Entity[]>();
     for(const laser of f.lasers){
       if(!local.some(p=>distance(p.location,laser.a)<SENSOR_RANGE))continue;
       if(!loaded(d,laser.a)||!loaded(d,laser.b))continue;

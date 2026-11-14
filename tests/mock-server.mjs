@@ -14,7 +14,7 @@ const natural=(x,y,z)=>{const h=surface(x,z),w=terrain.water(x,z),tree=terrain.t
     w!==undefined&&y<=w?"minecraft:water":"minecraft:air",states:{}};};
 export const blockAt=(x,y,z)=>blocks.get(xyz({x,y,z}))??natural(x,y,z);
 let serial=0;
-export const GameMode={Creative:"Creative",Survival:"Survival"};
+export const GameMode={Creative:"Creative",Survival:"Survival",Spectator:"Spectator"};
 export const EntityDamageCause={entityAttack:"entityAttack",entityExplosion:"entityExplosion"};
 export class ItemStack{constructor(typeId){this.typeId=typeId;}}
 export class BlockVolume{constructor(a,b){this.a=a;this.b=b;}}

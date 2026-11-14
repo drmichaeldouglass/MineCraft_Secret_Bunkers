@@ -1,8 +1,9 @@
 import { system, world } from "@minecraft/server";
 import { NS } from "./core/types.js";
-import { dirty, facilities, load, save } from "./runtime/store.js";
+import { dirty, facilities, interrupted, load, save } from "./runtime/store.js";
 import { giveKit, interact, runMenu, scheduleDevice } from "./runtime/menus.js";
 import { report } from "./runtime/world.js";
+import { releaseStaleSites } from "./runtime/generation.js";
 import { registerDoorEvents, restoreDoors, tickAlarms, tickDoors, tickLasers } from "./runtime/security.js";
 import { registerDefenceEvents, tickDefence } from "./runtime/defence.js";
 import { tickMissiles, tickPlaced } from "./runtime/placed.js";
@@ -29,6 +30,12 @@ world.afterEvents.worldLoad.subscribe(() => {
     catch (error) {
         report(error);
     }
+    try {
+        releaseStaleSites(interrupted);
+    }
+    catch (error) {
+        report(error);
+    }
     registerDefenceEvents();
     registerDoorEvents();
     const safe = (work) => () => { try {
@@ -50,7 +57,7 @@ world.afterEvents.worldLoad.subscribe(() => {
         else
             dirty.delete(id);
     } }), 40);
-    console.warn("[Secret Facilities] 0.2.2 loaded. Creative inventory → Facility Deployment Device. /scriptevent secretfacilities:kit supplies a kit.");
+    console.warn("[Secret Facilities] 0.2.3 loaded. Creative inventory → Facility Deployment Device. /scriptevent secretfacilities:kit supplies a kit.");
 });
 system.afterEvents.scriptEventReceive.subscribe(event => {
     if (event.id !== NS + "kit")

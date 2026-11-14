@@ -248,7 +248,7 @@ def deploy_flow():
     d.text((42, 74), "Use the Facility Deployment Device in Creative mode. Three screens take you from open ground to a build.",
            font=font(16), fill=MUTED)
     form(im, 50, 140, 420, "SECRET FACILITIES",
-         "Command bunker and fortified estate • 0.2.2 alpha\n\nDeploy on dry land. A facility replaces blocks across its site. Use a test world or a backup.",
+         "Command bunker and fortified estate • 0.2.3 alpha\n\nDeploy on dry land. A facility replaces blocks across its site. Use a test world or a backup.",
          ["*Deploy command bunker", "Deploy fortified estate", "Get development kit"], step=1,
          caption="Pick what to build. The kit button gives you the keycards, scanner and turret eggs. A Resume button appears if a build was interrupted.")
     form(im, 540, 140, 420, "BUNKER CONFIGURATION", "",

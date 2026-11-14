@@ -1,8 +1,9 @@
 import { system, world } from "@minecraft/server";
 import { NS } from "./core/types.js";
-import { dirty, facilities, load, save } from "./runtime/store.js";
+import { dirty, facilities, interrupted, load, save } from "./runtime/store.js";
 import { giveKit, interact, runMenu, scheduleDevice } from "./runtime/menus.js";
 import { report } from "./runtime/world.js";
+import { releaseStaleSites } from "./runtime/generation.js";
 import { registerDoorEvents, restoreDoors, tickAlarms, tickDoors, tickLasers } from "./runtime/security.js";
 import { registerDefenceEvents, tickDefence } from "./runtime/defence.js";
 import { tickMissiles, tickPlaced } from "./runtime/placed.js";
@@ -18,6 +19,7 @@ system.beforeEvents.startup.subscribe(event=>{
 world.afterEvents.worldLoad.subscribe(()=>{
   // A demolished or demolishing facility's doors are rubble now; repainting them would rebuild them.
   try{load();for(const f of facilities.values())if(f.phase==="ready"&&f.destructionStep===undefined&&f.state!=="DESTROYED")restoreDoors(f);}catch(error){report(error);}
+  try{releaseStaleSites(interrupted);}catch(error){report(error);}
   registerDefenceEvents();registerDoorEvents();
   const safe=(work:()=>void)=>()=>{try{work();}catch(error){report(error);}};
   system.runInterval(safe(tickDoors),1);
@@ -27,7 +29,7 @@ world.afterEvents.worldLoad.subscribe(()=>{
   system.runInterval(safe(tickMissiles),1);
   system.runInterval(safe(tickAlarms),10);
   system.runInterval(safe(()=>{for(const id of [...dirty]){const f=facilities.get(id);if(f)save(f);else dirty.delete(id);}}),40);
-  console.warn("[Secret Facilities] 0.2.2 loaded. Creative inventory → Facility Deployment Device. /scriptevent secretfacilities:kit supplies a kit.");
+  console.warn("[Secret Facilities] 0.2.3 loaded. Creative inventory → Facility Deployment Device. /scriptevent secretfacilities:kit supplies a kit.");
 });
 system.afterEvents.scriptEventReceive.subscribe(event=>{
   if(event.id!==NS+"kit")return;
