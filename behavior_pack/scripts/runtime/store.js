@@ -3,6 +3,8 @@ import { NS } from "../core/types.js";
 const INDEX = "secretfacilities:index";
 export const facilities = new Map();
 export const dirty = new Set();
+/** Facilities whose build was cut off by the world closing, found by the last load. */
+export const interrupted = [];
 export function mark(f) { dirty.add(f.id); }
 export function save(f) {
     const prefix = `secretfacilities:${f.id}`;
@@ -59,6 +61,7 @@ export function shrinkWindows(f) {
 }
 export function load() {
     const ids = JSON.parse(String(world.getDynamicProperty(INDEX) ?? "[]"));
+    interrupted.length = 0;
     for (const id of ids) {
         try {
             const prefix = `secretfacilities:${id}`, bank = Number(world.getDynamicProperty(`${prefix}:bank`) ?? 0);
@@ -74,8 +77,10 @@ export function load() {
             if (f.schema !== 1 || f.id !== id || !lists.every(Array.isArray) || !f.floors.length || !Object.keys(f.zones ?? {}).length)
                 throw Error("Unsupported facility save");
             // Generations interrupted by world closure can be resumed explicitly.
-            if (f.phase === "building")
+            if (f.phase === "building") {
                 f.phase = "failed";
+                interrupted.push(id);
+            }
             // Shutters saved by earlier builds covered only the middle two of the hall's five courses. Growing
             // them to floor and ceiling is safe: the door repaint on load fills the new courses. Only the
             // bunker's hall shutters: an estate window shutter is two courses tall by design.

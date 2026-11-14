@@ -82,6 +82,13 @@ Record game version, content-log messages, seed, world coordinates and action se
 - Open the debug scanner, move more than eight blocks from its opening location, then select a change. It must be rejected. Verify a selection made nearby still works.
 - Close a security door, blast door or shutter with an entity obstructing the doorway, save and reload, and confirm it stays passable until the entity moves away. Confirm it then closes and an unoccupied closed door remains closed on reload.
 
+## 0.2.3 manual regression checks
+
+- Start an estate deployment and leave the world while the confirmation form is open. Reload: `/tickingarea list` must not show the two areas named after that deployment.
+- Leave the world during a build, reload, and confirm `/tickingarea list` is clear before resuming. Resume with the deployment device; the areas return while it builds and go when it is ready.
+- With the bunker's entrance shut, trigger an alert from a security console. The alarm sounds but the blast door's warning klaxon must not. Open the door with a reader; the warning must sound.
+- In Spectator mode, fly through a hall laser grid and hover in a doorway while another player closes it. No alarm; the door closes.
+
 ## 0.2.2 manual regression checks
 
 - With the default simulation distance (4 chunks), deploy a fortified estate. The action bar may show "Loading the site…" briefly; the confirmation must then appear. While it is open, `/tickingarea list` shows two areas named after the facility.

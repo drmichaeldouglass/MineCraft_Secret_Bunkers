@@ -274,11 +274,22 @@ function siteAreas(type:Facility["type"]):Box[] {
     z0:Math.min(JUNCTION.z,...zs)-SITE,z1:Math.max(JUNCTION.z,...zs)+SITE}];
 }
 const LOAD_TICKS=300;
+/** Sites holding ticking areas right now. Ticking areas are saved with the world but a running
+ *  deployment is not, so the list is saved too: whatever is still on it when the world next loads
+ *  was cut off by the world closing, and is let go then. */
+const HELD=NS+"held";
+function heldSites():string[] {
+  try{const ids:unknown=JSON.parse(String(world.getDynamicProperty(HELD)??"[]"));
+    return Array.isArray(ids)?ids.filter((id):id is string=>typeof id==="string"&&/^\w+$/.test(id)):[];}
+  catch{return [];}
+}
 /** Keep a deployment's whole site loaded with ticking areas, then wait until it is. Without them
  *  the far side of an estate lies beyond the default simulation distance and never loads, so the
  *  survey could never finish. Returns whether everything loaded in time. */
 export async function holdSite(d:Dimension,id:string,type:Facility["type"],origin:{x:number;z:number},player?:Player):Promise<boolean> {
   const areas=siteAreas(type).map(b=>({x0:origin.x+b.x0,x1:origin.x+b.x1,z0:origin.z+b.z0,z1:origin.z+b.z1}));
+  // Recorded before the areas are added, so a world closed at any moment after still lets them go.
+  const held=heldSites();if(!held.includes(id))world.setDynamicProperty(HELD,JSON.stringify([...held,id]));
   areas.forEach((b,i)=>{
     try{d.runCommand(`tickingarea add ${b.x0} 0 ${b.z0} ${b.x1} 0 ${b.z1} ${id}_${i} true`);}
     catch{/* Already held, or the world's ticking areas are used up: simulation distance must do. */}
@@ -297,6 +308,15 @@ export async function holdSite(d:Dimension,id:string,type:Facility["type"],origi
 /** Let the site's chunks unload again once a deployment is built, abandoned or cancelled. */
 export function releaseSite(d:Dimension,id:string):void {
   for(let i=0;i<2;i++)try{d.runCommand(`tickingarea remove ${id}_${i}`);}catch{/* Never added. */}
+  const held=heldSites();if(held.includes(id))world.setDynamicProperty(HELD,JSON.stringify(held.filter(h=>h!==id)));
+}
+/** On world load nothing is being surveyed or built, so every ticking area a deployment left behind
+ *  is stale: the world closed during a survey, a confirmation or a build. Left alone they would keep
+ *  their chunks loaded for good and use up the world's ten ticking areas. Also takes the builds found
+ *  interrupted on load, for worlds saved before the list of held sites was kept. */
+export function releaseStaleSites(interrupted:string[]=[]):void {
+  const d=world.getDimension("minecraft:overworld");
+  for(const id of new Set([...heldSites(),...interrupted.filter(id=>/^\w+$/.test(id))]))releaseSite(d,id);
 }
 /** Start or resume construction on a site already held by holdSite, releasing it if the build
  *  cannot start. A build already under way keeps its site. */

@@ -2,9 +2,9 @@
 
 A Minecraft **Bedrock Edition** add-on that builds secret underground bunkers for you. Stand on open ground, use the **Facility Deployment Device**, and a multi-floor command bunker is dug out beneath you and buried under a mountain. It comes with keycard doors, an elevator, laser tripwires, alarm lockdowns, defence turrets, a hidden escape tunnel and a self-destruct sequence. You can also build a **fortified estate**: a walled mansion compound with its own bunker underneath.
 
-**Release: 0.2.2 alpha.** This release has the first two facilities from [`Secret_Facilities_Plan.md`](Secret_Facilities_Plan.md): the command bunker and the fortified estate. Automated checks pass, but import, rendering, sound, controller and touch input, and multiplayer have **not** yet been tested in a running game.
+**Release: 0.2.3 alpha.** This release has the first two facilities from [`Secret_Facilities_Plan.md`](Secret_Facilities_Plan.md): the command bunker and the fortified estate. Automated checks pass, but import, rendering, sound, controller and touch input, and multiplayer have **not** yet been tested in a running game.
 
-**[Download the add-on](dist/Secret_Facilities_0.2.2.mcaddon)** · [Full play guide](docs/PLAY_GUIDE.md) · [Test checklist](docs/TESTING.md) · [Implementation status](docs/STATUS.md) · [Changelog](CHANGELOG.md)
+**[Download the add-on](dist/Secret_Facilities_0.2.3.mcaddon)** · [Full play guide](docs/PLAY_GUIDE.md) · [Test checklist](docs/TESTING.md) · [Implementation status](docs/STATUS.md) · [Changelog](CHANGELOG.md)
 
 ![Cross-section of a five-floor command bunker under its mountain, with the escape tunnel running to a remote exit](docs/readme/cross-section.png)
 
@@ -56,7 +56,7 @@ The pack also includes 47 custom construction and control blocks, seven custom i
 
 **You need:** Minecraft Bedrock Edition **1.21.90 or later** on Windows, iPhone, iPad, Android, Xbox or any other Bedrock platform. No experimental toggles should be required.
 
-1. **Download** [`Secret_Facilities_0.2.2.mcaddon`](dist/Secret_Facilities_0.2.2.mcaddon) from the `dist/` folder.
+1. **Download** [`Secret_Facilities_0.2.3.mcaddon`](dist/Secret_Facilities_0.2.3.mcaddon) from the `dist/` folder.
 2. **Import it into Minecraft:**
    - **Windows:** double-click the `.mcaddon` file. Minecraft opens and imports both packs.
    - **iPhone or iPad:** save the file to the Files app, tap it (or use **Share** and choose **Minecraft**).

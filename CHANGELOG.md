@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.3 (2026-11-14)
+
+Fixes from a code review. Nothing new to build; existing worlds load unchanged.
+
+- **Ticking areas are no longer left behind when the world closes mid-deployment.** The two ticking areas that hold a site loaded are saved with the world, but the survey or build that would have removed them is not. Leaving the world while the site was loading, while the confirmation form was open, or during construction left them in place for good: their chunks stayed loaded, and after a few such deployments the world's ten ticking areas were used up, so an estate could not be deployed again. Sites being held are now recorded in the world, and whatever is still on the record when the world next loads is released. Builds found interrupted on load are released too, which also clears areas left by 0.2.2.
+- **A blast door that does not move gives no warning.** Every alert, lockdown and reset asks each door for the state it should be in, and the blast door sounded its warning klaxon each time, even when it was already there. It now sounds only when the door is about to move.
+- **Spectators no longer trip laser grids or hold doors open.** A player in Spectator mode passing through a beam raised the alarm, and one hovering in a doorway kept the door from closing.
+- Added three regression tests. Removed tracked `.DS_Store` files and a Python bytecode cache from the repository.
+
 ## 0.2.2 (2026-10-03)
 
 - **The fortified estate can be deployed again.** Its survey reads ground up to about 65 blocks from where you stand, and its escape tunnel search reaches further still. With the default simulation distance those chunks were never loaded, so deployment always stopped with "The site is not fully loaded yet" however long you waited. Deployment now holds the whole site loaded with two temporary ticking areas (the levelled pad, and the exit sites with their tunnel routes), waits up to 15 seconds for them to load, then surveys. They stay in place through construction, so a long build no longer pauses when distant chunks unload, and are removed when the build finishes, fails or is cancelled. Resuming an interrupted build holds the site the same way. The command bunker uses the same mechanism.

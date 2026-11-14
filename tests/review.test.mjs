@@ -1,12 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { blocks, dimension, entities, playerAt, players, reset, tasks } from "./mock-server.mjs";
+import { blocks, commands, dimension, entities, GameMode, playerAt, players, properties, reset, tasks } from "./mock-server.mjs";
 import { answers } from "./mock-ui.mjs";
 import { planBunker } from "../behavior_pack/scripts/generation/planner.js";
-import { build } from "../behavior_pack/scripts/runtime/generation.js";
+import { build, holdSite, releaseStaleSites, siteAnchor } from "../behavior_pack/scripts/runtime/generation.js";
 import { debug, deployment } from "../behavior_pack/scripts/runtime/menus.js";
-import { facilities, load, save } from "../behavior_pack/scripts/runtime/store.js";
-import { requestDoor, restoreDoors, tickDoors, travel } from "../behavior_pack/scripts/runtime/security.js";
+import { facilities, interrupted, load, save } from "../behavior_pack/scripts/runtime/store.js";
+import { requestDoor, restoreDoors, setSecurity, tickDoors, tickLasers, travel } from "../behavior_pack/scripts/runtime/security.js";
 
 const ns="secretfacilities:";
 function setup(){
@@ -49,4 +49,45 @@ test("restoring a pending closure never repaints solid doors around an occupant"
     for(let i=0;i<travel(door)+5;i++)tickDoors();
     assert.equal(blocks.get(`${door.min.x},${door.min.y},${door.min.z}`).states[ns+"open"],false,kind);
   }
+});
+test("ticking areas left by a deployment the world closed on are released when it next loads",async()=>{
+  const removed=()=>commands.filter(c=>c.startsWith("tickingarea remove"));
+  // The world closes while the confirmation form is open: nothing was registered, only the areas remain.
+  const {f,p}=setup();
+  await holdSite(dimension,"orphan",f.type,siteAnchor(p,f.type),p);
+  assert.equal(removed().length,0);
+  commands.length=0;load();releaseStaleSites(interrupted);
+  assert.deepEqual(removed(),["tickingarea remove orphan_0","tickingarea remove orphan_1"]);
+  // Once released they are forgotten, and a deployment that ended normally is never on the list.
+  commands.length=0;releaseStaleSites();assert.equal(removed().length,0);
+  // The world closes during construction, in a save made before held sites were listed.
+  build(f,p);properties.delete(ns+"held");facilities.clear();tasks.clear();commands.length=0;
+  load();assert.equal(facilities.get(f.id).phase,"failed");releaseStaleSites(interrupted);
+  assert.deepEqual(removed(),["tickingarea remove review_0","tickingarea remove review_1"]);
+});
+test("a blast door already where it is asked to be gives no warning",()=>{
+  const {f,p}=setup();f.phase="ready";facilities.set(f.id,f);
+  const played=[];p.playSound=id=>played.push(id);
+  const warnings=()=>played.filter(id=>id===ns+"blast_door_warning").length;
+  // The entrance is shut already, so an alert moves nothing there.
+  setSecurity(f,"ALERT");assert.equal(warnings(),0);
+  const door=f.doors.find(d=>d.kind==="blast");
+  requestDoor(f,door,true);assert.equal(warnings(),1);
+  // Reversing mid-slide is a movement too.
+  for(let i=0;i<5;i++)tickDoors();
+  requestDoor(f,door,false);assert.equal(warnings(),2);
+});
+test("spectators neither trip laser grids nor hold doors open",()=>{
+  const {f,p}=setup();f.phase="ready";facilities.set(f.id,f);
+  p.getComponent=()=>({container:{size:0,getItem(){}}});
+  const laser=f.lasers[0],mid={x:laser.a.x,y:Math.floor(laser.a.y),z:(laser.a.z+laser.b.z)/2};
+  p.location=mid;p.getGameMode=()=>GameMode.Spectator;
+  tickLasers();assert.equal(f.state,"NORMAL");
+  const door=f.doors.find(d=>d.kind==="security");
+  entities.push({...p,id:"ghost",location:{...door.min},tags:[]});
+  requestDoor(f,door,false);for(let i=0;i<travel(door)+2;i++)tickDoors();
+  assert.equal(blocks.get(`${door.min.x},${door.min.y},${door.min.z}`).states[ns+"open"],false);
+  entities.length=0;
+  p.getGameMode=()=>GameMode.Survival;
+  tickLasers();assert.equal(f.state,"ALERT");
 });
